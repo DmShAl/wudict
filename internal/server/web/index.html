@@ -3931,7 +3931,13 @@ let stylerTab="app",
     // null until the folder has been read once, which is what lets the dot
     // on the Files tab mean "there are files" rather than "not looked yet".
     stylerFileRows=null,
-    stylerFileLimits=null;
+    stylerFileLimits=null,
+    // Which stylesheet the textarea is currently SHOWING, "" until it has
+    // shown one. stylerCommit folds the box back into the pair, and before
+    // the first render the box mirrors nothing: committing an empty textarea
+    // as the app sheet is how a freshly loaded app.css was erased the moment
+    // the editor opened.
+    stylerBox="";
 
 /* The app half of the preview, and it has to OWN the app layer, not merely
    sit on top of it. Winning on order is enough to ADD a rule and nowhere near
@@ -4035,9 +4041,10 @@ function stylerNote(msg){
 /* The textarea is the single source of truth for the tab on screen; this is
    the one point where it is folded back into the pair we hold. */
 function stylerCommit(){
+  if(!stylerBox)return;
   const v=$("stylerCSS").value;
-  if(v===stylerText[stylerTab])return;
-  stylerText[stylerTab]=v;
+  if(v===stylerText[stylerBox])return;
+  stylerText[stylerBox]=v;
 }
 function stylerPreview(){
   if(STYLE_OFF)return;
@@ -4055,6 +4062,7 @@ function stylerShowTab(tab){
   $("tabApp").setAttribute("aria-selected",String(tab==="app"));
   $("tabArticle").setAttribute("aria-selected",String(tab==="article"));
   $("stylerCSS").value=stylerText[tab];
+  stylerBox=tab;
   stylerSync();
   $("stylerCSS").placeholder=tab==="app"
     ? "CSS for the app itself — its colours and its own layout.\nTokens set on :root reach articles too."

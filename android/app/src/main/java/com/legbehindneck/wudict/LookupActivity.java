@@ -84,6 +84,22 @@ public class LookupActivity extends Activity {
             finish();
             return;
         }
+        // A link, not a word. A browser's "share download link" and a forum
+        // post pasted from a clipboard both arrive here as text/plain, because
+        // that is the filter this activity owns - and looking up
+        // "https://…/dict.zip" as a headword would be a guaranteed no result
+        // for the one share a user most obviously meant as an import. The
+        // decision of which SITES may be fetched is the server's (D130); this
+        // only distinguishes a link from a word.
+        String link = link(text(i));
+        if (link != null) {
+            startActivity(new Intent(this, MainActivity.class)
+                    .putExtra(Intake.EXTRA_URL, link)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+            finish();
+            return;
+        }
+
         Uri data = i == null ? null : i.getData();
         mode = mode(param(data, "mode"));
         dict = clean(param(data, "dict"));
@@ -170,6 +186,20 @@ public class LookupActivity extends Activity {
                 return null;
             }
         }
+    }
+
+    /**
+     * The shared text as a LINK, or null if it is not one. Read from the raw
+     * selection rather than from `query`, because clean() bounds a headword at
+     * 256 characters and a download URL with a signature in its query string
+     * is routinely longer than that - truncating one would turn a valid link
+     * into a broken one instead of into a word.
+     */
+    private static String link(CharSequence cs) {
+        if (cs == null) return null;
+        String s = (cs.length() > SCAN_LIMIT ? cs.subSequence(0, SCAN_LIMIT) : cs)
+                .toString().trim();
+        return Intake.isURL(s) ? s : null;
     }
 
     /** Whitespace collapsed, bounded, or null if nothing usable is left. */

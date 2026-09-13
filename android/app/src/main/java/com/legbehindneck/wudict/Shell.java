@@ -136,7 +136,10 @@ final class Shell {
         // Shell-private URLs (wudict://…) are a channel from the page to the
         // Java side that costs no JavascriptInterface and no server API: this
         // method already inspects every navigation, so the branch is free.
-        if (Storage.handleShellUri(a, uri)) return true;
+        // Intake first, then the flavour's Storage - Intake owns the one
+        // host that means the same thing in both flavours and delegates the
+        // rest unchanged.
+        if (Intake.handleShellUri(a, uri)) return true;
         try {
             a.startActivity(new Intent(Intent.ACTION_VIEW, uri)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

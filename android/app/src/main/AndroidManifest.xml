@@ -63,6 +63,130 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- An archive opened from a file manager. ARCHIVES ONLY, and
+                 only the two this engine actually reads:
+
+                 * .mdx/.ifo/.dsl/.slob/.bgl have no registered MIME type and
+                   arrive as application/octet-stream, so a filter that caught
+                   them would put WuWeiDict in the open-with sheet of every
+                   unknown binary on the device. The Play flavour accepts those
+                   through ACTION_SEND, where the user has already named us.
+                 * application/gzip is NOT claimed: a .gz is not an archive
+                   this engine opens, and claiming it means appearing for every
+                   .tar.gz and .log.gz on the phone.
+                 * zip and 7z ARE claimed, because both are read here and both
+                   are what the dictionary sites hand out. The rule is that an
+                   open-with entry must be able to finish the job it is offered
+                   for; rar and tar are absent for exactly that reason.
+
+                 No pathPattern: content:// URIs from DocumentsUI carry opaque
+                 document ids, so a suffix match never fires, and the multi-dot
+                 PatternMatcher behaviour makes it unreliable where it does. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/x-7z-compressed" />
+            </intent-filter>
+
+            <!-- A DICTIONARY FILE opened from a file manager (D138). Separate
+                 from the archive filter above because it is a different trade
+                 and has to be readable as one.
+
+                 None of .mdx/.mdd/.slob/.bgl/.zim/.ifo/.dsl has a registered
+                 MIME type, and a content:// URI carries an opaque document id
+                 rather than a file name - so there is no filter that matches
+                 those extensions and nothing narrower than octet-stream to
+                 claim. Claiming it means wuDict is listed for untyped files
+                 IN GENERAL: a .bin, a firmware blob, a partial download. That
+                 is the price of appearing for a .mdx at all, and it is paid
+                 knowingly.
+
+                 What is NOT paid is silence. Intake reads the provider's
+                 display name on arrival - the first point at which this app
+                 can see an extension - and declines anything it cannot read
+                 by name (intake_unsupported), so being chosen for the wrong
+                 file costs the user one sentence and nothing else.
+
+                 application/gzip stays out: .dsl.dz and .dict.dz are real
+                 main files, but claiming gzip means appearing for every
+                 .tar.gz and .log.gz on the phone, and those arrive through
+                 the share sheet where the user has already named us. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- Links to the sites that distribute these dictionaries (D139).
+                 An ORDINARY browsable filter, with NO android:autoVerify: an
+                 App Link would need /.well-known/assetlinks.json served from
+                 those domains naming our package and signing certificate, and
+                 we do not run them. Without it Android simply treats wuDict as
+                 one more candidate for these URLs, which is all that is wanted
+                 - the same shape AuroraStore uses for play.google.com links.
+
+                 What that is worth depends on the Android version, and the
+                 difference is worth knowing before this looks broken:
+
+                 * Android 11 and below - wuDict joins the chooser, or can be
+                   made the default handler for these hosts.
+                 * Android 12 and above - an unapproved web filter gets
+                   NOTHING; the link goes straight to the browser. The user
+                   turns it on per-domain in Settings > Apps > wuDict > Open
+                   by default > Add link. The filter is what makes that switch
+                   exist at all, so it is still the price of admission.
+
+                 Hosts, not paths: a forum thread and a download link are the
+                 same URL shape on these sites, and pathPattern cannot tell
+                 them apart (no backtracking, and a query string carries the
+                 file). A tapped link that turns out to be a page is refused by
+                 the server in a sentence - ErrNotArchive - which is the same
+                 bargain the octet-stream filter above makes. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="freemdict.com" />
+                <data android:host="www.freemdict.com" />
+                <data android:host="downloads.freemdict.com" />
+                <data android:host="pkemb.com" />
+                <data android:host="www.pkemb.com" />
+                <data android:host="mdx.mdict.org" />
+            </intent-filter>
+
+            <!-- Sharing an archive, from a browser's download list or a file
+                 manager. In src/main because an archive is handled by the
+                 flavour-neutral Intake, which needs no storage permission and
+                 no picker grant - so the FOSS flavour, which has no intake of
+                 any kind today, gains this. The Play manifest keeps the
+                 octet-stream and gzip variants of these filters for its own
+                 loose-file importer; the archive types belong to exactly one
+                 handler. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/x-7z-compressed" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/x-7z-compressed" />
+            </intent-filter>
+
             <!-- Long-press the launcher icon → Settings (D100). The meta-data
                  must sit on the MAIN/LAUNCHER activity: that is the one the
                  launcher reads shortcuts from. -->

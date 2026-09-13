@@ -42,11 +42,24 @@ func Stem(src string) string {
 	return strings.TrimSuffix(s, filepath.Ext(s))
 }
 
-// mainExt classifies a main file for the tables below: the longest registered
-// spelling, so a compressed DSL is ".dsl.dz" and not ".dz".
-func mainExt(src string) string {
+// mainExts are those spellings, longest first so ".dsl.dz" is answered before
+// the ".dsl" inside it. One list, read twice: MainExt matches a name against
+// it, and classify.go walks it to build the companion vocabulary, so a format
+// that grows a companion table cannot be forgotten by the other reader.
+var mainExts = []string{".dsl.dz", ".dsl", ".mdx", ".ifo", ".slob", ".bgl", ".zim"}
+
+// MainExt names the format of a main file for the tables below: the longest
+// spelling this file has companion knowledge about, so a compressed DSL is
+// ".dsl.dz" and not ".dz".
+//
+// Deliberately its own list rather than the format registry's. The registry
+// answers "what can this build open", which depends on which format packages
+// were linked in; this answers "which formats does THIS FILE hold companion
+// tables for", a closed set that must read the same in a test binary that has
+// linked no format at all. ClassifyName is the one that asks the registry.
+func MainExt(src string) string {
 	lower := strings.ToLower(src)
-	for _, e := range []string{".dsl.dz", ".dsl", ".mdx", ".ifo", ".slob", ".bgl", ".zim"} {
+	for _, e := range mainExts {
 		if strings.HasSuffix(lower, e) {
 			return e
 		}
@@ -61,7 +74,7 @@ func CompanionMedia(src string) []string {
 	dir := filepath.Dir(src)
 	base := Stem(src)
 	var out []string
-	switch mainExt(src) {
+	switch MainExt(src) {
 	case ".mdx":
 		for _, f := range []string{base + ".mdd", base + ".1.mdd"} {
 			if fileExists(f) {
@@ -106,11 +119,15 @@ func CompanionMedia(src string) []string {
 	return out
 }
 
-// indexCompanions are the non-media files a format needs beside its main file:
-// StarDict's index and article blob, DSL's abbreviations. Suffixes are
+// CompanionSuffixes are the non-media files a format needs beside its main
+// file: StarDict's index and article blob, DSL's abbreviations. Suffixes are
 // appended to the STEM, and a candidate equal to the main file is skipped.
-func indexCompanions(src string) []string {
-	switch mainExt(src) {
+//
+// Takes the extension rather than the path because the two callers hold
+// different things: SourceFiles has a path on disk, the archive sniffer has an
+// entry name and no disk at all. One table, both readings.
+func CompanionSuffixes(mainExt string) []string {
+	switch mainExt {
 	case ".ifo":
 		// Every spelling the format reader accepts, or removal leaves the
 		// orphan behind and the panel under-reports what a dictionary is: the
@@ -123,9 +140,54 @@ func indexCompanions(src string) []string {
 		}
 	case ".dsl", ".dsl.dz":
 		return []string{"_abrv.dsl", "_abrv.dsl.dz", ".ann", ".dsl.ann"}
+	case ".mdx":
+		// A repacked MDX ships its stylesheet and scripts LOOSE beside the
+		// .mdx rather than packed in the .mdd - LDOCE6.css and entry.js are
+		// the canonical pair - and mdx.looseFile serves them from there at
+		// read time. So they are companions in the only sense this file
+		// means: without them the articles render as unstyled text, and an
+		// import or a removal that ignored them would be wrong about what the
+		// dictionary is made of. The .mdd resources are media and live in
+		// MediaSuffixes.
+		return []string{".css", ".js"}
 	}
-	// MDX resources are media (.mdd, handled above); slob and bgl are single
-	// files that carry everything inside them.
+	// slob, bgl and zim are single files that carry everything inside them.
+	return nil
+}
+
+// MediaSuffixes are the STEM suffixes a format keeps its images and audio
+// under. The stat-based CompanionMedia resolves rather more than this - MDX's
+// numbered parts, DSL's three spellings of the same zip, StarDict's shared
+// res/ folder, all of which need a directory to look at - so this is the
+// name-only half: what a media file is CALLED, for a caller holding a list of
+// names and nothing to stat.
+func MediaSuffixes(mainExt string) []string {
+	switch mainExt {
+	case ".mdx":
+		// covers ".mdd" and every ".<n>.mdd" part, which end in it
+		return []string{".mdd"}
+	case ".dsl", ".dsl.dz":
+		return []string{".files.zip"}
+	}
+	return nil
+}
+
+// RequiredCompanions are the companions without which a main file is not a
+// working dictionary, as groups of alternative spellings: each group must be
+// satisfied by at least one member. A StarDict .ifo is a text header naming an
+// index and an article blob that it does not contain, so an .ifo arriving
+// alone is an incomplete dictionary and not a small one - the only format here
+// where that is true. Every other format's main file carries its own articles.
+//
+// Used by intake to refuse a broken import rather than install it and let the
+// failure surface later as a dictionary that opens and answers nothing.
+func RequiredCompanions(mainExt string) [][]string {
+	if mainExt == ".ifo" {
+		return [][]string{
+			{".idx", ".idx.gz", ".idx.dz"},
+			{".dict", ".dict.dz"},
+		}
+	}
 	return nil
 }
 
@@ -139,7 +201,7 @@ var abbrevSuffixes = []string{"_abrv.dsl.dz", "_abrv.dsl"}
 // writes it as the expansion map for the [p] labels of its parent, which is why
 // the parent absorbs it at ingest and it is not discovered on its own.
 func AbbrevCompanion(src string) (string, bool) {
-	switch mainExt(src) {
+	switch MainExt(src) {
 	case ".dsl", ".dsl.dz":
 	default:
 		return "", false
@@ -214,7 +276,7 @@ func SourceFiles(src string) []string {
 		}
 	}
 	base := Stem(src)
-	for _, suf := range indexCompanions(src) {
+	for _, suf := range CompanionSuffixes(MainExt(src)) {
 		p := base + suf
 		if !strings.EqualFold(p, src) && fileExists(p) {
 			add(p)

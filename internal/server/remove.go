@@ -158,6 +158,7 @@ func (r *Registry) Remove(id string, dropPrepared, dropSource bool) (removal, er
 			rep.Note = "could not delete " + strings.Join(failed, ", ")
 		}
 		logx.V("removed %d original file(s) of %s", len(rep.Sources), rep.Name)
+		r.pruneEmptied(rep.Sources)
 	}
 
 	if err := r.Rescan(); err != nil {
@@ -168,6 +169,41 @@ func (r *Registry) Remove(id string, dropPrepared, dropSource bool) (removal, er
 		rep.Note = "the original files are still in a scanned folder, so this dictionary will be indexed again the next time it is searched"
 	}
 	return rep, nil
+}
+
+// pruneEmptied removes the folder a removed dictionary's files were the whole
+// of. An import creates one folder per dictionary, so removing the dictionary
+// that lived there leaves an empty one behind - and an empty folder with a
+// dictionary's name is not inert: the next import of the same bundle used to
+// read it as an installation and offer to "update" something the user had just
+// removed (D137).
+//
+// Deliberately one level and no recursion, and never a scanned folder or the
+// download shelf: those are places the user put things, and this only unmakes
+// what an install made. A folder that still holds anything at all - a note, a
+// licence, the other half of something - is left exactly as it is.
+func (r *Registry) pruneEmptied(removed []string) {
+	roots := make(map[string]bool)
+	for _, d := range r.Dirs() {
+		roots[filepath.Clean(d)] = true
+	}
+	seen := make(map[string]bool, len(removed))
+	for _, p := range removed {
+		dir := filepath.Clean(filepath.Dir(p))
+		if seen[dir] || roots[dir] || filepath.Base(dir) == dict.DownloadDirName {
+			continue
+		}
+		seen[dir] = true
+		ents, err := os.ReadDir(dir)
+		if err != nil || len(ents) > 0 {
+			continue
+		}
+		if err := os.Remove(dir); err != nil {
+			// Nothing to report: the dictionary is gone either way, and an
+			// empty folder is not a failure the user can act on (D102).
+			logx.V("could not remove emptied folder %s: %v", dir, err)
+		}
+	}
 }
 
 // has reports whether an id survived the last rescan.

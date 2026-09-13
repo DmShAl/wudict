@@ -129,6 +129,21 @@ public final class IndexService extends Service {
     private static boolean foreground;
     private static boolean stopWanted;
 
+    // What the notification SAYS. The service is shared by three jobs that
+    // take minutes - the server's ingest, an import copying files, a download
+    // - and only the job knows which one it is, so the job says so and this
+    // class only repeats it. The default is the ingest's, because that is the
+    // one arrival that has no holder to speak for it: it comes from the
+    // server's markers (D140).
+    //
+    // labelPct is -1 for "no number available", which is not the same as 0:
+    // a site that declared no length has no percentage to show, and a bar
+    // sitting at zero for four minutes is a worse answer than a moving
+    // indeterminate one.
+    private static int labelTitle = R.string.index_title;
+    private static int labelText = R.string.index_text;
+    private static int labelPct = -1;
+
     /** Whether the server is preparing a dictionary right now. */
     static boolean isBusy() {
         return serverBusy;
@@ -151,15 +166,82 @@ public final class IndexService extends Service {
      * import copies its gigabytes here, before the files exist anywhere the
      * server can see them, and that copy is the phase most likely to be killed.
      * Balanced by {@link #release}, and safe to nest with a concurrent ingest.
+     *
+     * <p>The holder names its own work, because only it knows what the work is
+     * and the notification is the user's only view of it (D140). {@link #phase}
+     * renames it as the job moves on; {@link #progress} moves the bar.
      */
-    static void hold(Context ctx) {
+    static void hold(Context ctx, int titleRes, int textRes) {
         Context app = ctx.getApplicationContext();
         boolean up;
         synchronized (LOCK) {
             holds++;
+            labelTitle = titleRes;
+            labelText = textRes;
+            labelPct = -1;
             up = recompute();
         }
         apply(app, up);
+    }
+
+    /**
+     * Renames the work in flight, for a job that passes through more than one
+     * phase - a download that lands and starts extracting. Cheap and safe to
+     * call on every poll tick: it repaints only when something it shows has
+     * actually changed.
+     */
+    static void phase(Context ctx, int titleRes, int textRes) {
+        boolean changed;
+        synchronized (LOCK) {
+            changed = labelTitle != titleRes || labelText != textRes;
+            labelTitle = titleRes;
+            labelText = textRes;
+            if (changed) labelPct = -1; // the old phase's number is not this one's
+        }
+        if (changed) repost(ctx.getApplicationContext());
+    }
+
+    /** Moves the bar. {@code pct} outside 0-100 means "no number to show". */
+    static void progress(Context ctx, int pct) {
+        int p = pct >= 0 && pct <= 100 ? pct : -1;
+        boolean changed;
+        synchronized (LOCK) {
+            changed = labelPct != p;
+            labelPct = p;
+        }
+        if (changed) repost(ctx.getApplicationContext());
+    }
+
+    /**
+     * Repaints a notification that is already up. Deliberately NOT a start:
+     * the service arms on work, not on somebody describing it, and a percentage
+     * arriving in the debounce window or after the last release must not raise
+     * a notification of its own. NotificationManager.notify with the service's
+     * own id is how a foreground notification is updated in place.
+     */
+    private static void repost(Context app) {
+        // On the main thread, and not merely for convention: onDestroy runs
+        // there too, and it is what REMOVES this notification. Checking
+        // `foreground` from a poll thread and then posting would lose that
+        // race about once a job - the check passes, the service is destroyed
+        // and clears the shade, and the repaint lands afterwards, leaving an
+        // ongoing notification with nothing behind it and no way to end it.
+        // Queued on the same thread, the two orderings are the only two there
+        // are: before the destroy, and cancelled by it; or after, and refused.
+        HANDLER.post(() -> {
+            synchronized (LOCK) {
+                if (!foreground) return;
+            }
+            NotificationManager nm = app.getSystemService(NotificationManager.class);
+            if (nm == null) return;
+            try {
+                nm.notify(NOTIFICATION, build(app));
+            } catch (RuntimeException e) {
+                // A repaint is not worth a crash: the protection lives in the
+                // service record, and the text is only its receipt.
+                Log.d(TAG, "index notification update: " + e);
+            }
+        });
     }
 
     /** Releases a {@link #hold}. Must be reached on every path, including throws. */
@@ -168,6 +250,14 @@ public final class IndexService extends Service {
         boolean up;
         synchronized (LOCK) {
             if (holds > 0) holds--;
+            if (holds == 0) {
+                // Back to the ingest's wording: what usually follows an import
+                // is the preparation it triggered, and that phase has no
+                // holder of its own to name it.
+                labelTitle = R.string.index_title;
+                labelText = R.string.index_text;
+                labelPct = -1;
+            }
             up = recompute();
         }
         apply(app, up);
@@ -339,18 +429,7 @@ public final class IndexService extends Service {
             ch.setShowBadge(false);
             nm.createNotificationChannel(ch);
         }
-        Intent open = new Intent(this, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        Notification n = new Notification.Builder(this, CHANNEL)
-                .setContentTitle(getString(R.string.index_title))
-                .setContentText(getString(R.string.index_text))
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentIntent(pi)
-                .setOngoing(true)
-                .build();
+        Notification n = build(this);
 
         if (typed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             // Declaring the type is required from API 29 and enforced from 34,
@@ -361,6 +440,41 @@ public final class IndexService extends Service {
         }
     }
 
+    /**
+     * The notification as it stands right now. Static and context-taking so a
+     * repaint does not need the service instance: by the time a percentage
+     * arrives, the only thing that matters is whether the record is foreground,
+     * which repost() has already asked.
+     */
+    private static Notification build(Context ctx) {
+        Intent open = new Intent(ctx, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pi = PendingIntent.getActivity(ctx, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        int title, text, pct;
+        synchronized (LOCK) {
+            title = labelTitle;
+            text = labelText;
+            pct = labelPct;
+        }
+        Notification.Builder b = new Notification.Builder(ctx, CHANNEL)
+                .setContentTitle(ctx.getString(title))
+                .setContentText(ctx.getString(text))
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setContentIntent(pi)
+                .setOngoing(true)
+                // Every phase this covers is minutes long and none of them is
+                // news: the receipt belongs at the bottom of the shade, not at
+                // the top of it.
+                .setOnlyAlertOnce(true);
+        // Indeterminate rather than absent when there is no number: the bar is
+        // what says the work is alive, and a notification with neither a number
+        // nor movement is indistinguishable from one that is stuck.
+        b.setProgress(100, pct < 0 ? 0 : pct, pct < 0);
+        return b.build();
+    }
+
     @Override
     public void onDestroy() {
         synchronized (LOCK) {
@@ -369,6 +483,17 @@ public final class IndexService extends Service {
             stopWanted = false;
         }
         stopForeground(STOP_FOREGROUND_REMOVE);
+        // Belt for a repaint that slipped in between the last startForeground
+        // and this: stopForeground removes what the SERVICE posted, and a
+        // notify() from repost is the manager's own copy of the same id.
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) {
+            try {
+                nm.cancel(NOTIFICATION);
+            } catch (RuntimeException e) {
+                Log.d(TAG, "index notification cancel: " + e);
+            }
+        }
         super.onDestroy();
     }
 

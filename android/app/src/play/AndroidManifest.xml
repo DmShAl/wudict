@@ -11,7 +11,10 @@
      the open-with sheet of every file on the device. The MIME list is what
      Android actually reports for these formats — none of .mdx/.slob/.ifo/.dsl
      has a registered type, so they arrive as octet-stream, and the compressed
-     ones (.dsl.dz, .dict.dz) as gzip. -->
+     ones (.dsl.dz, .dict.dz) as gzip. The archive types - zip and
+     x-7z-compressed - are deliberately absent: archives are handled by the
+     shared Intake, whose SEND filters live in src/main, and a MIME claimed by
+     both would hand the same share to two importers. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
@@ -21,14 +24,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="application/gzip" />
-                <data android:mimeType="application/zip" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="application/gzip" />
-                <data android:mimeType="application/zip" />
             </intent-filter>
         </activity>
     </application>

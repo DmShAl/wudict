@@ -30,6 +30,7 @@ import (
 	"github.com/wuweidict/wudict/internal/config"
 	"github.com/wuweidict/wudict/internal/dict"
 	"github.com/wuweidict/wudict/internal/htmlref"
+	"github.com/wuweidict/wudict/internal/intake"
 	"github.com/wuweidict/wudict/internal/logx"
 	"github.com/wuweidict/wudict/internal/morph"
 	"github.com/wuweidict/wudict/internal/resource"
@@ -190,6 +191,14 @@ SERVE FLAGS
                           stay per-dictionary choices either way.
                           env: AUTO_INDEX     toml: AUTO_INDEX
                           default: on
+
+  (env/toml only)
+  IMPORT_KEEP = "ask"     What becomes of an archive after the dictionaries inside
+                          it have been installed: "ask" puts the choice on the
+                          page each time, "keep" and "delete" answer it once. An
+                          import that FAILED always keeps it, whatever this says.
+                          env: IMPORT_KEEP    toml: IMPORT_KEEP
+                          default: ask
 
   --index-workers <n>     How many dictionaries may be prepared at once. Preparing
                           one saturates a core and holds a few hundred bytes per
@@ -1210,6 +1219,12 @@ Hint: pick another port with --port, e.g.:  wudict --port %s
 		}
 	}
 
+	// An import that was killed - the phone reclaimed the process, the machine
+	// lost power - leaves its half-extracted staging directory behind. It is
+	// hidden, so discovery never saw it, and nothing else would ever remove
+	// it; the only safe moment to do so is before anything is importing.
+	intake.Sweep(cfg.DictDirs)
+
 	// migrate old cached dictionaries
 	if moved, err := store.AdoptLoose(); err != nil {
 		logx.Warn("could not tidy the library: %v", err)
@@ -1293,6 +1308,9 @@ Hint: pick another port with --port, e.g.:  wudict --port %s
 	}
 	srv.Speexdec = sxPath
 	srv.AutoIndex = cfg.AutoIndexEnabled()
+	srv.ImportKeep = cfg.ImportKeep
+	srv.ImportURLHosts = cfg.ImportURLHosts
+	srv.ImportInsecure = cfg.ImportInsecure
 	// Lemma packs are loaded on first use and never at startup: a launch must
 	// not pay 25-157 ms and tens of megabytes for a language this session may
 	// never search in. MORPH_CACHE=0 loads none at all.

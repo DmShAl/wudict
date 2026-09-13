@@ -15,6 +15,7 @@ package mdx
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"io"
 	"mime"
 	"os"
@@ -60,6 +61,60 @@ func probe(filename string) (dict.Meta, error) {
 }
 
 const linkPrefix = "@@@LINK="
+
+// reMarkupBlock and reTag strip markup from a record so what a reader would
+// actually SEE can be examined: the paired blocks first, because their content
+// is code rather than text and would otherwise survive tag removal.
+var (
+	// Spelled out per tag rather than captured and back-referenced: RE2 has
+	// no backreferences.
+	reMarkupBlock = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script[^>]*>|<style\b[^>]*>.*?</style[^>]*>`)
+	reTag         = regexp.MustCompile(`(?s)<[^>]*>`)
+)
+
+// visibleText is what is left of a record fragment once markup, NULs and the
+// byte-order mark are gone. Empty means the fragment is a wrapper and nothing
+// else.
+func visibleText(s string) string {
+	s = reMarkupBlock.ReplaceAllString(s, "")
+	s = reTag.ReplaceAllString(s, "")
+	return strings.TrimSpace(strings.Trim(s, "\x00\ufeff"))
+}
+
+// linkTarget reports whether a record is an MDict redirect and, if so, the
+// headword it points at (empty when the pointer itself is broken - a redirect
+// to nowhere, which is dropped rather than shown).
+//
+// The marker is documented as the WHOLE record - "@@@LINK=headword" - and most
+// makers write exactly that. Some dictionaries wrap it
+// in the same HTML shell it gives every article:
+//
+//	<head><link rel="stylesheet" type="text/css" href="OED.css"/></head>
+//	<div class="entry">@@@LINK=pandore</div entry>
+//
+// Testing only the first bytes leaves that record looking like an article, so
+// the redirect reached the screen as the literal text "@@@LINK=pandore" under
+// the headword the user searched for. The shell is therefore discounted: a
+// record is a redirect when the marker is the only VISIBLE text in it, however
+// much markup surrounds it. An article that merely mentions the marker among
+// its prose keeps its body, because text survives the strip on either side.
+func linkTarget(body string) (string, bool) {
+	i := strings.Index(body, linkPrefix)
+	if i < 0 || visibleText(body[:i]) != "" {
+		return "", false
+	}
+	rest := body[i+len(linkPrefix):]
+	end := strings.IndexAny(rest, "<\r\n\x00")
+	if end < 0 {
+		end = len(rest)
+	}
+	if visibleText(rest[end:]) != "" {
+		return "", false
+	}
+	// Unescaped because the target is a headword to look up, not markup to
+	// render: a repack that writes &amp; in one would otherwise point nowhere.
+	return strings.TrimSpace(html.UnescapeString(rest[:end])), true
+}
 
 // reStyleTag matches `N` stylesheet markers embedded in record text.
 var reStyleTag = regexp.MustCompile("`\\d+`")
@@ -379,8 +434,7 @@ func (d *Dict) render(e *gomdict.MDictKeywordEntry, seen map[string]bool) []stri
 		return nil
 	}
 	body := strings.TrimSpace(strings.Trim(decodeEnc(raw, d.enc), "\x00"))
-	if target, ok := strings.CutPrefix(body, linkPrefix); ok {
-		target = strings.TrimSpace(strings.Trim(target, "\x00"))
+	if target, ok := linkTarget(body); ok {
 		if target == "" || seen[target] {
 			return nil
 		}

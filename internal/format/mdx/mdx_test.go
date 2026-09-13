@@ -234,3 +234,42 @@ func TestLooseSiblingAssets(t *testing.T) {
 		t.Error("a missing file must report not-found")
 	}
 }
+
+// TestLinkTarget pins redirect detection against the record shapes real
+// dictionaries ship, including the wrapped one that once put the literal text
+// "@@@LINK=pandore" on screen under the headword the user had searched for
+// (the OED repack on freemdict gives every record the same HTML shell).
+func TestLinkTarget(t *testing.T) {
+	cases := []struct {
+		name   string
+		body   string
+		target string
+		isLink bool
+	}{
+		{"bare", "@@@LINK=pandore", "pandore", true},
+		{"trailing crlf and nul", "@@@LINK=pandore\r\n\x00", "pandore", true},
+		{"wrapped in the article shell",
+			"<head><link rel=\"stylesheet\" type=\"text/css\" href=\"OED.css\"/></head>\r\n" +
+				"<div class=\"entry\">@@@LINK=pandore</div entry>\r\n",
+			"pandore", true},
+		{"wrapped with a stylesheet block",
+			"<head><style>.entry{color:#000}</style></head><div>@@@LINK=take off</div>",
+			"take off", true},
+		{"entity in the target", "<div>@@@LINK=AT&amp;T</div>", "AT&T", true},
+		{"target padded", "<div>  @@@LINK= pandore </div>", "pandore", true},
+		{"redirect to nowhere", "<div>@@@LINK=</div>", "", true},
+		// The article keeps its body: text on either side of the marker is
+		// exactly what tells a real entry from a pointer.
+		{"mentioned after prose", "<div>A redirect is written @@@LINK=word</div>", "", false},
+		{"prose after the marker", "<div>@@@LINK=word</div><p>and then some prose</p>", "", false},
+		{"no marker", "<div class=\"entry\">pandora, a lute</div>", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			target, ok := linkTarget(c.body)
+			if ok != c.isLink || target != c.target {
+				t.Errorf("linkTarget(%q) = %q, %v; want %q, %v", c.body, target, ok, c.target, c.isLink)
+			}
+		})
+	}
+}

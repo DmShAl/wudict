@@ -269,6 +269,16 @@ func PanicError(path string, r any) error {
 // contain (or equal an ancestor of) it cannot list prepared dictionaries twice.
 var excludedDirs []string
 
+// DownloadDirName is the folder the app writes fetched dictionary bundles
+// into, directly inside a dictionary folder (intake.DownloadDir builds the
+// path from it). The name lives HERE, in the package that walks those folders,
+// because the two halves are one rule: a download is kept where the user can
+// find it, and it is NOT a dictionary that is installed - the copy under its
+// own folder is. Discover skipping it is what keeps one import from listing
+// the same dictionary twice, once from the library and once from the shelf it
+// was carried in on.
+const DownloadDirName = "Downloads"
+
 // ExcludeDir marks dir as never-walked by Discover.
 func ExcludeDir(dir string) {
 	if c := CanonPath(dir); c != "" {
@@ -423,6 +433,26 @@ func Discover(root string) ([]string, error) {
 		}
 		if d.IsDir() {
 			if isExcluded(p) {
+				return fs.SkipDir
+			}
+			// Hidden subtrees are not part of anyone's library. Skipped by
+			// rule rather than by naming the one that matters, because the
+			// list is open-ended: intake stages a half-extracted archive in
+			// ".wudict-intake" under the dictionary folder itself, and a scan
+			// racing an extraction would otherwise offer a dictionary whose
+			// files are still arriving. ".Trash", ".git" and macOS's
+			// ".Spotlight-V100" cost a full walk each for the same nothing.
+			// The ROOT is exempt: a user who configures "~/.dicts" as a
+			// folder to scan has named it, and naming it is the choice.
+			if p != root && strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
+			// The app's own download shelf, which is a visible folder on
+			// purpose and is still not part of the library. Only directly
+			// inside a scan root, because that is the only place intake writes
+			// one: a "Downloads" folder somebody made three levels down is
+			// theirs, and skipping it would lose real dictionaries.
+			if filepath.Dir(p) == root && d.Name() == DownloadDirName {
 				return fs.SkipDir
 			}
 			return nil

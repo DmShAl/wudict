@@ -52,6 +52,44 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
 .row .n{color:var(--soft);font-variant-numeric:tabular-nums;font-size:12px}
 .tag{font-size:10.5px;border:1px solid var(--line);border-radius:99px;padding:0 .5em;color:var(--soft)}
 .tag.on{border-color:var(--accent);color:var(--accent)}
+/* The drop target is one control with two ways into it: a click, and a drag
+   for a mouse user who already has the file in hand. Dashed, because a solid
+   box of that size reads as a panel of content rather than as somewhere to put
+   something. */
+#drop{border:1.5px dashed var(--line);border-radius:10px;padding:1em .8em;text-align:center;
+  color:var(--soft);font-size:13.5px;transition:border-color .15s,background .15s}
+#drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+#drop .hint{color:var(--faint);font-size:12.5px}
+/* The link row sits under the drop box rather than beside it: the two are the
+   same act arriving by different means, and side by side they would read as a
+   choice to make before doing anything. */
+#urlRow{display:flex;gap:.5em;margin-top:.618em}
+#urlRow input{flex:1;min-width:0;margin:0}
+#urlRow button{flex:none}
+#cands{margin:.618em 0 0;border:1px solid var(--line);border-radius:8px;max-height:38vh;overflow:auto}
+#cands label.row{cursor:pointer}
+#cands label.row.no{cursor:default;color:var(--faint)}
+#cands .row input{width:auto;flex:none;margin:0}
+/* The files a candidate is made of. They take the flexible width and the name
+   keeps its own: the name is short and is the identity, the list is the part
+   that can grow, and a row that truncated the name to fit its files would hide
+   the one word the library is about to use. */
+#cands .row .nm{flex:none}
+#cands .row .fl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--soft);font-size:12px}
+#cands .row .why{color:var(--err);font-size:11.5px}
+#cands .row .have{color:var(--soft);font-size:11.5px}
+#extras{margin:.618em 0 0}
+#extras .head{font-size:12px;color:var(--soft);margin:0 0 .3em}
+#extras label.row{cursor:pointer}
+#extras .row input{width:auto;flex:none;margin:0}
+#extras .row .need{color:var(--soft);font-size:11.5px}
+#extras .row .need.req{color:var(--err)}
+/* One line, as the whole of the progress report: a bar per file, a byte
+   counter or an entry name would all be the machinery of extraction rather
+   than something the user decides on (D102). */
+#impMsg{font-size:13px;margin-top:.618em}
+#impMsg.ok{color:var(--ok)}#impMsg.err{color:var(--err)}
 </style>
 </head>
 <body>
@@ -65,6 +103,38 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
 <div id="rows"></div>
 <button type="button" id="addRow" class="link">+ add another folder</button>
 <div id="origin" class="warn hidden"></div>
+
+<div id="addSection" class="hidden">
+  <hr class="sep">
+  <h2>Add dictionaries</h2>
+  <p>Dictionaries arrive as a <code>.zip</code> or <code>.7z</code> bundle, or as the plain files
+     themselves (<code>.mdx</code>, <code>.ifo</code>, <code>.dsl</code>, <code>.slob</code>,
+     <code>.bgl</code>). Drop one here, or paste a link, and what it holds is installed into
+     <code id="addDir"></code> — no unpacking, no file manager.</p>
+  <div id="drop">
+    <input type="file" id="file" accept=".zip,.7z,.mdx,.mdd,.ifo,.idx,.dict,.dz,.syn,.dsl,.slob,.bgl,.zim" hidden>
+    <button type="button" id="choose" class="link">Choose a file…</button>
+    <span class="hint">or drop one here</span>
+  </div>
+  <div id="urlRow">
+    <input type="url" id="url" placeholder="…or paste a link to one"
+           autocomplete="off" spellcheck="false" inputmode="url">
+    <button type="button" id="fetch" class="btn ghost">Download</button>
+  </div>
+  <div id="found" class="hidden">
+    <div id="cands"></div>
+    <div id="extras" class="hidden"></div>
+    <label class="keep" id="srcKeepWrap"><input type="checkbox" id="srcKeep" checked>
+      <span>Keep <b id="srcName"></b> afterwards
+      <em>— an import that fails always keeps it</em></span></label>
+    <label class="keep hidden" id="srcCopyWrap"><input type="checkbox" id="srcCopy">
+      <span>Add a second copy instead of updating
+      <em>— leaves the one already installed untouched</em></span></label>
+    <button type="button" id="install">Install</button>
+    <button type="button" id="dropJob" class="btn ghost">Cancel</button>
+  </div>
+  <div id="impMsg"></div>
+</div>
 
 <div id="libSection" class="hidden">
   <hr class="sep">
@@ -234,6 +304,257 @@ async function save(){
   if(j.error){$("msg").className="err";$("msg").textContent="✕ "+j.error;return}
   if(j.saved)location.href="/";
 }
+
+/* Importing an archive (/api/intake). Two acts: the file is read and reports
+   what it holds, then the user says which of those to install. Nothing is
+   written between the two — the archive is only listed, never unpacked — so
+   changing your mind costs nothing and the Cancel below is a real cancel.
+
+   Everything the engine needs to do this (staging folders, extraction order,
+   what is copied where) stays here (D102): the page asks for a file and shows
+   dictionaries. */
+let impTimer=null,impBusy=false;
+const sizeMB=n=>n>=1048576?(n/1048576).toFixed(n>=104857600?0:1)+" MB"
+                          :Math.max(1,Math.round(n/1024))+" KB";
+
+function impSay(text,cls){const m=$("impMsg");m.textContent=text;m.className=cls||""}
+
+async function impGET(){
+  try{ return await (await fetch("/api/intake")).json() }catch(e){ return null }
+}
+
+/* One archive, from the file picker or from a drop. Sent as the request body
+   rather than through a form: a dictionary bundle is routinely a gigabyte, and
+   multipart would mean the browser builds that in memory first. */
+async function impSend(file){
+  if(!file||impBusy)return;
+  impBusy=true;
+  impSay("Reading "+file.name+"…");
+  $("found").classList.add("hidden");
+  let r,j;
+  try{
+    r=await fetch("/api/intake?name="+encodeURIComponent(file.name),{method:"POST",body:file});
+    j=await r.json();
+  }catch(e){ impBusy=false; impSay("✕ "+file.name+" could not be read","err"); return }
+  impBusy=false;
+  if(!r.ok||j.error){impSay("✕ "+(j&&j.error||"that file could not be imported"),"err");return}
+  showCandidates(j);
+}
+
+/* A link, fetched by the server rather than by this page. Not a download
+   started here and uploaded back: the server is the one that can resume a
+   broken transfer, and on Android this page dies whenever the device rotates
+   while the download does not. Which sites are offered is the server's
+   setting; a refusal arrives as its own sentence. */
+async function impFetch(){
+  const u=$("url").value.trim();
+  if(!u||impBusy)return;
+  impBusy=true;
+  impSay("Connecting…");
+  $("found").classList.add("hidden");
+  let r,j;
+  try{
+    r=await fetch("/api/intake?url="+encodeURIComponent(u),{method:"POST"});
+    j=await r.json();
+  }catch(e){ impBusy=false; impSay("✕ that link could not be opened","err"); return }
+  impBusy=false;
+  if(!r.ok||j.error){impSay("✕ "+(j&&j.error||"that link could not be opened"),"err");return}
+  $("url").value="";
+  impRender(j);
+  impPoll();
+}
+
+/* How many file names a row shows before it counts instead: a StarDict set is
+   four files and a resource folder, and the list must not become the row. The
+   same cut as the phone's, so the two surfaces say the same sentence. */
+const FILES_SHOWN=3;
+function fileList(files){
+  if(!files||!files.length)return "";
+  const head=files.slice(0,FILES_SHOWN);
+  if(files.length>head.length)head.push("+"+(files.length-head.length)+" more");
+  return head.join(" + ");
+}
+
+function showCandidates(j){
+  const box=$("cands");box.textContent="";
+  let usable=0,have=0;
+  // A missing companion stops being a refusal when the same companion was
+  // found beside the file and is about to be downloaded: what the user is
+  // choosing is the state AFTER the extras, not the state on disk now. The
+  // server re-checks once they have landed, so a download that fails still
+  // refuses honestly rather than installing half a dictionary.
+  const extras=j.extras||[];
+  const coming=m=>extras.some(x=>x.need==="needed"&&x.name.toLowerCase().endsWith(m.toLowerCase()));
+  (j.candidates||[]).forEach((c,i)=>{
+    const miss=c.missing||[];
+    const ok=!miss.length;
+    const soon=!ok&&miss.every(coming);
+    const row=el("label","row"+(ok||soon?"":" no"));
+    const cb=el("input");cb.type="checkbox";cb.value=i;
+    // Already installed and identical: left unticked, because the likeliest
+    // reason to be here is the OTHER dictionary in the same archive. Ticking
+    // it is still allowed — repairing a folder is a real reason — and then it
+    // is replaced like any other.
+    cb.checked=(ok||soon)&&!c.unchanged;cb.disabled=!ok&&!soon;
+    row.appendChild(cb);
+    row.appendChild(el("span","nm",c.name));
+    // The files, not the format: "OED.mdx + OED.mdd" already says the format
+    // and says the thing a bare title cannot — WHICH files this is, and that
+    // there are two of them (D137).
+    row.appendChild(el("span","fl",fileList(c.files)));
+    // The size only when it is a cost about to be paid. A dictionary that is
+    // already installed, or that cannot be installed at all, is carrying a
+    // state instead, and that is what the rest of the row is for.
+    if(ok&&(!c.existing||c.stale))row.appendChild(el("span","n",sizeMB(c.size||0)));
+    // Named, not merely refused: the user can go and fetch the missing file,
+    // and cannot if they are not told which one it is.
+    if(soon)row.appendChild(el("span","why","needs "+miss.join(", ")+" — found, tick it below"));
+    else if(!ok)row.appendChild(el("span","why","needs "+miss.join(", ")));
+    // A folder of that name holding no dictionary — one a removal left behind,
+    // or one the user made — is taken over like any other, and said so. What it
+    // is not is an installation: calling it one told the user a dictionary they
+    // had just removed was still there (D137).
+    else if(c.stale)row.appendChild(el("span","have","takes over a folder of this name"));
+    else if(c.existing){row.appendChild(el("span","have",c.unchanged?"already installed":"replaces your copy"));have++}
+    if(ok||soon)usable++;
+    box.appendChild(row);
+  });
+  showExtras(j);
+  $("srcName").textContent=j.source||"the file";
+  // The question is only asked when it is one: with IMPORT_KEEP set to keep or
+  // delete it has already been answered, and asking again would make the
+  // setting a suggestion.
+  $("srcKeepWrap").style.display=j.keep==="ask"?"":"none";
+  // Offered only when there is something to be asked about. Replacing is the
+  // default because two of the same dictionary means two of every result.
+  $("srcCopyWrap").classList.toggle("hidden",!have);
+  if(!have)$("srcCopy").checked=false;
+  $("found").classList.remove("hidden");
+  impSay(usable?"":"✕ nothing here can be installed",usable?"":"err");
+  $("install").disabled=!usable;
+}
+
+/* Companion files found beside a downloaded one, offered rather than taken.
+   The site publishes a dictionary as several links; the server looked for the
+   others by name and found these. Ticked by default because a dictionary
+   without its media is a dictionary with no images or sound — but ticked, not
+   downloaded, because on a phone these are hundreds of megabytes of somebody
+   else's data allowance. */
+function showExtras(j){
+  const box=$("extras");box.textContent="";
+  const list=j.extras||[];
+  box.classList.toggle("hidden",!list.length);
+  if(!list.length)return;
+  box.appendChild(el("p","head",
+    list.length===1?"One more file belongs with this dictionary:"
+                   :list.length+" more files belong with this dictionary:"));
+  list.forEach((x,i)=>{
+    const row=el("label","row");
+    const cb=el("input");cb.type="checkbox";cb.value=i;cb.checked=true;
+    row.appendChild(cb);
+    row.appendChild(el("span","nm",x.name));
+    if(x.size)row.appendChild(el("span","n",sizeMB(x.size)));
+    const why=x.need==="needed"?"needed — it will not work without this"
+             :x.need==="media"?"images and sounds"
+                              :"optional";
+    row.appendChild(el("span","need"+(x.need==="needed"?" req":""),why));
+    box.appendChild(row);
+  });
+}
+
+async function impInstall(){
+  const pick=[...document.querySelectorAll("#cands input:checked")].map(i=>+i.value);
+  const extras=[...document.querySelectorAll("#extras input:checked")].map(i=>+i.value);
+  if(!pick.length)return;
+  $("install").disabled=true;
+  let r,j;
+  try{
+    r=await fetch("/api/intake?confirm=1",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({pick:pick,keep:$("srcKeep").checked,copy:$("srcCopy").checked,extras:extras})});
+    j=await r.json();
+  }catch(e){ impSay("✕ the import could not be started","err"); return }
+  if(!r.ok||j.error){impSay("✕ "+(j&&j.error||"the import could not be started"),"err");
+    $("install").disabled=false;return}
+  $("found").classList.add("hidden");
+  impPoll();
+}
+
+/* Polled, not streamed: the extraction runs in the server and outlives this
+   page, so the page's job is to ask what happened — including after a reload,
+   which is why start() asks once with no job of its own. */
+function impPoll(){
+  clearTimeout(impTimer);
+  impTimer=setTimeout(async()=>{
+    const j=await impGET();
+    if(!j)return impPoll();
+    impRender(j);
+    if(j.state==="installing"||j.state==="downloading")impPoll();
+  },700);
+}
+
+function impRender(j){
+  if(j.state==="downloading"){
+    // No percentage when the server declared no length — a made-up one that
+    // sticks is worse than a line that only says work is happening.
+    const pct=j.total>0?Math.min(99,Math.floor(j.done*100/j.total))+"%":sizeMB(j.done||0);
+    // The file first, the host after it: "which of several files is arriving"
+    // is what a person watching a multi-gigabyte companion download wants to
+    // read, and the name is only known once the server has answered — until
+    // then the host alone is the honest line.
+    const what=j.source?("Downloading "+j.source+(j.host?" from "+j.host:"")):("Downloading from "+(j.host||"the site"));
+    impSay(what+"… "+pct);
+    $("found").classList.add("hidden");
+    return;
+  }
+  if(j.state==="installing"){
+    const pct=j.total>0?Math.min(99,Math.floor(j.done*100/j.total)):0;
+    impSay("Installing… "+pct+"%");
+    $("found").classList.add("hidden");
+    return;
+  }
+  if(j.state==="done"){
+    const n=(j.installed||[]).length;
+    impSay(n?"✓ Installed "+j.installed.join(", "):"✓ Finished","ok");
+    // The folder now holds more than it did, and the count under it is what
+    // the Save button is enabled from.
+    validateAll();
+    return;
+  }
+  if(j.state==="error"){impSay("✕ "+(j.error||"the import failed"),"err");return}
+  if(j.state==="ready"){showCandidates(j);return}
+}
+
+async function impCancel(){
+  clearTimeout(impTimer);
+  try{ await fetch("/api/intake",{method:"DELETE"}) }catch(e){}
+  $("found").classList.add("hidden");
+  impSay("");
+}
+
+function wireIntake(dir){
+  if(!dir)return; // nowhere to install into yet: the folder above comes first
+  $("addDir").textContent=dir;
+  $("addSection").classList.remove("hidden");
+  $("choose").addEventListener("click",()=>$("file").click());
+  $("file").addEventListener("change",()=>{const f=$("file").files[0];$("file").value="";impSend(f)});
+  $("fetch").addEventListener("click",impFetch);
+  $("url").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();impFetch()}});
+  $("install").addEventListener("click",impInstall);
+  $("dropJob").addEventListener("click",impCancel);
+  const d=$("drop");
+  // dragover must be cancelled or the browser navigates to the file instead,
+  // which on a drop of a 2 GB zip is a download of it.
+  for(const ev of ["dragenter","dragover"])d.addEventListener(ev,e=>{
+    e.preventDefault();d.classList.add("over")});
+  for(const ev of ["dragleave","drop"])d.addEventListener(ev,()=>d.classList.remove("over"));
+  d.addEventListener("drop",e=>{
+    e.preventDefault();
+    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(f)impSend(f);
+  });
+}
+
 function libraryOffered(){return !$("libSection").classList.contains("hidden")}
 function libraryCount(){return parseInt($("libN").textContent.replace(/\D/g,""),10)||0}
 $("addRow").addEventListener("click",()=>{addRow("").focus()});
@@ -257,6 +578,12 @@ async function start(){
     $("origin").classList.remove("hidden");
   }
   if(dirs.length)validateAll(); else rowInputs()[0].focus();
+  // The importer needs somewhere to install into, and a job may already be
+  // running from before this page was loaded.
+  const st=await impGET();
+  wireIntake(st&&st.dir||dirs[0]||"");
+  if(st&&st.state){impRender(st);
+    if(st.state==="installing"||st.state==="downloading")impPoll()}
 }
 // config first: the library checkbox's default depends on whether anything is
 // already in use, which only /api/config knows

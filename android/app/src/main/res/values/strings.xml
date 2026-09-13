@@ -23,6 +23,16 @@
      <string name="index_channel">Preparing dictionaries</string>
      <string name="index_title">Preparing a dictionary</string>
      <string name="index_text">Building the search index. This can take a few minutes.</string>
+     <!-- The same notification, worn by the other two long jobs that hold it.
+          It is a receipt for work the user is waiting on, so it must say which
+          work: a download that announces itself as indexing is telling the
+          user the wrong thing about how long it will take and what it is
+          spending - and for a multi-gigabyte .mdd over mobile data that is not
+          a detail (D140). -->
+     <string name="index_import_title">Adding dictionaries</string>
+     <string name="index_import_text">Copying into your library. This can take a few minutes.</string>
+     <string name="index_download_title">Downloading a dictionary</string>
+     <string name="index_download_text">This continues while you use other apps.</string>
 
      <!-- The shell's own settings (D100). The wording never names the Android
           mechanism behind a row: the user is choosing where a lookup lands,
@@ -90,4 +100,93 @@
      <string name="settings_restore_confirm">Clear every advanced setting and go back to what the settings file says?</string>
      <string name="settings_restore_done">Advanced settings cleared.</string>
      <string name="settings_cancel">Cancel</string>
+     <!-- Intake: an archive arriving from a file manager, a share sheet or the
+          page's own picker. Present in both flavours, unlike the import_*
+          strings, which belong to the Play flavour's folder importer. Progress
+          is one line and names no staging folder, no job and no archive
+          internals (D102). -->
+     <string name="intake_title">Add dictionaries</string>
+     <string name="intake_reading">Reading %1$s…</string>
+     <!-- The dialog's title. It names the SOURCE, not the outcome: nothing has
+          been added at the moment it appears - the list below is the question
+          and the Add button is the answer - and one archive can hold five
+          dictionaries, so a title naming one of them would be naming the wrong
+          thing (D137). -->
+     <string name="intake_add_from">Add from %1$s</string>
+     <!-- A dictionary in that list. Name first, because it is the identity and
+          what the library will call it; then the files it is made of, because
+          a bare title does not say WHICH file is about to be downloaded or
+          replaced and on a phone that is the whole of the decision; then the
+          total, when there is a download to weigh. Same grammar as the extra
+          rows below - "·" separates facts, "—" introduces a state (D137). -->
+     <string name="intake_cand">%1$s · %2$s · %3$s</string>
+     <!-- The same row without the total: a dictionary that is already
+          installed, or that cannot be installed, costs no bytes to decide
+          about, and the state it carries instead is what the row is for. -->
+     <string name="intake_cand_short">%1$s · %2$s</string>
+     <!-- A StarDict set is a handful of files and a resource folder; the list
+          is cut rather than allowed to become the row. -->
+     <string name="intake_files_more">+%1$d more</string>
+     <!-- %2$s lists what the set is missing, so an entry that cannot be ticked
+          says why instead of simply refusing. -->
+     <string name="intake_needs">%1$s — needs %2$s</string>
+     <!-- The same missing files, but found beside the download and offered
+          below: the choice is about the state AFTER the companions arrive, so
+          the entry can be ticked and says why. -->
+     <string name="intake_needs_found">%1$s — needs %2$s, found below</string>
+     <!-- A dictionary the library already holds. Adding it again REPLACES it
+          rather than leaving two, so the entry says which of the two it is:
+          one worth ticking, one already done and left unticked (D134). -->
+     <string name="intake_update">%1$s — replaces your copy</string>
+     <string name="intake_same">%1$s — already installed</string>
+     <!-- A folder of that name is there and holds no dictionary: one a removal
+          left behind, or one the user made. The install takes it over either
+          way, so it is said - but it is not an installation, and calling it
+          one tells somebody a dictionary they have just removed is still
+          there (D137). -->
+     <string name="intake_stale">%1$s — takes over a folder of this name</string>
+     <string name="intake_install">Add</string>
+     <string name="intake_cancel">Cancel</string>
+     <!-- A link, fetched by the server. %1$s is the site, not the URL: a
+          shared link may carry a session token, and the host is what tells the
+          user where this is coming from. No percentage when the site declared
+          no length - a number that stops moving is worse than none. -->
+     <string name="intake_connecting">Connecting…</string>
+     <string name="intake_downloading">Downloading from %1$s…</string>
+     <string name="intake_downloading_pct">Downloading from %1$s… %2$d%%</string>
+     <!-- Once the site has answered, the FILE is named: an import fetches a
+          dictionary and then, one at a time, the companion files the user
+          ticked, and a line that said only the host could not tell those
+          apart. %1$s is the file, %2$s the site. -->
+     <string name="intake_downloading_named">Downloading %1$s from %2$s…</string>
+     <string name="intake_downloading_named_pct">Downloading %1$s from %2$s… %3$d%%</string>
+     <!-- Companion files found beside the downloaded one and OFFERED, never
+          taken: an .mdx is a few megabytes and its .mdd can be several
+          gigabytes of somebody else's mobile data. Ticked by default because
+          a dictionary without its media has no images or sound; ticked and not
+          downloaded, because the size is the decision and it is the user's.
+          %1$s is the file, %2$s its size, %3$s why it belongs. -->
+     <string name="intake_extra">%1$s · %2$s — %3$s</string>
+     <string name="intake_extra_nosize">%1$s — %2$s</string>
+     <string name="intake_extra_needed">needed</string>
+     <string name="intake_extra_media">images and sounds</string>
+     <string name="intake_extra_other">optional</string>
+     <string name="intake_installing">Adding… %1$d%%</string>
+     <string name="intake_done">Added %1$s.</string>
+     <string name="intake_done_partial">Added %1$s.\n\nThe rest did not arrive: %2$s</string>
+     <string name="intake_none">Nothing was added.</string>
+     <string name="intake_nothing">%1$s holds no dictionaries wuDict can read.</string>
+     <!-- A file TAPPED in a file manager that turns out not to be one this
+          app reads. It exists because the open-with filter can only match on
+          MIME and every dictionary format arrives as application/octet-stream,
+          so wuDict is offered for untyped files in general - and an app that
+          was chosen and then did nothing visible reads as broken. Names the
+          app, because in a sheet full of other apps' verbs "not supported" on
+          its own does not say WHO could not read it (D138). -->
+     <string name="intake_unsupported">wuDict cannot read %1$s.</string>
+     <string name="intake_cancelled">Cancelled.</string>
+     <string name="intake_busy">An import is already running.</string>
+     <string name="intake_failed">Could not add dictionaries: %1$s</string>
+     <string name="intake_no_server">The dictionary server did not start, so nothing could be added.</string>
+     <string name="intake_no_picker">This device has no file picker.</string>
 </resources>

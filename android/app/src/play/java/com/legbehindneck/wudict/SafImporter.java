@@ -151,7 +151,7 @@ final class SafImporter {
         Context app = a.getApplicationContext();
         Thread t = new Thread(() -> {
             String summary;
-            IndexService.hold(app);
+            IndexService.hold(app, R.string.index_import_title, R.string.index_import_text);
             try {
                 summary = copy(a, plan.build(), dialog);
             } catch (Exception e) {
@@ -214,6 +214,11 @@ final class SafImporter {
             }
             final int n = done + skipped + failed.size() + 1;
             final int total = batch.items.size();
+            // The same count, in the notification: an import runs for minutes
+            // and the user is not expected to sit on this screen for them
+            // (D140). Files, not bytes - it is the number this loop has.
+            IndexService.progress(a.getApplicationContext(),
+                    total > 0 ? (n - 1) * 100 / total : -1);
             a.runOnUiThread(() -> {
                 if (!a.isFinishing() && !a.isDestroyed()) {
                     dialog.setMessage(a.getString(R.string.import_progress, n, total, it.rel));

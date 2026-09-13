@@ -211,3 +211,66 @@ func TestRemoveEverything(t *testing.T) {
 		t.Error("registry lost the neighbour")
 	}
 }
+
+// An import gives each dictionary a folder of its own. Removing the dictionary
+// therefore has to remove the folder too: an empty folder with a dictionary's
+// name is not inert, because intake reads a folder of that name as a name
+// already taken and used to announce the next import of the same bundle as an
+// UPDATE of something the user had just removed (D137).
+func TestRemoveTakesTheEmptiedFolderWithIt(t *testing.T) {
+	s := newTestServer(t)
+	root := s.reg.Dirs()[0]
+	own := filepath.Join(root, "Imported")
+	if err := os.MkdirAll(own, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dsl := filepath.Join(own, "imported.dsl")
+	if err := os.WriteFile(dsl, []byte(sampleDSL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.reg.Rescan(); err != nil {
+		t.Fatal(err)
+	}
+	id := idOf(t, s, "imported.dsl")
+
+	if rec := deleteReq(t, s, "/api/library?dict="+id); rec.Code != 200 {
+		t.Fatalf("DELETE = %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(own); !os.IsNotExist(err) {
+		t.Fatalf("the emptied folder is still there: %v", err)
+	}
+	// The folder the user pointed wudict at is not the import's to tidy away,
+	// even when the removal empties it.
+	if _, err := os.Stat(root); err != nil {
+		t.Fatalf("the scanned folder went with it: %v", err)
+	}
+}
+
+// Anything still in the folder keeps the folder. A note, a licence, the other
+// half of something: this only unmakes what an install made.
+func TestRemoveKeepsAFolderThatStillHoldsSomething(t *testing.T) {
+	s := newTestServer(t)
+	root := s.reg.Dirs()[0]
+	own := filepath.Join(root, "Imported")
+	if err := os.MkdirAll(own, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(own, "imported.dsl"), []byte(sampleDSL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notes := filepath.Join(own, "notes.txt")
+	if err := os.WriteFile(notes, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.reg.Rescan(); err != nil {
+		t.Fatal(err)
+	}
+	id := idOf(t, s, "imported.dsl")
+
+	if rec := deleteReq(t, s, "/api/library?dict="+id); rec.Code != 200 {
+		t.Fatalf("DELETE = %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(notes); err != nil {
+		t.Fatalf("the user's own file went with the dictionary: %v", err)
+	}
+}

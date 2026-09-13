@@ -670,6 +670,255 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/intake:
+    post:
+      tags: [internal]
+      operationId: startImport
+      x-internal: true
+      summary: Import dictionaries from an archive
+      description: |
+        Two acts on one route. Without `confirm` it ACQUIRES an archive and
+        reports the dictionaries inside it, decompressing nothing: a zip is
+        answered from its central directory and a 7z from its header, so
+        listing a multi-gigabyte bundle costs a seek. With `confirm` it
+        extracts the ones the caller chose.
+
+        A plain dictionary file is read too - an `.mdx`, an `.ifo`, a `.dsl`,
+        a `.slob`, a `.bgl` - and so are the companions lying beside it in the
+        same folder, because that is the same grouping rule the library uses.
+        Nothing is unpacked in that case; the files are copied into place.
+
+        `.zip` and `.7z` are read. A 7z is decoded strictly in archive order on
+        one goroutine: a 7z folder is a single stream holding several files end
+        to end, so that order is the difference between reading it once and
+        decompressing it again per file. A password-protected archive is
+        refused rather than half-read.
+
+        The archive arrives either as a path already on disk (`path`, used by
+        the Android shell, which hands over a download without copying it) or
+        as the request body. A streamed body is spooled inside the destination
+        folder, never into the temporary directory: on Android that is a small
+        cache partition, and on every platform it is a different filesystem,
+        which would make the install a second full copy instead of a rename.
+
+        One import runs at a time, everywhere. Extraction outlives this request
+        and is followed with `GET /api/intake`, for the same reason a lemma
+        download is: on Android the page dies whenever the device rotates.
+
+        A `url` is fetched by the server instead, which is how a phone imports:
+        the shell has no networking of its own, and a download that lived in the
+        page would die with it. It answers 202 at once and downloads behind the
+        same poll, sniffing when it lands. Any site, unless IMPORT_URL_HOSTS
+        restricts it; `https` only and no address on the local network, unless
+        IMPORT_INSECURE lifts both; an unfinished download is resumed by the
+        next attempt.
+
+        A dictionary the library already holds is reported as such on the
+        candidate (`existing`, `unchanged`) and, by default, is UPDATED rather
+        than installed a second time: two copies of one dictionary means two of
+        every result and a second full indexing pass. `copy` is the opt-out and
+        installs beside it under a numbered name.
+
+        A downloaded plain file has its companions LOOKED FOR at the sibling
+        URLs the format tables name - `oxford.mdd`, `oxford.1.mdd`, and so on,
+        stopping at the first that is not there. What is found is reported in
+        `extras` and downloaded only when the caller asks for it by index: a
+        companion can be several hundred megabytes of somebody's phone data,
+        so it is offered on the screen that asks which dictionaries to install
+        and never taken on the strength of the probe.
+
+        The source file's fate follows IMPORT_KEEP; `keep` answers it only when
+        that is `ask`. A FAILED import always keeps the source, which is policy
+        and not a setting - deleting somebody's only copy after an import that
+        did not work cannot be undone.
+      parameters:
+        - name: path
+          in: query
+          description: >
+            An archive already on this machine, read in place. Mutually
+            exclusive with a request body.
+          schema: { type: string }
+        - name: url
+          in: query
+          description: >
+            An https link the server downloads and then sniffs. Mutually
+            exclusive with `path` and with a request body.
+          schema: { type: string, format: uri }
+        - name: name
+          in: query
+          description: >
+            File name for a streamed body, used for the extension and for what
+            the page displays. The extension decides which reader is used, so
+            a 7z body must be named `.7z`. Defaults to `archive.zip`.
+          schema: { type: string }
+        - name: confirm
+          in: query
+          description: >
+            Any value installs the sniffed job instead of starting a new one.
+          schema: { type: string }
+        - name: pick
+          in: query
+          description: >
+            Comma-separated indexes into `candidates`, for a caller with no
+            JSON body to send. Used only with `confirm`.
+          schema: { type: string }
+        - name: keep
+          in: query
+          description: >
+            Whether the caller's own source file survives a SUCCESSFUL import.
+            Ignored unless IMPORT_KEEP is `ask`. Used only with `confirm`.
+          schema: { type: string, enum: ['0', '1'] }
+        - name: copy
+          in: query
+          description: >
+            Install beside a dictionary the library already holds instead of
+            updating it. Used only with `confirm`.
+          schema: { type: string, enum: ['0', '1'] }
+        - name: extras
+          in: query
+          description: >
+            Comma-separated indexes into `extras`: the companion files to
+            download before installing. For a caller with no JSON body to
+            send. Used only with `confirm`.
+          schema: { type: string }
+      requestBody:
+        required: false
+        description: >
+          The archive itself, streamed. Absent when `path` is given, and when
+          confirming - where the body is instead the selection.
+        content:
+          application/zip:
+            schema: { type: string, format: binary }
+          application/x-7z-compressed:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+          application/json:
+            schema:
+              type: object
+              description: The selection, when confirming.
+              properties:
+                pick:
+                  type: array
+                  description: Indexes into `candidates`.
+                  items: { type: integer }
+                keep:
+                  type: boolean
+                  description: >
+                    Keep the source file after a successful import. Ignored
+                    unless IMPORT_KEEP is `ask`.
+                copy:
+                  type: boolean
+                  description: >
+                    Install beside a dictionary already in the library instead
+                    of updating it. Default is to update.
+                extras:
+                  type: array
+                  description: >
+                    Indexes into `extras`: the companion files to download
+                    first. Omitted or empty downloads none of them.
+                  items: { type: integer }
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s -X POST --data-binary @bundle.zip \
+              'http://127.0.0.1:6888/api/intake?name=bundle.zip' | jq .candidates
+            curl -s -X POST 'http://127.0.0.1:6888/api/intake?confirm=1&pick=0'
+      responses:
+        '200':
+          description: The archive was read; `candidates` is what it holds.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeJob' }
+        '202':
+          description: >
+            The extraction, or the download, is running. Poll `GET /api/intake`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeJob' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: >
+            An import is already running, there is nothing to confirm, no
+            dictionary folder is configured, or a chosen dictionary is missing
+            files it cannot work without.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: >
+            The link is not `https`, it resolves to an address on the local
+            network, or IMPORT_URL_HOSTS is set and its host is not on the
+            list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: The streamed archive is larger than this endpoint accepts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '415':
+          description: >
+            Not an archive format this build can read - including a link that
+            answered with something that is not an archive at all, which is
+            refused from the response headers before the body is downloaded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: >
+            The archive was read and holds no dictionary, or its directory is
+            larger than any bundle has cause to be.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          $ref: '#/components/responses/ServerError'
+    get:
+      tags: [internal]
+      operationId: importStatus
+      x-internal: true
+      summary: What the current import is doing
+      description: >
+        The poll. Always 200: an empty `state` means nothing is happening, which
+        is an answer the page acts on and must not have to tell apart from a
+        request that did not arrive. `done` and `total` are bytes.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s 'http://127.0.0.1:6888/api/intake' | jq -r '.state'
+      responses:
+        '200':
+          description: The current job, or an empty one.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeJob' }
+    delete:
+      tags: [internal]
+      operationId: cancelImport
+      x-internal: true
+      summary: Cancel the current import
+      description: >
+        Stops an extraction and forgets a sniffed archive that was never
+        confirmed. Everything staged is removed; dictionaries already renamed
+        into the library stay, because they are whole. Always 200 - cancelling
+        nothing is not a failure.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s -X DELETE 'http://127.0.0.1:6888/api/intake'
+      responses:
+        '200':
+          description: Nothing is running now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeJob' }
+
   /api/setup:
     get:
       tags: [internal]
@@ -1239,6 +1488,128 @@ components:
       properties:
         error: { type: string }
       required: [error]
+
+    IntakeJob:
+      type: object
+      description: >
+        One import, at whatever stage it has reached. An empty `state` is "no
+        import"; `downloading` is fetching a URL; `ready` is sniffed and waiting
+        for a choice; `installing`, `done` and `error` are the rest.
+      properties:
+        id: { type: string, description: Opaque handle for this job. }
+        state:
+          type: string
+          enum: ['', downloading, ready, installing, done, error]
+        source:
+          type: string
+          description: >
+            What the bytes ARE, as the user would name them: the file. Empty
+            while a download is still resolving its name - the file has no name
+            until the server answers - rather than something else that would
+            have to be told apart from a name later.
+        host:
+          type: string
+          description: >
+            Where a downloaded file is coming from, for the life of the job. The
+            host and not the link: a URL can carry a session token, which is not
+            a line to put on somebody's screen. Absent for a local import.
+        dir: { type: string, description: The folder an import installs into. }
+        keep:
+          type: string
+          enum: [ask, keep, delete]
+          description: >
+            IMPORT_KEEP. `ask` is the only value for which the page puts the
+            question to the user; the other two have already answered it.
+        candidates:
+          type: array
+          description: The dictionaries the archive holds, in the order to show them.
+          items: { $ref: '#/components/schemas/IntakeCandidate' }
+        extras:
+          type: array
+          description: >
+            Companion files found at sibling URLs beside a downloaded file, in
+            the order to show them. Reported, not fetched: the caller names the
+            ones to download when it confirms.
+          items: { $ref: '#/components/schemas/IntakeExtra' }
+        installed:
+          type: array
+          description: >
+            Folders now in the library. Not always the candidate's name: a
+            second import of the same bundle is numbered rather than merged.
+          items: { type: string }
+        done: { type: integer, description: Bytes extracted, or downloaded, so far. }
+        total:
+          type: integer
+          description: >
+            Bytes to extract, or to download. Zero while downloading from a
+            server that declared no length.
+        error: { type: string }
+
+    IntakeCandidate:
+      type: object
+      description: >
+        One dictionary found inside an archive - a main file and the companions
+        that belong to it, grouped by the same rule that groups them on disk.
+        Where it sits in the archive is deliberately not reported: what the user
+        chooses is a dictionary, not a path - but which files it is made of is,
+        because that is what the choice costs.
+      properties:
+        name: { type: string, description: What it would be installed as. }
+        format: { type: string, description: Main-file extension, e.g. `.mdx`. }
+        files:
+          type: array
+          description: >
+            The files this dictionary is made of, main file first, as base
+            names - a directory below the dictionary's own is named once, as
+            `res/`, rather than listed. Base names and not paths: where the
+            files sat inside a bundle is still not reported, but WHICH files
+            are about to be written is, because a title on its own does not
+            distinguish a 200 MB `.mdx` from that plus a 1.2 GB `.mdd`.
+          items: { type: string }
+        size: { type: integer, description: Uncompressed bytes, from the archive's directory. }
+        missing:
+          type: array
+          description: >
+            Companions this dictionary cannot work without and the archive does
+            not contain. Present means it cannot be installed; the import is
+            refused rather than left to fail later as a dictionary that opens
+            and answers nothing.
+          items: { type: string }
+        existing:
+          type: string
+          description: >
+            The library folder that already holds this dictionary, absent when
+            none does. Confirming replaces that folder whole unless `copy` is
+            set.
+        unchanged:
+          type: boolean
+          description: >
+            That folder holds the same files at the same sizes the archive
+            declares, so installing would replace the dictionary with itself.
+            Size and not a checksum - the same test used to decide whether a
+            prepared dictionary needs re-indexing.
+
+    IntakeExtra:
+      type: object
+      description: >
+        One companion file that exists beside a downloaded one on the same
+        server. The URL it was found at is deliberately not reported: it is
+        derived from the link the caller already gave, and a link may carry a
+        session token no page should display.
+      properties:
+        name: { type: string, description: The file's name, as it would land beside the main file. }
+        size:
+          type: integer
+          description: >
+            Bytes, when the server declared them. Zero means it did not, not
+            that the file is empty.
+        need:
+          type: string
+          enum: [needed, media, extra]
+          description: >
+            `needed` is a companion the dictionary does not work without, and a
+            candidate missing it may be confirmed only when this is downloaded;
+            `media` is images and sounds; `extra` is the rest.
 
     LemmaLanguage:
       type: object

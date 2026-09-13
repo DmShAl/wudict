@@ -77,7 +77,9 @@ public class MainActivity extends Activity {
         // a class that exists once per flavour and never in this source set.
         watchThermal();
         Storage.ensureAccess(this);
-        Storage.onNewIntent(this, getIntent()); // launched by a share, possibly
+        // Launched by a share or an "open with", possibly. Intake takes it
+        // only when it carries an archive; everything else is the flavour's.
+        if (!Intake.onNewIntent(this, getIntent())) Storage.onNewIntent(this, getIntent());
         takeQuery(getIntent());
 
         ServerProcess.retain();
@@ -363,7 +365,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        Storage.onNewIntent(this, intent);
+        if (!Intake.onNewIntent(this, intent)) Storage.onNewIntent(this, intent);
         // Only what THIS intent brought: an unrelated intent must not fire a
         // query left pending by an earlier one - showPage owns that.
         if (takeQuery(intent) && !gone && web.getParent() != null) {
@@ -381,6 +383,7 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         Storage.onActivityResult(this, requestCode, resultCode, data);
+        Intake.onActivityResult(this, requestCode, resultCode, data);
         Shell.onActivityResult(this, requestCode, resultCode, data);
     }
 

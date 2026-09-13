@@ -257,6 +257,10 @@ apk-foss-debug: android-go ## Build the FOSS debug APK (needs Android SDK: ANDRO
 	cd android && ./gradlew assembleFossDebug
 	@echo "$(APK_FOSS_DEBUG)"
 
+.PHONY: apk-foss-debug-install
+apk-foss-debug-install: apk-foss-debug ## Build+install debug APK
+	adb install "$(APK_FOSS_DEBUG)"
+
 .PHONY: apk-foss-release
 apk-foss-release: $(KEYSTORE_GUARD) android-go ## Build + sign the FOSS release APK, copy to dist/ (needs KEYSTORE; ALLOW_UNSIGNED=1 to skip)
 	@# Removed BEFORE Gradle runs, not after: a dist/ copy that survives a

@@ -291,6 +291,41 @@ func TestAutoIndexValues(t *testing.T) {
 	}
 }
 
+// IMPORT_KEEP decides the fate of an imported archive. Anything unrecognised
+// must land on "ask": the two mistakes are not symmetric, and a typo that
+// resolved to "delete" would remove a file the user may have no other copy of.
+func TestImportKeepValues(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"", ImportKeepAsk}, // unset → default
+		{"ask", ImportKeepAsk},
+		{"ASK", ImportKeepAsk},
+		{"keep", ImportKeepYes},
+		{"yes", ImportKeepYes},
+		{"1", ImportKeepYes},
+		{"delete", ImportKeepDelete},
+		{"remove", ImportKeepDelete},
+		{"0", ImportKeepDelete},
+		{"nonsense", ImportKeepAsk},
+	} {
+		dir := t.TempDir()
+		p := filepath.Join(dir, Name)
+		body := ""
+		if c.in != "" {
+			body = "IMPORT_KEEP = \"" + c.in + "\"\n"
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(p, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.ImportKeep != c.want {
+			t.Errorf("IMPORT_KEEP=%q → %q, want %q", c.in, cfg.ImportKeep, c.want)
+		}
+	}
+}
+
 func TestParseWorkersAndSize(t *testing.T) {
 	cpu := runtime.NumCPU()
 	for in, want := range map[string]int{

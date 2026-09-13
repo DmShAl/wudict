@@ -31,6 +31,7 @@ import (
 	"github.com/wuweidict/wudict/internal/ftsq"
 	"github.com/wuweidict/wudict/internal/hilite"
 	"github.com/wuweidict/wudict/internal/htmlref"
+	"github.com/wuweidict/wudict/internal/intake"
 	"github.com/wuweidict/wudict/internal/lang"
 	"github.com/wuweidict/wudict/internal/logx"
 	"github.com/wuweidict/wudict/internal/morph"
@@ -185,6 +186,33 @@ type Server struct {
 	// would turn this endpoint into a fetcher for whatever address the machine
 	// running wudict can reach.
 	LemmaURL string
+
+	// ImportKeep (config IMPORT_KEEP) decides what becomes of the archive an
+	// import came from: "ask" leaves the question to the page, "keep" and
+	// "delete" answer it. A FAILED import always keeps it, whatever this
+	// says - see intake.Manager.Confirm.
+	ImportKeep string
+
+	// ImportURLHosts (config IMPORT_URL_HOSTS) optionally restricts which
+	// sites this server will fetch an archive from. Empty - the default - is
+	// any site: the link came from the person using the app, who found the
+	// dictionary somewhere no list was ever going to enumerate (D139). It
+	// earns its keep on a wudict other people can reach, where the caller
+	// and the owner are no longer the same person.
+	//
+	// ImportInsecure (IMPORT_INSECURE) is a different question and is NOT
+	// opened by the above: it lifts the two refusals that protect the machine
+	// this runs on - plain http, and an address on the local network. Both
+	// are server state for the same reason LemmaURL is: policy a request
+	// could widen is not policy.
+	ImportURLHosts []string
+	ImportInsecure bool
+
+	// intake owns the single import job (intake.go). The zero value is
+	// usable; intakeOnce wires its one callback the first time a request
+	// reaches it, so a Server built directly in a test needs no constructor.
+	intake     intake.Manager
+	intakeOnce sync.Once
 
 	// lemmas holds the installer's state: the running jobs, the cached
 	// catalogue and the cached file digests. Built on first use so a Server

@@ -16,5 +16,39 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-    <application android:requestLegacyExternalStorage="true" />
+    <application android:requestLegacyExternalStorage="true">
+
+        <!-- Sharing a LOOSE dictionary file to this app (D138). The archive
+             types are claimed in src/main and handled by the flavour-neutral
+             Intake; these are per-flavour because their HANDLER is: the Play
+             flavour copies shared documents through SafImporter, which is its
+             only way past the Storage Access Framework, while this flavour
+             holds all-files access and can have the server read the file
+             where it lies - which is also how the .mdd beside a shared .mdx
+             comes along, since the server finds siblings by looking in the
+             folder rather than by being handed them.
+
+             Until now this flavour had no share target at all: the octet-
+             stream filters lived only in src/play, and foss Storage.onNewIntent
+             was an empty stub. So a .mdx could be opened here but not shared
+             here, which is the gap this closes.
+
+             application/gzip belongs here, unlike in the VIEW filter: a share
+             is a file the user has already named this app for, so a .dsl.dz
+             costs nothing to accept and a .tar.gz costs one sentence. -->
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/gzip" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/gzip" />
+            </intent-filter>
+        </activity>
+    </application>
 </manifest>

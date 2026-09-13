@@ -14,6 +14,7 @@ package com.legbehindneck.wudict;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -23,6 +24,8 @@ import android.provider.Settings;
 import android.webkit.WebView;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 final class Storage {
 
@@ -76,7 +79,45 @@ final class Storage {
     static void onPageFinished(WebView web) {
     }
 
-    /** No share-target filters in this flavour's manifest. */
+    /**
+     * A loose dictionary file shared to this app (D138). The archive types are
+     * claimed in src/main and handled there; these filters live in this
+     * flavour's manifest because their handler does - the Play flavour copies
+     * shared documents through SafImporter, and this one has all-files access,
+     * so the server can read the file where it lies and pick up the .mdd
+     * sitting beside the .mdx on its own.
+     *
+     * <p>Which is why this routes to Intake rather than growing an importer of
+     * its own: the work is identical to a tap, and the only thing this flavour
+     * contributes is the permission that makes the file readable.
+     */
     static void onNewIntent(Activity a, Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        if (!Intent.ACTION_SEND.equals(action)
+                && !Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            return;
+        }
+        List<Uri> docs = new ArrayList<>();
+        if (Intent.ACTION_SEND.equals(action)) {
+            Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) docs.add(u);
+        } else {
+            ArrayList<Uri> us = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (us != null) {
+                for (Uri u : us) {
+                    if (u != null) docs.add(u);
+                }
+            }
+        }
+        // Some senders put the payload in ClipData instead of EXTRA_STREAM.
+        if (docs.isEmpty()) {
+            ClipData clip = intent.getClipData();
+            for (int i = 0; clip != null && i < clip.getItemCount(); i++) {
+                Uri u = clip.getItemAt(i).getUri();
+                if (u != null) docs.add(u);
+            }
+        }
+        if (!docs.isEmpty()) Intake.startLoose(a, docs);
     }
 }

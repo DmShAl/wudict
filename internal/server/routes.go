@@ -114,6 +114,12 @@ func (s *Server) routes() []route {
 		{"GET", "/api/lemmas", s.handleLemmas, "/api/lemmas", false},
 		{"POST", "/api/lemmas", s.handleLemmaInstall, "/api/lemmas", false},
 		{"DELETE", "/api/lemmas", s.handleLemmaRemove, "/api/lemmas", false},
+		// importing an archive of dictionaries (intake.go): start or confirm
+		// a job, poll it, cancel it. Never CORS - all three write to the
+		// library, and the status names a folder on the user's disk.
+		{"POST", "/api/intake", s.handleIntake, "/api/intake", false},
+		{"GET", "/api/intake", s.handleIntakeStatus, "/api/intake", false},
+		{"DELETE", "/api/intake", s.handleIntakeCancel, "/api/intake", false},
 		// the user's own file store (userfiles.go): what their custom CSS,
 		// or a dictionary they wrote themselves, can reference by URL. Never
 		// CORS - the list names a folder on the user's disk, and the other

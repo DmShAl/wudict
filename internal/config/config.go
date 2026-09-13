@@ -35,7 +35,43 @@ type Config struct {
 	Speexdec     string // SPEEXDEC: path to the external speexdec binary (.spx audio)
 	SpeexBackend string // SPEEX_BACKEND: internal (in-process libspeex, default) | external (speexdec binary)
 	AutoIndex    string // AUTO_INDEX: on|off - prepare a dictionary's index on first search
-	UseCached    bool   // USE_CACHED=1: also list previously imported dictionaries from the db dir
+
+	// ImportKeep (IMPORT_KEEP) is what becomes of the archive an import came
+	// from once its dictionaries are installed: "ask" puts the choice in front
+	// of the user each time, "keep" and "delete" answer it for them. It has no
+	// bearing on a FAILED import, where the source is always kept - deleting
+	// somebody's only copy of a dictionary after an import that did not work
+	// is unrecoverable, so it is not something a setting may authorise.
+	ImportKeep string // IMPORT_KEEP: ask|keep|delete
+
+	// ImportURLHosts (IMPORT_URL_HOSTS) restricts which sites an archive may
+	// be DOWNLOADED from. A host matches itself and its subdomains; an EMPTY
+	// list - the DEFAULT - is no restriction at all.
+	//
+	// It shipped as an allowlist of the three community sites and is now
+	// opt-in, because the allowlist was answering a question nobody asked
+	// (D139). A link reaches this server only because the user shared, pasted
+	// or tapped it: there is no path by which one arrives unbidden, so a list
+	// deciding which of the user's OWN links are permissible is not protecting
+	// them from anything - it is refusing the dictionary they went and found
+	// on the fourth site. What does protect the machine is unrelated to the
+	// host's NAME and is not controlled here: plain http and addresses on the
+	// local network are refused by the fetcher itself, and only ImportInsecure
+	// lifts those.
+	//
+	// Kept as a setting rather than deleted for the one case it is right for:
+	// a wudict reachable from a LAN, where an unauthenticated caller could
+	// otherwise point the download anywhere the host machine can reach.
+	ImportURLHosts []string // IMPORT_URL_HOSTS: comma-separated
+	// ImportInsecure (IMPORT_INSECURE=1) lifts the two refusals a download
+	// makes on its own: plain http, and a host that resolves to a private,
+	// loopback or link-local address. The second matters because this server
+	// may be listening on a LAN: without it, a browser on another machine
+	// could use the download as a way to reach hosts only this machine can
+	// see. One key for both because they are one question - "I trust what I
+	// am pointing this at" - and two would invite turning off the wrong one.
+	ImportInsecure bool // IMPORT_INSECURE
+	UseCached      bool // USE_CACHED=1: also list previously imported dictionaries from the db dir
 
 	// AllowRemoteDelete (ALLOW_REMOTE_DELETE) governs whether a browser on
 	// ANOTHER machine may delete a dictionary. Removal from the machine
@@ -124,7 +160,11 @@ func defaults() Config {
 		Speexdec:     "",
 		SpeexBackend: "internal",  // in-process libspeex (cgo); "external" = speexdec binary
 		AutoIndex:    AutoIndexOn, // opt-out: prepare an index on first use
-		IndexWorkers: 1,           // one dictionary at a time: the machine has other work to do
+		ImportKeep:   ImportKeepAsk,
+		// Nil: any site (D139). Dictionaries come from wherever the user
+		// found them, and the link is one they handed over deliberately.
+		ImportURLHosts: nil,
+		IndexWorkers:   1, // one dictionary at a time: the machine has other work to do
 		// both are platform-dependent, and for reasons that are about the
 		// platform's opinion of us rather than its capability - see tuning.go
 		PreviewMemory: previewMemoryDefault(),
@@ -233,6 +273,18 @@ func Load(configPath string, flags map[string]string) (Config, error) {
 	}
 	if v := get("AUTO_INDEX"); v != "" {
 		cfg.AutoIndex = normalizeAutoIndex(v)
+	}
+	if v := get("IMPORT_KEEP"); v != "" {
+		cfg.ImportKeep = normalizeImportKeep(v)
+	}
+	if v := get("IMPORT_URL_HOSTS"); v != "" {
+		// Set-but-empty is meaningful and different from unset: it is how a
+		// user removes the restriction, so it must not fall back to the
+		// default the way an unset key does.
+		cfg.ImportURLHosts = ParseHostList(v)
+	}
+	if v := get("IMPORT_INSECURE"); v != "" {
+		cfg.ImportInsecure = !isOff(v)
 	}
 	if v := get("USE_CACHED"); v != "" {
 		cfg.UseCached = !isOff(v)
@@ -404,6 +456,16 @@ const configTemplate = `# wudict configuration  (~/.wudict/wudict.toml)
 # SPEEXDEC    = "/usr/bin/speexdec"   # external speexdec path; blank = auto-detect (next to the executable, then $PATH)
 # AUTO_INDEX  = "on"                  # "off" = never prepare an index on its own; searching then
 #                                     #         uses the dictionary's own format directly
+# IMPORT_KEEP = "ask"                 # what happens to an archive after its dictionaries are
+#                                     # installed: "ask" each time, "keep" it, or "delete" it.
+#                                     # An import that FAILED always keeps it, whatever this says.
+# IMPORT_URL_HOSTS = ""               # restrict which sites an archive may be downloaded from.
+#                                     # A host matches itself and its subdomains. Empty - the
+#                                     # default - is any site. Worth setting only if this server
+#                                     # is reachable from your network, since a caller there could
+#                                     # otherwise aim a download anywhere this machine can reach.
+# IMPORT_INSECURE = "0"               # "1" = also allow plain http, and hosts on the local network.
+#                                     # Only meaningful if you trust the address you are pointing at.
 # INDEX_WORKERS = "1"                 # how many dictionaries may be prepared at once. Each one
 #                                     # saturates a core and holds a few hundred bytes per headword,
 #                                     # so the default is one - the machine stays usable.
@@ -839,6 +901,53 @@ const (
 	AutoIndexOn  = "on"
 	AutoIndexOff = "off"
 )
+
+// IMPORT_KEEP values: what becomes of the archive an import came from.
+const (
+	ImportKeepAsk    = "ask"
+	ImportKeepYes    = "keep"
+	ImportKeepDelete = "delete"
+)
+
+// normalizeImportKeep maps what a user may have written onto the three
+// answers. Anything unrecognised means "ask", which is the answer that cannot
+// destroy a file by being a typo.
+func normalizeImportKeep(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "keep", "1", "true", "yes", "y", "on":
+		return ImportKeepYes
+	case "delete", "remove", "0", "false", "no", "n", "off":
+		return ImportKeepDelete
+	default:
+		return ImportKeepAsk
+	}
+}
+
+// ParseHostList splits a comma-separated host list into the spelling the
+// matcher compares against: lower-cased, trimmed, no empty entries, and with
+// any leading dot or "*." removed - both are how a person writes "and its
+// subdomains", which is what a bare host already means here.
+func ParseHostList(v string) []string {
+	var out []string
+	for _, f := range strings.Split(v, ",") {
+		h := strings.ToLower(strings.TrimSpace(f))
+		h = strings.TrimPrefix(h, "*.")
+		h = strings.Trim(h, ".")
+		// A pasted origin rather than a host: take the host out of it instead
+		// of refusing, since the two are indistinguishable to the person
+		// typing and one of them is what they meant.
+		if i := strings.Index(h, "://"); i >= 0 {
+			h = h[i+3:]
+		}
+		if i := strings.IndexAny(h, "/:"); i >= 0 {
+			h = h[:i]
+		}
+		if h != "" {
+			out = append(out, h)
+		}
+	}
+	return out
+}
 
 // normalizeAutoIndex maps what a user may have written onto on/off.
 func normalizeAutoIndex(v string) string {

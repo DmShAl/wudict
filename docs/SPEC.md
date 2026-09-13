@@ -186,6 +186,148 @@ would be worse than silence. Multi-word queries are never lemmatized.
 7. `max` unbounded — clamp.
 8. Headword printed unescaped in single-dict mode — escape all reflected text.
 
+## 4b. Intake — an archive becomes dictionaries (D128/D129, `internal/intake`)
+
+Discovery (§1) starts at *files already sitting in a scanned folder*. Intake is the stage
+in front of it: arbitrary bytes — an uploaded or shared `.zip` or `.7z`, a plain `.mdx` /
+`.ifo` / `.dsl` / `.slob` / `.bgl`, or any of those downloaded from a link — become
+installed dictionaries that discovery then finds, with no file manager and no unpacking by
+hand. It stops at rescan; preparation and indexing downstream are untouched.
+
+**Stages.** Acquire → **Sniff** → *user confirms* → Extract → rescan → Dispose.
+
+A 7z is read **strictly in archive order on one goroutine**. That is a format fact, not a
+style: a 7z *folder* is one compressed stream holding several files end to end, so reading
+them in stored order is linear, and reading them in any other order means decompressing
+the folder again from its start for each file. Extraction therefore sorts a candidate's
+files by their position in the archive; a zip is indifferent to the order, so one rule
+serves both. Peak memory is one LZMA2 dictionary: when extraction leaves a folder that
+holds more than one file, the archive is reopened, which is what drops the decompressor
+the reader pooled for it.
+
+- **Sniff decompresses nothing.** A zip answers "what is in here" from its central
+  directory (a seek to the tail) and a 7z from its header, so listing a 4 GB archive
+  costs no decompressor and no memory surprise. A 7z declares no per-file *compressed*
+  size — only a packed size per folder — so the ratio test that catches a zip bomb has
+  no input there; what bounds a 7z instead is the write-time check every format gets,
+  which reads one byte past the declared size and refuses the entry that exceeds it. The grouping rule is `internal/dict`'s, not a second implementation of
+  it: a **candidate** is one main file plus every companion sharing its stem *in the same
+  archive directory*, with a StarDict `res/` subtree handed to the sole dictionary in its
+  folder (the archive reading of `soleIfoInDir`). A candidate missing a required companion
+  — a lone `.ifo` without its `.idx`/`.dict` — is reported **incomplete and not
+  installable**, never imported into a broken state. `.mdd` and `_abrv.dsl` travel as
+  payload and are never offered as dictionaries of their own.
+- **A loose dictionary file is an archive with no compression** (D135). These formats are
+  not always *handed over* as bundles: a link points at `oxford.mdx`, a share sheet carries
+  one file, a download folder holds the `.mdx` and the `.mdd` because the site offered them
+  as two links. Rather than a second pipeline, such a file is presented through the same
+  `Archive` interface as "this file plus the same-stem siblings in its directory" — which is
+  dict's folder rule — so grouping, completeness, the already-installed check, staging and
+  the atomic rename are all the code that was already there. The file may be the main one or
+  a companion: downloading `oxford.mdd` after `oxford.mdx` is handing over the second half of
+  the same dictionary. A file belonging to no dictionary is refused as unreadable, not
+  reported as an archive holding nothing. Because the **name is the dictionary's name**, a
+  streamed upload is spooled into a per-upload `incoming-*` directory under its real name
+  rather than a temporary one — which also keeps one upload's sibling scan out of another's —
+  and disposal removes what was actually consumed: "delete the source afterwards" takes the
+  `.mdd` along with the `.mdx`, and takes the whole spool directory for an upload.
+- **Every input is hostile.** Names that are absolute, climbing, null-bearing,
+  drive-lettered or too deeply nested are rejected *at sniff*, so a hostile entry is never
+  even listed to the user; extraction re-checks the canonical destination before it writes.
+  Entry count, per-candidate size and compression ratio are capped, and each entry is
+  written through an `io.LimitReader` of its declared size so a lying header truncates
+  instead of filling the disk.
+- **Staging is `<dict dir>/.wudict-intake/<jobid>/`** — inside the destination on purpose,
+  so installing is an atomic `os.Rename` and not a second full copy. It is deliberately not
+  `TMPDIR`: on Android that is the cache partition, which would make a 2 GB extraction both
+  a cross-device copy and a partition overflow. Discovery skips hidden subtrees, so a
+  racing scan cannot see a half-extracted dictionary.
+- **One job at a time, globally**, so extraction and the indexing it triggers stay
+  sequential by construction and peak RSS is bounded by one dictionary.
+- **Cleanup has three layers**: the job directory unwinds through one removal on success,
+  failure and cancel alike; the staging root goes last and only if empty; and
+  `intake.Sweep(DictDirs)` at startup removes what a kill left behind.
+- **A URL is acquired by the server, not the caller** (D132). `POST ?url=` claims the job,
+  answers 202 and downloads on a goroutine, so the phone's page may die on rotation while
+  the transfer continues; `downloading` is the one state in the machine that exists because
+  the work is minutes long and somebody is watching a number. Policy is `IMPORT_URL_HOSTS`
+  (empty by default, so any site: the link is one the user handed over deliberately, and a
+  list of the community sites was answering a question nobody asked - D139. Set, a host
+  stands for itself and its subdomains) plus https-only and a refusal to reach loopback, private,
+  link-local or CGNAT addresses — the latter judged in `net.Dialer.Control`, at connect
+  time, which is where a name that resolves differently on the second lookup cannot slip
+  past. Every redirect hop is re-validated. `IMPORT_INSECURE=1` lifts both refusals as one
+  question. The download lands in `<dict dir>/Downloads/`, **never in the staging area**: it
+  is not an intermediary but the only copy of a file that took minutes to fetch, and its
+  fate has to be the user's `IMPORT_KEEP` choice rather than the job's teardown. That
+  folder is visible on purpose — somebody who fetched two gigabytes has to be able to find
+  them — and is *not* part of the library: discovery skips it where intake writes it,
+  directly inside a scan root, so one import cannot list the same dictionary twice, once
+  from the library and once from the shelf it arrived on. A `Downloads` folder further
+  down the tree is somebody's own and is scanned like any other. An
+  unfinished transfer keeps its `.part` plus a `.part.meta` validator sidecar, so the next
+  attempt resumes under `If-Range` — and a server that answers 200 restarts it rather than
+  splicing two different files into one corrupt archive. Whether the link is something we read at
+  all is decided from the **response headers**, before a byte of the body is taken — and for
+  a loose file that judgement is the *name*, because these formats have no registered MIME
+  type and every one of them arrives as `application/octet-stream`. A declared `text/html`
+  or `application/xhtml+xml` is refused however perfect the name, because that is the login
+  page the link redirected to wearing the file's name; `text/plain` is deliberately not
+  refused, because a DSL dictionary is text.
+- **A downloaded main file has its companions looked for, and offered** (D135). After a
+  loose file lands, the siblings dict's tables say it can have are probed at the **same
+  location** — `oxford.mdd`, then `oxford.1.mdd`, `oxford.2.mdd` stopping at the first gap;
+  `oxford.css` and `oxford.js`, which an MDX repack ships loose beside the `.mdx` and which
+  the reader already serves from there; a StarDict `.idx`/`.dict` in each of their spellings,
+  first hit wins; `res.zip`. Two rules
+  keep this from being a crawler: nothing is guessed that the format tables do not already
+  name, and the budget is capped. A probe is a `HEAD`, falling back to a one-byte ranged
+  `GET` for the hosts that answer `HEAD` with 403/405/501, so nothing but headers crosses the
+  wire; a file already in the download folder is not probed at all, and does not end the
+  numbered run. **Nothing is fetched on the strength of a probe.** What a probe produces is
+  a list reported as `extras` and shown on the same screen that asks which dictionaries to
+  install, ticked but not taken — a companion can be hundreds of megabytes of somebody's
+  phone data. Confirming with extras runs in two phases: download, **re-sniff**, then
+  install, because a `.ifo` is incomplete before its `.idx` lands and complete after; the
+  picked candidates are re-matched **by name**, and the completeness check runs again on what
+  actually arrived, so a download that failed still refuses honestly instead of installing
+  half a dictionary. The derived URL is re-checked against the same host policy as the link
+  the user gave, and is never reported: it is machinery, and a link may carry a session
+  token.
+- **A dictionary the library already holds is updated, not duplicated** (D134). Sniff
+  compares each candidate against the folder an install would create — re-rooting its files
+  exactly as extraction does, and comparing **declared size against what is on disk**, the
+  same size-first test `store.SourceChanged` makes before it re-indexes anything; no
+  checksum, because hashing a two-gigabyte bundle on a phone answers a question a `stat`
+  answers. The candidate carries `existing` (the folder) and `unchanged` (same files, same
+  sizes), so the user is told *before* choosing rather than shown a numbered folder
+  afterwards; an unchanged one is listed unticked. Confirming **replaces the folder whole**,
+  by renaming the old one aside into the stage, renaming the new one in, and restoring it if
+  that fails — so the library is never without the dictionary. The question is re-asked at
+  write time rather than trusted from the sniff, because minutes of user and extraction time
+  sit between the two. `copy=1` is the explicit opt-out and installs beside it under the
+  numbered name.
+- **A link already downloaded is not downloaded again.** A completed fetch leaves a `.done`
+  sidecar beside the archive recording the URL, the server's validator and the size; the
+  next fetch of the same URL sends `If-None-Match`/`If-Modified-Since`, and a **304 reuses
+  the file with no body transferred at all**. With no validator to send, an equal
+  `Content-Length` ends the transfer at the headers. A file that genuinely changed is
+  fetched and lands under its own numbered name — **a download is never overwritten**,
+  because it may be the user's only copy. A sidecar whose file has gone is swept.
+- **Disposition**: `IMPORT_KEEP = ask|keep|delete` decides what becomes of the source
+  archive after a successful install, and the configured answer beats the request. **A
+  failed import always keeps the source, and that is not a setting** (D129) — deleting the
+  user's only copy after a failure is unrecoverable.
+
+**API** (`/api/intake`, not CORS — it writes to the library, outside the D69 allowlist):
+`POST` starts a job from an uploaded body, a local `path` or a `url`, and `POST ?confirm=1` accepts
+the picked candidates — and the picked `extras` — and returns 202; `GET` polls status, the sniff manifest and progress;
+`DELETE` cancels and cleans up. Poll-based, matching `/api/ingest`. The UI is the shared
+embedded setup page, so **desktop gets drop-an-archive at no extra cost**; per D102 the
+staging directory, the central-directory trick and the job id surface nowhere — progress is
+one line, and while downloading it names the **host** rather than the link, since a shared
+URL may carry a session token and the file has no name until the site answers.
+
 ## 5. Ingest pipeline
 
 ```go

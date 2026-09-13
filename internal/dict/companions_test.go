@@ -35,8 +35,8 @@ func TestStemAndMainExt(t *testing.T) {
 		if got := Stem(c.src); got != c.stem {
 			t.Errorf("Stem(%q) = %q, want %q", c.src, got, c.stem)
 		}
-		if got := mainExt(c.src); got != c.ext {
-			t.Errorf("mainExt(%q) = %q, want %q", c.src, got, c.ext)
+		if got := MainExt(c.src); got != c.ext {
+			t.Errorf("MainExt(%q) = %q, want %q", c.src, got, c.ext)
 		}
 	}
 }
@@ -224,4 +224,24 @@ func TestAbbrevCompanion(t *testing.T) {
 	if got, ok := AbbrevCompanion(mdx); ok {
 		t.Errorf("AbbrevCompanion(mdx) = %q, want none", got)
 	}
+}
+
+// The loose stylesheet and script an MDX repack ships beside its .mdx are part
+// of the dictionary: mdx.looseFile serves them at read time, so removal must
+// account for them and the panel must list them.
+func TestSourceFilesMDXLooseAssets(t *testing.T) {
+	dir := t.TempDir()
+	mdx := touch(t, filepath.Join(dir, "LDOCE6.mdx"))
+	touch(t, filepath.Join(dir, "LDOCE6.mdd"))
+	touch(t, filepath.Join(dir, "LDOCE6.css"))
+	touch(t, filepath.Join(dir, "LDOCE6.js"))
+	// a shared asset named after nothing in particular is not ours to remove
+	touch(t, filepath.Join(dir, "style.css"))
+
+	eqPaths(t, SourceFiles(mdx), []string{
+		filepath.Join(dir, "LDOCE6.mdx"),
+		filepath.Join(dir, "LDOCE6.css"),
+		filepath.Join(dir, "LDOCE6.js"),
+		filepath.Join(dir, "LDOCE6.mdd"),
+	})
 }

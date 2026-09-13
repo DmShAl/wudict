@@ -44,8 +44,7 @@ func (r *Reader) Next() (dict.Entry, error) {
 			continue
 		}
 		body := strings.TrimSpace(strings.Trim(decodeEnc(raw, r.d.enc), "\x00"))
-		if target, ok := strings.CutPrefix(body, linkPrefix); ok {
-			target = strings.TrimSpace(strings.Trim(target, "\x00"))
+		if target, ok := linkTarget(body); ok {
 			if target == "" || target == e.KeyWord {
 				continue
 			}
