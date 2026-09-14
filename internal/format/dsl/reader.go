@@ -196,7 +196,11 @@ func (r *Reader) init(path string) error {
 	return nil
 }
 
-// detectEncoding sniffs the BOM, then the NUL pattern, then UTF-8 validity.
+// detectEncoding sniffs the BOM, then the NUL pattern, then UTF-8 validity,
+// then the single-byte code page the header names or the declared languages
+// imply (codepage.go). Every non-BOM verdict must also decode into lines - a
+// DSL that comes out as one unbroken token was decoded wrong, whatever the
+// byte statistics said.
 func detectEncoding(br *bufio.Reader) (encoding.Encoding, error) {
 	head, _ := br.Peek(4)
 	switch {
@@ -211,15 +215,19 @@ func detectEncoding(br *bufio.Reader) (encoding.Encoding, error) {
 	case len(head) >= 3 && bytes.Equal(head[:3], []byte{0xEF, 0xBB, 0xBF}):
 		return unicode.UTF8BOM, nil
 	}
-	// No BOM. Two probes, and the order is deliberate: UTF-16 is asked FIRST.
+	// No BOM. Three probes, and the order is deliberate: UTF-16 is asked FIRST.
 	// Cyrillic in UTF-16LE is byte-for-byte valid UTF-8 - every U+04xx pair is a
 	// byte below 0x80 followed by the constant 0x04, both legal single-byte
 	// UTF-8 - so a UTF-8-first sniff accepts a BOM-less Russian export, which is
 	// most of them, and ingests the whole dictionary as mojibake with no error.
 	// No refinement of the UTF-8 test can see that; only a more specific
 	// question asked earlier can.
-	sample, _ := br.Peek(1 << 12)
-	if enc := utf16ByNULs(sample); enc != nil {
+	//
+	// 64 KB rather than 4: the sample now has to carry the #SOURCE_CODE_PAGE
+	// and #INDEX_LANGUAGE header lines to eightBitEncoding, and to hold enough
+	// text for decodesToLines to be able to find a line break in it.
+	sample, _ := br.Peek(1 << 16)
+	if enc := utf16ByNULs(sample); enc != nil && decodesToLines(enc, sample) {
 		return enc, nil
 	}
 	// Peek cuts on a byte boundary, which lands mid-rune roughly half the time
@@ -234,6 +242,20 @@ func detectEncoding(br *bufio.Reader) (encoding.Encoding, error) {
 	}
 	if utf8.Valid(sample) {
 		return unicode.UTF8, nil
+	}
+	// Neither Unicode form fits: a single-byte Windows code page, which the
+	// header names or the declared languages imply (codepage.go). The old
+	// unconditional UTF-16LE fallback is kept only for what it was ever right
+	// about - a file whose NUL pattern was too weak to call above - and only
+	// when it actually yields lines, because a single-byte file decoded as
+	// UTF-16 yields exactly one line the length of the dictionary.
+	cp := eightBitEncoding(sample)
+	if decodesToLines(cp, sample) || !bytes.ContainsRune(sample, 0) {
+		// Either the code page produces lines, or the file has no NUL in 64 KB
+		// and therefore cannot be UTF-16 at all - in which case the code page
+		// is the only candidate left, lines or not (a dictionary whose first
+		// 64 KB is one enormous article is unusual but legal).
+		return cp, nil
 	}
 	return unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM), nil
 }

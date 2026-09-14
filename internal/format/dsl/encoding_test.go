@@ -7,10 +7,16 @@ package dsl
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -114,5 +120,99 @@ func TestDetectEncodingRuneSplitSample(t *testing.T) {
 				t.Fatalf("detected %s, want %s (decoded head %q)", got, tc.want, decoded[:min(len(decoded), 40)])
 			}
 		})
+	}
+}
+
+// A single-byte Lingvo export must be recognised as such. Before code pages
+// were understood, a BOM-less Windows-1251 file fell through both Unicode
+// probes to the UTF-16LE fallback, where no LF byte survives decoding: the
+// scanner then saw the entire dictionary as one token and a large one failed
+// with "bufio.Scanner: token too long" - the error users reported against the
+// GoldenDict-era Multitran rebuilds - while a small one silently read as zero
+// entries.
+func TestDetectEncodingSingleByte(t *testing.T) {
+	body := func(header string) []byte {
+		var b strings.Builder
+		b.WriteString(header)
+		for i := 0; i < 400; i++ {
+			b.WriteString("слово\r\n\t[m1][trn]word[/trn][/m]\r\n\r\n")
+		}
+		out, err := charmap.Windows1251.NewEncoder().String(b.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return []byte(out)
+	}
+
+	for _, tc := range []struct {
+		name, header string
+		want         encoding.Encoding
+	}{
+		{"declared code page", "#SOURCE_CODE_PAGE \"Cyrillic\"\r\n", charmap.Windows1251},
+		{"implied by language", "#INDEX_LANGUAGE \"Russian\"\r\n", charmap.Windows1251},
+		{"tab separator", "#SOURCE_CODE_PAGE\t\"Cyrillic\"\r\n", charmap.Windows1251},
+		// Nothing declared and nothing to infer from: Windows-1252 is the
+		// Lingvo default, and the bytes at least survive round-trip.
+		{"nothing declared", "#NAME \"x\"\r\n", charmap.Windows1252},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := body(tc.header)
+			got, err := detectEncoding(bufio.NewReaderSize(bytes.NewReader(raw), 1<<20))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("detectEncoding = %v, want %v", got, tc.want)
+			}
+			// The point of the fix: whatever code page is chosen, the stream
+			// must still break into lines.
+			if !decodesToLines(got, raw) {
+				t.Fatal("chosen encoding yields no line breaks")
+			}
+		})
+	}
+}
+
+// End to end: the reader parses a code-page file, and the header it reads back
+// is the one that was written - which is only true if the sniff and the decode
+// agree.
+func TestReaderSingleByteFile(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("#NAME \"Ru-En\"\r\n#INDEX_LANGUAGE \"Russian\"\r\n#SOURCE_CODE_PAGE \"Cyrillic\"\r\n")
+	for i := 0; i < 400; i++ {
+		fmt.Fprintf(&b, "слово%d\r\n\t[m1][trn]word%d[/trn][/m]\r\n\r\n", i, i)
+	}
+	cp, err := charmap.Windows1251.NewEncoder().String(b.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "cp.dsl")
+	if err := os.WriteFile(path, []byte(cp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if m := r.Meta(); m.Name != "Ru-En" || m.IndexLang != "ru" {
+		t.Fatalf("meta = %+v", m)
+	}
+	n := 0
+	for {
+		e, err := r.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("entry %d: %v", n, err)
+		}
+		if want := fmt.Sprintf("слово%d", n); e.Headwords[0] != want {
+			t.Fatalf("headword %d = %q, want %q", n, e.Headwords[0], want)
+		}
+		n++
+	}
+	if n != 400 {
+		t.Fatalf("entries = %d, want 400", n)
 	}
 }
