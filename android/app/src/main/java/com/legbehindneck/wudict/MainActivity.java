@@ -72,6 +72,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         applyWindowInsets();
         syncBarAppearance();
+        applyImmersive();
         // Where dictionaries come from is the one thing that differs between
         // the FOSS and Play builds (D62), and it lives entirely in Storage -
         // a class that exists once per flavour and never in this source set.
@@ -152,6 +153,68 @@ public class MainActivity extends Activity {
         int light = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
                 | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         decor.setSystemUiVisibility(night ? (flags & ~light) : (flags | light));
+    }
+
+    // ── immersive mode ───────────────────────────────────────────────────
+    // A reading app's window is worth more than its chrome, so the bars can be
+    // asked to leave. Two rules make this safe to hand a user:
+    //
+    // TRANSIENT, NEVER STICKY-BY-SURPRISE. The bars come back on an edge swipe
+    // and leave again on their own, so nothing is unreachable while they are
+    // hidden - which is what makes a checkbox an acceptable control for this
+    // rather than a trap. On API 30+ that is BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE;
+    // below it, IMMERSIVE_STICKY, which is the same bargain spelled the old way.
+    //
+    // THE INSETS ARE NOT TOUCHED. applyWindowInsets() keeps padding the root by
+    // whatever the window reports; hidden bars report zero, so the page gains
+    // the space with nothing in this class knowing why, and a transient bar is
+    // an overlay that reports nothing and therefore shifts nothing under it.
+    // The display cutout is still inset while the bars are gone - text under a
+    // camera hole is not what anyone asked for - and the IME is still inset,
+    // because it is not a system bar and is never hidden here.
+    //
+    // Re-applied on every focus gain rather than once: a transient bar, a
+    // dialog, the recents switcher and a return from the settings window all
+    // restore the bars, and the platform expects the app to say again.
+    private void applyImmersive() {
+        boolean on = ShellPrefs.immersive(this);
+        View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController c = decor.getWindowInsetsController();
+            if (c == null) return;
+            c.setSystemBarsBehavior(
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            int bars = WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars();
+            if (on) {
+                c.hide(bars);
+            } else {
+                c.show(bars);
+            }
+        } else {
+            legacyImmersive(decor, on);
+        }
+    }
+
+    // API 26–29. Read-modify-write, because syncBarAppearance() owns two other
+    // bits in the same field and must not be undone by this.
+    @SuppressWarnings("deprecation")
+    private static void legacyImmersive(View decor, boolean on) {
+        int mask = View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        int flags = decor.getSystemUiVisibility();
+        decor.setSystemUiVisibility(on ? (flags | mask) : (flags & ~mask));
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // Only on gain: asking while the window is losing focus is asking on
+        // behalf of whatever is taking it.
+        if (hasFocus) applyImmersive();
     }
 
     // ── navigation ───────────────────────────────────────────────────────

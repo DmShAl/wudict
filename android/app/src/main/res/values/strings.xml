@@ -45,6 +45,15 @@
      <string name="settings_lookup_share">From the share menu</string>
      <string name="settings_lookup_link">From links and automation</string>
 
+     <!-- A window fact, and the only row on this screen the user can see the
+          effect of the moment they leave it. The label says what they GET, the
+          hint says the one thing they must know to undo it in the moment -
+          that the bars are a swipe away, not gone. Nothing about flags,
+          behaviours or API levels: there is nothing to do with that (D102). -->
+     <string name="settings_screen_head">Screen</string>
+     <string name="settings_immersive">Immersive Mode (full screen)</string>
+     <string name="settings_immersive_hint">The clock and the navigation bar stay out of the way while you read. Swipe in from the top or bottom edge to bring them back for a moment.</string>
+
      <!-- PLATFORM OVERRIDES (D101). Each row names a resource trade the DEVICE
           forces - space, memory, cores, an address - never a dictionary fact,
           which is the test for whether a row may exist here at all. The copy

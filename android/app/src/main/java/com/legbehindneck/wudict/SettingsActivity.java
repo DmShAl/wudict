@@ -124,6 +124,14 @@ public class SettingsActivity extends Activity {
         col.addView(row(ShellPrefs.SHARE, R.string.settings_lookup_share));
         col.addView(row(ShellPrefs.LINK, R.string.settings_lookup_link));
 
+        // A window fact, so it sits on its own rather than under the lookup
+        // heading: it is about the app's window, not about where a lookup
+        // lands. Reuses row() because it is the same shape - stored here,
+        // read by MainActivity, default off.
+        col.addView(head(R.string.settings_screen_head, SP_6));
+        col.addView(row(ShellPrefs.IMMERSIVE, R.string.settings_immersive));
+        col.addView(caption(getString(R.string.settings_immersive_hint), 0, SP_3));
+
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
         col.addView(caption(getString(R.string.settings_access_key_hint), SP_2, SP_3));

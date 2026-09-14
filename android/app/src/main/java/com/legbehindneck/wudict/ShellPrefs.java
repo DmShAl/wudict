@@ -75,6 +75,13 @@ final class ShellPrefs {
     static final String SHARE = "lookup_share_in_app";
     static final String LINK = "lookup_link_in_app";
 
+    // Whether the app's own window hides the system bars while it is read.
+    // A shell fact by the same two tests as the three above: the WINDOW is the
+    // subject, and the decider - MainActivity, painting its first frame - has
+    // no page and no server to ask. The popup is exempt by construction: a
+    // floating window does not own the bars, so this key is read in one place.
+    static final String IMMERSIVE = "immersive";
+
     // ── the access key ───────────────────────────────────────────────────────
     //
     // Android has no per-app loopback: 127.0.0.1:6888 is reachable by every
@@ -110,6 +117,11 @@ final class ShellPrefs {
 
     static void set(Context c, String key, boolean on) {
         of(c).edit().putBoolean(key, on).apply();
+    }
+
+    /** Whether the app window hides the system bars. Default: no. */
+    static boolean immersive(Context c) {
+        return of(c).getBoolean(IMMERSIVE, false);
     }
 
     /** Whether this install asks its server for an access key. Default: yes. */

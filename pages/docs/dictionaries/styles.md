@@ -44,9 +44,8 @@ you are adjusting stays visible and reflows as you type.
 | Delete a customization for good | **Clear**, then **Save**. The file is removed, not left empty |
 | Turn everything off for one page load | Open `/?style=off` |
 
-**Clear** appears only when the box has something in it, and it does not touch
-the disk on its own — **Save** is still what commits, and <kbd>⌘Z</kbd> brings
-the text back until then.
+**Clear** appears only when the box has something in it, — **Save** writes the change, and <kbd>⌘Z</kbd> 
+(<kbd>Ctrl + Z</kbd> on windows) undos changes.
 
 You can edit the same two files in any text editor instead. They are served
 uncached, so an external edit takes effect on the next reload.
