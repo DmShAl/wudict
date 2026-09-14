@@ -18,6 +18,8 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/unicode"
+
+	"github.com/wuweidict/wudict/internal/lang"
 )
 
 // The sniff peeks a fixed 4096 bytes, which cuts mid-rune whenever the byte at
@@ -151,6 +153,27 @@ func TestDetectEncodingSingleByte(t *testing.T) {
 		{"declared code page", "#SOURCE_CODE_PAGE \"Cyrillic\"\r\n", charmap.Windows1251},
 		{"implied by language", "#INDEX_LANGUAGE \"Russian\"\r\n", charmap.Windows1251},
 		{"tab separator", "#SOURCE_CODE_PAGE\t\"Cyrillic\"\r\n", charmap.Windows1251},
+		// Lingvo's compiler wants the documented casing; a reader gains
+		// nothing by being as strict.
+		{"case insensitive", "#SOURCE_CODE_PAGE \"CYRILLIC\"\r\n", charmap.Windows1251},
+		// The rest of the manual's «Наименование в Lingvo» column.
+		{"easterneuropean", "#SOURCE_CODE_PAGE \"EasternEuropean\"\r\n", charmap.Windows1250},
+		{"latin", "#SOURCE_CODE_PAGE \"Latin\"\r\n", charmap.Windows1252},
+		{"greek", "#SOURCE_CODE_PAGE \"Greek\"\r\n", charmap.Windows1253},
+		{"turkish", "#SOURCE_CODE_PAGE \"Turkish\"\r\n", charmap.Windows1254},
+		{"arabic", "#SOURCE_CODE_PAGE \"Arabic\"\r\n", charmap.Windows1256},
+		{"baltic", "#SOURCE_CODE_PAGE \"Baltic\"\r\n", charmap.Windows1257},
+		// The three pages the manual leaves as "?", named after MSDN.
+		{"thai", "#SOURCE_CODE_PAGE \"Thai\"\r\n", charmap.Windows874},
+		{"hebrew", "#SOURCE_CODE_PAGE \"Hebrew\"\r\n", charmap.Windows1255},
+		{"vietnamese", "#SOURCE_CODE_PAGE \"Vietnamese\"\r\n", charmap.Windows1258},
+		// An unknown name is not a verdict: the languages decide instead.
+		{"unknown name falls through", "#SOURCE_CODE_PAGE \"Klingon\"\r\n#INDEX_LANGUAGE \"Ukrainian\"\r\n", charmap.Windows1251},
+		// Contents language when the index language yields nothing.
+		{"contents language", "#INDEX_LANGUAGE \"English\"\r\n#CONTENTS_LANGUAGE \"Greek\"\r\n", charmap.Windows1253},
+		// Two pages in the manual's locale table, so the language alone is
+		// not an answer - #SOURCE_CODE_PAGE exists for this.
+		{"ambiguous language", "#INDEX_LANGUAGE \"Serbian\"\r\n", charmap.Windows1252},
 		// Nothing declared and nothing to infer from: Windows-1252 is the
 		// Lingvo default, and the bytes at least survive round-trip.
 		{"nothing declared", "#NAME \"x\"\r\n", charmap.Windows1252},
@@ -214,5 +237,45 @@ func TestReaderSingleByteFile(t *testing.T) {
 	}
 	if n != 400 {
 		t.Fatalf("entries = %d, want 400", n)
+	}
+}
+
+// The manual's «Коды локалей Microsoft» table, spot-checked through the same
+// path the header takes: declared name -> lang code -> code page.
+func TestCodePageForLang(t *testing.T) {
+	for _, tc := range []struct {
+		declared string
+		want     encoding.Encoding
+	}{
+		{"Russian", charmap.Windows1251},
+		{"Belarusian", charmap.Windows1251},
+		{"Kazakh", charmap.Windows1251},
+		{"Bulgarian", charmap.Windows1251},
+		{"Polish", charmap.Windows1250},
+		{"Czech", charmap.Windows1250},
+		{"Croatian", charmap.Windows1250},
+		{"Greek", charmap.Windows1253},
+		{"Turkish", charmap.Windows1254},
+		{"Hebrew", charmap.Windows1255},
+		{"Arabic", charmap.Windows1256},
+		{"Lithuanian", charmap.Windows1257},
+		{"Estonian", charmap.Windows1257},
+		{"Vietnamese", charmap.Windows1258},
+		// 1252 languages carry no entry: the fallback already covers them.
+		{"English", nil},
+		{"German", nil},
+		// Two code pages in the table and no script in the declared name.
+		{"Serbian", nil},
+		{"Uzbek", nil},
+	} {
+		t.Run(tc.declared, func(t *testing.T) {
+			code := lang.FromDeclared(tc.declared)
+			if code == "" {
+				t.Fatalf("%q is not a declared language name", tc.declared)
+			}
+			if got := codePageForLang(code); got != tc.want {
+				t.Fatalf("codePageForLang(%q/%q) = %v, want %v", tc.declared, code, got, tc.want)
+			}
+		})
 	}
 }
