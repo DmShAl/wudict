@@ -3786,12 +3786,15 @@ body.wide .col{max-width:min(1600px,98vw)}`,article:
 :host, :root > body { max-width:none !important; width:auto !important }`},
   {n:"Compact",g:"Layout",app:
 `/* The app's own frame around an article, on a phone: the column gutter, the
-   list's gutter, the card's padding and the dictionary header's indent. Set
-   the 2px to 0 to put the text against the card border. */
+   list's gutter, the card's padding and the dictionary header's indent.
+   The column gutter goes entirely — the card edge IS the screen edge — and
+   what is left is the smallest inset that still reads as a margin rather than
+   as clipping: 4px between the card border and a headword, 3px more inside
+   the article's own panel. Set both to 0 to put the text against the border. */
 @media (max-width: 700px){
   .col{padding-left:0;padding-right:0}
-  dl{padding-inline:0}
-  .article{padding-inline:2px}
+  dl{padding-inline:4px}
+  .article{padding-inline:3px}
   details.dict>summary{padding-left:.3rem;padding-right:.3rem}
 }`,article:
 `/* Two jobs, in this order: give back the side space a dictionary reserved for
@@ -4138,7 +4141,7 @@ function stylerFilesRender(msg){
     row.appendChild(n);
     const ins=document.createElement("button");
     ins.type="button";ins.className="btn";ins.textContent="Insert";
-    ins.title='Write url("'+f.url+'") where the caret is';
+    ins.title=stylerFileTitle(f);
     ins.onclick=()=>stylerFileInsert(f);
     row.appendChild(ins);
     const del=document.createElement("button");
@@ -4149,15 +4152,110 @@ function stylerFilesRender(msg){
   }
   stylerSync();
 }
+/* The button says what it is about to do, because for a font it is no longer
+   "write this where the caret is" - it writes two rules into two boxes. */
+function stylerFileTitle(f){
+  const ext=stylerFileExt(f);
+  if(ext==="css")return "Import "+f.name+" at the top of "+BOXNAME[stylerTab];
+  if(FONT_FORMAT[ext])return "Write the rules that use "+f.name+" as the font, "
+    +"in both stylesheets";
+  if(/^image\//.test(f.type||""))return "Write the rule that puts "+f.name
+    +" behind every article";
+  return 'Write url("'+f.url+'") where the caret is';
+}
 function stylerCopy(text){
   if(!navigator.clipboard)return;
   navigator.clipboard.writeText(text).then(
     ()=>{stylerNote("Copied "+text);setTimeout(stylerNote,1400)},()=>{});
 }
-/* url("…"), not the bare path: it is what a reference looks like in CSS in
-   every position that takes one, and the quotes are what make a name with a
-   space or a parenthesis in it still parse. */
+/* What Insert actually writes. A url() on its own is a reference to nothing:
+   it parses, it lands where the caret is, and it does not do anything until
+   somebody who knows the property writes the rest of the rule around it. For
+   the three kinds of file that have ONE obvious rule, that rule is written
+   instead, ready to edit; everything else still gets the bare url(), which is
+   the honest answer when the file could be for anything.
+
+   WHERE each half goes is not a taste question, it is the plumbing: article
+   CSS is a constructed stylesheet for shadow-root articles, and those DROP
+   @font-face and @import outright (see applyArticleCSS). A face therefore has
+   to be declared in the App box, where the document scope reaches inside the
+   shadow roots - and again in the Article box, because iframe articles are
+   separate documents that the app sheet never reaches. Both, or the font
+   applies to some articles and not others. */
+const FONT_FORMAT={ttf:"truetype",otf:"opentype",woff:"woff",woff2:"woff2",
+  ttc:"collection",otc:"collection"};
+const cssStr=s=>'"'+String(s).replace(/[\\"]/g,c=>"\\"+c)+'"';
+function stylerFileExt(f){
+  const d=f.name.lastIndexOf(".");
+  return d>0?f.name.slice(d+1).toLowerCase():"";
+}
+/* A preset in the shape stylerApplyPreset already routes, or null to fall
+   back to the bare reference. */
+function stylerFileRule(f){
+  const ext=stylerFileExt(f), url='url("'+f.url+'")', fmt=FONT_FORMAT[ext];
+  if(fmt){
+    const dot=f.name.lastIndexOf("."),
+          fam=cssStr(dot>0?f.name.slice(0,dot):f.name),
+          face="@font-face{font-family:"+fam+";src:"+url+" format("+cssStr(fmt)+");"
+               +"font-display:swap}";
+    return {n:f.name,app:
+`/* The face itself. It has to be declared here whatever else you change:
+   most articles are rendered into a shadow root, which ignores an @font-face
+   of its own but does see one declared by the page. */
+${face}
+/* The app's own font — the top bar, the headwords, the panels. Delete this
+   rule to leave the app alone and restyle only what dictionaries render. */
+:root{--font:${fam},system-ui,sans-serif}`,article:
+`/* The same face again, for articles that come with scripts and are given a
+   document of their own: those never see the page's @font-face. */
+${face}
+/* A dictionary's own font-family wins inside its own markup, so reaching
+   every element takes !important. Caveat: this also overrides a phonetic face
+   a dictionary ships for its IPA — if the pronunciations turn to boxes, give
+   that element's class a rule of its own setting font-family back. */
+:host, :root > body, :host *, :root > body * {
+  font-family:${fam} !important }`};
+  }
+  if(/^image\//.test(f.type||"")){
+    return {n:f.name,article:
+`/* ${f.name}, behind every article. cover fills the panel and crops what does
+   not fit; contain fits the whole image instead, and a pair like "200px auto"
+   sizes it yourself. Two things worth knowing: in dark mode articles are
+   rendered light and then inverted, so a photograph is inverted with them,
+   and a busy image under running text is the usual reason a definition stops
+   being readable — a faded one is almost always the better picture. */
+:host, :root > body {
+  background-image:${url};
+  background-repeat:no-repeat;
+  background-position:center center;
+  background-size:cover;
+}`};
+  }
+  return null;
+}
 function stylerFileInsert(f){
+  const ext=stylerFileExt(f);
+  // A stylesheet is the one case that cannot be appended: @import is only
+  // honoured before any rule, so it goes to the top of the box on screen -
+  // and only there, since the Article box drops it for shadow-root articles
+  // and there is no second place to put it that would not.
+  if(ext==="css"){
+    const imp="@import "+'url("'+f.url+'")'+";";
+    stylerShowTab(stylerTab);
+    if(stylerText[stylerTab].includes(imp)){
+      stylerNote(f.name+" — already in "+BOXNAME[stylerTab]);
+    }else{
+      const ta=$("stylerCSS");
+      ta.focus();
+      ta.selectionStart=ta.selectionEnd=0;
+      stylerEdit(imp+"\n");
+      stylerNote(f.name+" — imported into "+BOXNAME[stylerTab]);
+    }
+    setTimeout(stylerNote,2600);
+    return;
+  }
+  const rule=stylerFileRule(f);
+  if(rule){stylerApplyPreset(rule);return}
   stylerShowTab(stylerTab);
   stylerEdit('url("'+f.url+'")');
   stylerNote("Inserted into "+BOXNAME[stylerTab]);
