@@ -9,22 +9,25 @@ package com.legbehindneck.wudict;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
+import android.net.Uri;
 import android.os.PowerManager;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
+
+import java.io.ByteArrayInputStream;
 
 public class MainActivity extends Activity {
 
@@ -62,7 +65,10 @@ public class MainActivity extends Activity {
                 Gravity.CENTER));
 
         web = new WebView(this);
-        web.setBackgroundColor(getColor(R.color.window_bg)); // no white flash before first paint
+        // The PAGE's background, not the window's: this is the surface the
+        // document lands on, and a user whose theme disagrees with their phone
+        // would otherwise get one frame of the other one (D141).
+        web.setBackgroundColor(ShellPrefs.pageBg(this)); // no white flash before first paint
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new ShellWebViewClient());
@@ -71,8 +77,8 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         applyWindowInsets();
-        syncBarAppearance();
-        applyImmersive();
+        applyEdges();
+        applyBars();
         // Where dictionaries come from is the one thing that differs between
         // the FOSS and Play builds (D62), and it lives entirely in Storage -
         // a class that exists once per flavour and never in this source set.
@@ -104,13 +110,35 @@ public class MainActivity extends Activity {
     //
     // The IME is folded into the bottom inset because an edge-to-edge window
     // no longer gets adjustResize applied for it by the decor.
+    //
+    // EDGE_NONE (D141) is the one mode that declines that service: the top and
+    // bottom insets are handed to the PAGE instead, which wears them on the
+    // elements that care, so the article really does run to the glass. Three
+    // things stay with the shell even then:
+    //
+    //   - the SIDE insets, always. A landscape cutout eats the reading gutter,
+    //     and no stylesheet rule can make that a good idea.
+    //   - the IME, always. It is not a system bar, it is never hidden here, and
+    //     an edge-to-edge window gets no adjustResize from the decor - without
+    //     this the keyboard would stand over the search field.
+    //   - the window background, which is what a side inset and the frame
+    //     before the first paint actually show.
     private void applyWindowInsets() {
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             if (Build.VERSION.SDK_INT >= 30) {
                 Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
                 Insets ime = insets.getInsets(WindowInsets.Type.ime());
-                v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+                boolean toPage = ShellPrefs.edgeMode(this) == ShellPrefs.EDGE_NONE;
+                int top = toPage ? 0 : bars.top;
+                int bottom = Math.max(toPage ? 0 : bars.bottom, ime.bottom);
+                v.setPadding(bars.left, top, bars.right, bottom);
+                // Zeroes in every other mode, which is how switching back out
+                // of EDGE_NONE undoes itself. The bottom is withheld while the
+                // keyboard is up: the shell is holding that space open already,
+                // and the page must not hold it a second time.
+                publishInsets(toPage ? bars.top : 0,
+                        toPage && ime.bottom == 0 ? bars.bottom : 0);
             } else {
                 legacyPadding(v, insets);
             }
@@ -120,30 +148,80 @@ public class MainActivity extends Activity {
         root.requestApplyInsets();
     }
 
+    // ── handing the insets to the page (EDGE_NONE only) ──────────────────
+    // Published as CSS custom properties the stylesheet reads with a 0px
+    // fallback, so an un-injected page - and every other mode, which publishes
+    // zeroes - is exactly the layout that shipped before this existed.
+    //
+    // COALESCING IS NOT AN OPTIMISATION. A transient bar swipe delivers an
+    // inset callback on every frame of its animation; without the comparison
+    // below this is an evaluateJavascript at display rate for the length of
+    // every edge swipe, which is the one way this design can be implemented
+    // wrongly and still look right.
+    private int insetTopPx, insetBottomPx;   // last seen, in device pixels
+    private int sentTop = -1, sentBottom = -1; // last published, in CSS px
+
+    private void publishInsets(int topPx, int bottomPx) {
+        insetTopPx = topPx;
+        insetBottomPx = bottomPx;
+        float d = getResources().getDisplayMetrics().density;
+        int t = Math.round(topPx / d), b = Math.round(bottomPx / d);
+        if (t == sentTop && b == sentBottom) return;
+        if (web.getParent() == null) return; // no document yet; onPageFinished republishes
+        sentTop = t;
+        sentBottom = b;
+        web.evaluateJavascript(
+                "(function(s){s.setProperty('--wd-inset-top','" + t + "px');"
+                        + "s.setProperty('--wd-inset-bottom','" + b + "px')})"
+                        + "(document.documentElement.style)", null);
+    }
+
+    /** Re-publishes into a document that has never been told. */
+    private void republishInsets() {
+        sentTop = sentBottom = -1;
+        publishInsets(insetTopPx, insetBottomPx);
+    }
+
     // API 26–29: no forced edge-to-edge, so these are normally all zero - the
     // decor has already inset the content view. Kept for cutout devices on 28/29.
+    //
+    // EDGE_NONE is not honoured here, deliberately: on these versions the window
+    // is not edge-to-edge in the first place, so there is no space to hand the
+    // page and nothing for it to paint. The colour choices all still apply.
     @SuppressWarnings("deprecation")
     private static void legacyPadding(View v, WindowInsets insets) {
         v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
                 insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
     }
 
-    // The bars are transparent under edge-to-edge, so their icons are drawn
-    // over OUR padding - they have to contrast with the window background,
-    // which follows the system's day/night mode (values-night/colors.xml).
-    private void syncBarAppearance() {
-        boolean night = (getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    // ── the display edge (D141) ──────────────────────────────────────────
+    // What the inset padding SHOWS, and what the bar icons have to contrast
+    // with. One method because those are one fact: the icons are drawn over
+    // our padding, so the colour decides them and no second source may.
+    //
+    // The colour comes from ShellPrefs.edgeColor - the OS day/night setting,
+    // the page's own theme, black, or a colour the user picked - and the icon
+    // polarity from the contrast arithmetic on that same value, never from
+    // uiMode. A page-dark strip under a light OS used to get light icons on a
+    // dark strip; that mismatch is the defect this replaces.
+    //
+    // Cheap enough to re-run on every report: two setters and a resource read.
+    private void applyEdges() {
+        int edge = ShellPrefs.edgeColor(this);
+        root.setBackgroundColor(edge);
+        boolean dark = ShellPrefs.darkIcons(edge);
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = decor.getWindowInsetsController();
             if (c != null) {
                 int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                         | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                c.setSystemBarsAppearance(night ? 0 : light, light);
+                // APPEARANCE_LIGHT_* describes the BACKGROUND, so it is the
+                // flag that asks for dark icons.
+                c.setSystemBarsAppearance(dark ? light : 0, light);
             }
         } else {
-            legacyBarAppearance(decor, night);
+            legacyBarAppearance(decor, !dark);
         }
     }
 
@@ -155,13 +233,64 @@ public class MainActivity extends Activity {
         decor.setSystemUiVisibility(night ? (flags & ~light) : (flags | light));
     }
 
-    // ── immersive mode ───────────────────────────────────────────────────
+    // ── the page's theme, reported by the page (D141) ────────────────────
+    // EDGE_PAGE needs a fact only the document holds: wudict_theme resolves
+    // auto -> light -> dark in localStorage, which is keyed by origin and
+    // reachable from nowhere else. So the page is asked, by a watcher the
+    // SHELL injects - web/index.html still knows nothing about Android (D54),
+    // exactly as Storage.onPageFinished already does for the import control.
+    //
+    // The answer comes back as a SUBRESOURCE REQUEST caught below, not as a
+    // navigation. The wudict:// navigation channel Shell.openExternal offers
+    // is reached today only from a real anchor click; a scripted
+    // location.href to a custom scheme is at the mercy of the engine's
+    // user-gesture heuristics, and a channel that fires on a timer and a
+    // matchMedia callback cannot be built on one. A same-origin subresource
+    // is unconditional: shouldInterceptRequest sees every one of them, and
+    // this one is answered here and never reaches the server, so no HTTP
+    // surface is added either. Should interception ever miss it, the request
+    // 404s and the strip keeps its last colour - the failure is a stale
+    // colour, not a broken page.
+    private static final String THEME_PATH = "/__wudict-shell/theme";
+
+    private static final String THEME_JS =
+            "(function(){if(window.__wdEdge)return;window.__wdEdge=1;"
+          + "var m=matchMedia('(prefers-color-scheme: dark)'),last=null,n=0;"
+          + "function dark(){var t=document.documentElement.getAttribute('data-theme');"
+          + "return t?t==='dark':m.matches}"
+          + "function report(){var v=dark();if(v===last)return;last=v;"
+          // n= defeats the memory cache: the same value would otherwise be
+          // re-requested only once per document, and toggling back and forth
+          // would go silent after the first round trip.
+          + "new Image().src='" + THEME_PATH + "?dark='+(v?1:0)+'&n='+(++n)}"
+          + "new MutationObserver(report).observe(document.documentElement,"
+          + "{attributes:true,attributeFilter:['data-theme']});"
+          + "m.addEventListener('change',report);report()})()";
+
+    /** True when this request was the watcher's report, and is now answered. */
+    private boolean takeThemeReport(Uri u) {
+        if (u == null || !THEME_PATH.equals(u.getPath())) return false;
+        boolean dark = "1".equals(u.getQueryParameter("dark"));
+        // shouldInterceptRequest runs on a WebView worker thread; every view
+        // and preference below is the main thread's.
+        runOnUiThread(() -> {
+            if (gone) return;
+            if (!ShellPrefs.setPageDark(this, dark)) return;
+            web.setBackgroundColor(ShellPrefs.pageBg(this));
+            applyEdges();
+        });
+        return true;
+    }
+
+    // ── which system bars hide ───────────────────────────────────────────
     // A reading app's window is worth more than its chrome, so the bars can be
-    // asked to leave. Two rules make this safe to hand a user:
+    // asked to leave - either of them, independently (D141): a phone whose
+    // clock is worth keeping still has a gesture bar worth losing. Two rules
+    // make this safe to hand a user:
     //
     // TRANSIENT, NEVER STICKY-BY-SURPRISE. The bars come back on an edge swipe
     // and leave again on their own, so nothing is unreachable while they are
-    // hidden - which is what makes a checkbox an acceptable control for this
+    // hidden - which is what makes this an acceptable control to offer at all
     // rather than a trap. On API 30+ that is BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE;
     // below it, IMMERSIVE_STICKY, which is the same bargain spelled the old way.
     //
@@ -176,37 +305,51 @@ public class MainActivity extends Activity {
     // Re-applied on every focus gain rather than once: a transient bar, a
     // dialog, the recents switcher and a return from the settings window all
     // restore the bars, and the platform expects the app to say again.
-    private void applyImmersive() {
-        boolean on = ShellPrefs.immersive(this);
+    private void applyBars() {
+        int mask = ShellPrefs.bars(this);
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = decor.getWindowInsetsController();
             if (c == null) return;
             c.setSystemBarsBehavior(
                     WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            int bars = WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars();
-            if (on) {
-                c.hide(bars);
-            } else {
-                c.show(bars);
-            }
+            int hide = 0;
+            if ((mask & ShellPrefs.BARS_STATUS) != 0) hide |= WindowInsets.Type.statusBars();
+            if ((mask & ShellPrefs.BARS_NAV) != 0) hide |= WindowInsets.Type.navigationBars();
+            int show = (WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars())
+                    & ~hide;
+            // Both calls, every time: this runs on every focus gain, and the
+            // bar that is NOT hidden has to be asked back after a transient
+            // swipe just as firmly as the other one is asked away.
+            if (hide != 0) c.hide(hide);
+            if (show != 0) c.show(show);
         } else {
-            legacyImmersive(decor, on);
+            legacyBars(decor, mask);
         }
     }
 
-    // API 26–29. Read-modify-write, because syncBarAppearance() owns two other
-    // bits in the same field and must not be undone by this.
+    // API 26–29. Read-modify-write, because applyEdges() owns two other bits
+    // in the same field and must not be undone by this.
     @SuppressWarnings("deprecation")
-    private static void legacyImmersive(View decor, boolean on) {
-        int mask = View.SYSTEM_UI_FLAG_FULLSCREEN
+    private static void legacyBars(View decor, int mask) {
+        int all = View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-        int flags = decor.getSystemUiVisibility();
-        decor.setSystemUiVisibility(on ? (flags | mask) : (flags & ~mask));
+        int want = 0;
+        if ((mask & ShellPrefs.BARS_STATUS) != 0) {
+            want |= View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+        }
+        if ((mask & ShellPrefs.BARS_NAV) != 0) {
+            want |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        }
+        if (want != 0) {
+            want |= View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+        }
+        decor.setSystemUiVisibility((decor.getSystemUiVisibility() & ~all) | want);
     }
 
     @Override
@@ -214,7 +357,15 @@ public class MainActivity extends Activity {
         super.onWindowFocusChanged(hasFocus);
         // Only on gain: asking while the window is losing focus is asking on
         // behalf of whatever is taking it.
-        if (hasFocus) applyImmersive();
+        if (hasFocus) {
+            applyBars();
+            // The settings window is another activity, so a changed edge mode
+            // arrives as a focus gain and nothing else. Re-asking for the
+            // insets is what re-routes them when the mode itself changed.
+            applyEdges();
+            web.setBackgroundColor(ShellPrefs.pageBg(this));
+            root.requestApplyInsets();
+        }
     }
 
     // ── navigation ───────────────────────────────────────────────────────
@@ -223,6 +374,17 @@ public class MainActivity extends Activity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
             return Shell.openExternal(MainActivity.this, req.getUrl());
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+            if (takeThemeReport(req.getUrl())) {
+                // An empty 200. The caller is an <img> that nobody looks at;
+                // what it needs is to not be a pending request forever.
+                return new WebResourceResponse("text/plain", "utf-8",
+                        new ByteArrayInputStream(new byte[0]));
+            }
+            return null; // everything else is the WebView's own business
         }
 
         @Override
@@ -236,6 +398,14 @@ public class MainActivity extends Activity {
             // web/index.html knows what Android is - the D54 rule (the shell
             // absorbs the platform, not the page), applied to the DOM.
             Storage.onPageFinished(view);
+            // Re-injected per document, and the watcher reports once on
+            // injection, so a reload or a navigation re-states the theme
+            // rather than leaving the shell on a remembered one.
+            view.evaluateJavascript(THEME_JS, null);
+            // A new document starts with no custom properties at all, so the
+            // shell has to say again - and the coalescing state has to forget
+            // that it ever said.
+            republishInsets();
             // One-shot, and only for the load showPage armed: the access-key
             // redirect can finish more than one document on the way in, and
             // every later navigation in this WebView is the user going

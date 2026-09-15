@@ -56,6 +56,8 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.graphics.Color;
 import android.util.Base64;
 
 import java.net.HttpURLConnection;
@@ -80,7 +82,57 @@ final class ShellPrefs {
     // subject, and the decider - MainActivity, painting its first frame - has
     // no page and no server to ask. The popup is exempt by construction: a
     // floating window does not own the bars, so this key is read in one place.
-    static final String IMMERSIVE = "immersive";
+    //
+    // SUPERSEDED by BARS, which says WHICH bars rather than merely whether.
+    // Kept because migrate() reads it: an upgrade must not silently turn a
+    // user's full-screen reading off.
+    private static final String IMMERSIVE = "immersive";
+
+    // ── the display edge (D141) ──────────────────────────────────────────────
+    //
+    // On a cutout device the strip behind the camera is painted by THIS APP and
+    // by nothing else. At targetSdk 36 the platform has taken every other lever
+    // away: setStatusBarColor and setNavigationBarColor are no-ops from API 35,
+    // layoutInDisplayCutoutMode is forced to ALWAYS for non-floating windows, and
+    // windowOptOutEdgeToEdgeEnforcement was disabled for API 36. What is left is
+    // MainActivity.applyWindowInsets padding the root and that padding showing a
+    // colour - so the entire design space is which colour, and whether to pad.
+    //
+    // Which is why this is a shell fact and not a page preference: the decider
+    // paints the first frame before any page or server exists, and the thing
+    // being decided is a window, not a document.
+    static final String EDGE_MODE = "edge_mode";
+
+    /** The strip follows the OS day/night setting - @color/window_bg. */
+    static final int EDGE_SYSTEM = 0;
+    /** The strip follows the PAGE's own theme, whatever it last reported. */
+    static final int EDGE_PAGE = 1;
+    /** The strip is black, whatever anything else says. */
+    static final int EDGE_BLACK = 2;
+    /** The strip is {@link #EDGE_COLOR}. */
+    static final int EDGE_CUSTOM = 3;
+    /** There is no strip: the page is given the insets and paints them itself. */
+    static final int EDGE_NONE = 4;
+
+    private static final String EDGE_COLOR = "edge_color";
+
+    // The page's resolved theme, as the page itself last reported it through
+    // the wudict://theme channel. Cached here for ONE reason: the first frame
+    // is painted before a WebView has loaded anything, so without a remembered
+    // answer EDGE_PAGE would have to guess on every cold start. It is written
+    // by MainActivity and read by nobody else.
+    private static final String PAGE_DARK = "page_dark";
+
+    // ── which system bars hide (D141) ────────────────────────────────────────
+    //
+    // A BITMASK, not an enum, because the four states are exactly the subsets of
+    // a two-element set and the mask is what WindowInsetsController wants anyway.
+    static final String BARS = "hide_bars";
+
+    static final int BARS_OFF = 0;
+    static final int BARS_STATUS = 1;
+    static final int BARS_NAV = 2;
+    static final int BARS_BOTH = BARS_STATUS | BARS_NAV;
 
     // ── the access key ───────────────────────────────────────────────────────
     //
@@ -106,8 +158,48 @@ final class ShellPrefs {
     private ShellPrefs() {
     }
 
+    private static boolean migrated;
+
     static SharedPreferences of(Context c) {
-        return c.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        SharedPreferences p = c.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        migrate(p);
+        return p;
+    }
+
+    /**
+     * Brings a preference file written by an older version up to date, once per
+     * process.
+     *
+     * <p>Hung off {@link #of} rather than called from an activity because it has
+     * to run BEFORE the file is written, and three activities plus a service can
+     * each be the first thing this process starts. Every read and every write in
+     * this class goes through {@code of()}, so no caller can beat it - which is
+     * what makes the "is this file empty?" test below mean what it says.
+     *
+     * <p>Each step is guarded by {@code contains()}, so running it twice is the
+     * same as running it once and a user's later choice is never reverted.
+     */
+    private static synchronized void migrate(SharedPreferences p) {
+        if (migrated) return;
+        migrated = true;
+        SharedPreferences.Editor e = null;
+
+        if (!p.contains(EDGE_MODE)) {
+            // An EXISTING install keeps what it has always looked like; only a
+            // genuinely new one gets the better default. An upgrade is
+            // recognised by the file having anything in it at all - every
+            // install that has ever started a server has an access key here.
+            boolean fresh = p.getAll().isEmpty();
+            e = p.edit().putInt(EDGE_MODE, fresh ? EDGE_PAGE : EDGE_SYSTEM);
+        }
+
+        if (!p.contains(BARS)) {
+            int v = p.getBoolean(IMMERSIVE, false) ? BARS_BOTH : BARS_OFF;
+            if (e == null) e = p.edit();
+            e.putInt(BARS, v);
+        }
+
+        if (e != null) e.apply();
     }
 
     /** Whether lookups arriving this way skip the popup and open the app. */
@@ -119,9 +211,110 @@ final class ShellPrefs {
         of(c).edit().putBoolean(key, on).apply();
     }
 
-    /** Whether the app window hides the system bars. Default: no. */
-    static boolean immersive(Context c) {
-        return of(c).getBoolean(IMMERSIVE, false);
+    /** Which system bars the app window hides. A {@code BARS_*} mask. */
+    static int bars(Context c) {
+        return of(c).getInt(BARS, BARS_OFF);
+    }
+
+    static void setBars(Context c, int mask) {
+        of(c).edit().putInt(BARS, mask & BARS_BOTH).apply();
+    }
+
+    /** How the window's edges are painted. One of the {@code EDGE_*} constants. */
+    static int edgeMode(Context c) {
+        int v = of(c).getInt(EDGE_MODE, EDGE_SYSTEM);
+        return v < EDGE_SYSTEM || v > EDGE_NONE ? EDGE_SYSTEM : v;
+    }
+
+    static void setEdgeMode(Context c, int mode) {
+        of(c).edit().putInt(EDGE_MODE, mode).apply();
+    }
+
+    /** The stored custom strip colour. Opaque black until the user picks one. */
+    static int edgeColorValue(Context c) {
+        return of(c).getInt(EDGE_COLOR, 0xFF000000);
+    }
+
+    static void setEdgeColorValue(Context c, int argb) {
+        of(c).edit().putInt(EDGE_COLOR, 0xFF000000 | argb).apply();
+    }
+
+    /** What the page last reported its own resolved theme to be. */
+    static boolean pageDark(Context c) {
+        // Falls back to the OS, which is what the page's own default - "auto" -
+        // resolves to anyway, so a first-ever launch guesses the way the page
+        // is about to decide rather than at random.
+        return of(c).getBoolean(PAGE_DARK, systemDark(c));
+    }
+
+    /** Records the page's resolved theme. True when the value changed. */
+    static boolean setPageDark(Context c, boolean dark) {
+        SharedPreferences p = of(c);
+        if (p.contains(PAGE_DARK) && p.getBoolean(PAGE_DARK, false) == dark) return false;
+        p.edit().putBoolean(PAGE_DARK, dark).apply();
+        return true;
+    }
+
+    static boolean systemDark(Context c) {
+        return (c.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    /** The page's own background colour, per whatever theme it is showing. */
+    static int pageBg(Context c) {
+        return c.getColor(pageDark(c) ? R.color.page_bg_dark : R.color.page_bg_light);
+    }
+
+    /**
+     * The colour the shell paints into the inset padding - the strip behind the
+     * camera, and the band under the gesture bar.
+     *
+     * <p>{@link #EDGE_NONE} has no strip, but the window still needs a colour to
+     * paint before the first frame and behind a side cutout, and the page's own
+     * background is the only answer that cannot flash.
+     */
+    static int edgeColor(Context c) {
+        switch (edgeMode(c)) {
+            case EDGE_BLACK:
+                return 0xFF000000;
+            case EDGE_CUSTOM:
+                return edgeColorValue(c);
+            case EDGE_PAGE:
+            case EDGE_NONE:
+                return pageBg(c);
+            default:
+                return c.getColor(R.color.window_bg);
+        }
+    }
+
+    /**
+     * Whether the system bars should draw their icons DARK - which they must
+     * whenever the colour behind them is light.
+     *
+     * <p>Decided by contrast rather than by the day/night setting, because a
+     * custom colour has no day/night setting to consult and a strip that follows
+     * the page can disagree with the OS outright. The two candidate contrast
+     * ratios are computed and the better one wins, so there is no threshold here
+     * to be wrong about: it is arithmetic, not a preference, which is why it is
+     * not a row on the settings screen.
+     */
+    static boolean darkIcons(int argb) {
+        double l = luminance(argb);
+        double onDark = (l + 0.05) / 0.05;          // black icons over this colour
+        double onLight = 1.05 / (l + 0.05);         // white icons over this colour
+        return onDark >= onLight;
+    }
+
+    /** WCAG 2.x relative luminance. */
+    private static double luminance(int argb) {
+        return 0.2126 * channel(Color.red(argb))
+                + 0.7152 * channel(Color.green(argb))
+                + 0.0722 * channel(Color.blue(argb));
+    }
+
+    private static double channel(int v) {
+        double s = v / 255.0;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
     }
 
     /** Whether this install asks its server for an access key. Default: yes. */

@@ -10,6 +10,13 @@
          window, the inset padding under the system bars and the WebView
          before its first frame, so none of those flash a foreign colour. -->
     <color name="window_bg">#FBFAF8</color>
+    <!-- The page's two background tokens, UNQUALIFIED: the light one is light
+         under a dark OS too. window_bg above says what the SYSTEM is set to;
+         these say what the PAGE is showing, which is a different question the
+         moment the user picks a theme that disagrees with their phone (D141).
+         Must match the two background values in web/index.html, one per theme. -->
+    <color name="page_bg_light">#FBFAF8</color>
+    <color name="page_bg_dark">#191A1C</color>
     <!-- The page's accent token, for the few controls the SHELL draws itself —
          today the lookup popup's handoff (D67). Same token, so a shell control
          sitting against the page does not look like a different program. -->

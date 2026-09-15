@@ -51,6 +51,7 @@ package com.legbehindneck.wudict;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.TypedValue;
@@ -69,6 +70,7 @@ import android.widget.Toast;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.IntConsumer;
 
 public class SettingsActivity extends Activity {
 
@@ -124,13 +126,17 @@ public class SettingsActivity extends Activity {
         col.addView(row(ShellPrefs.SHARE, R.string.settings_lookup_share));
         col.addView(row(ShellPrefs.LINK, R.string.settings_lookup_link));
 
-        // A window fact, so it sits on its own rather than under the lookup
-        // heading: it is about the app's window, not about where a lookup
-        // lands. Reuses row() because it is the same shape - stored here,
-        // read by MainActivity, default off.
+        // Window facts, so they sit on their own rather than under the lookup
+        // heading: these are about the app's window, not about where a lookup
+        // lands. Both are pickers rather than boxes because their values are
+        // alternatives - a set of checkboxes here could be asked to be two
+        // things at once, and one of them would have to win silently.
         col.addView(head(R.string.settings_screen_head, SP_6));
-        col.addView(row(ShellPrefs.IMMERSIVE, R.string.settings_immersive));
-        col.addView(caption(getString(R.string.settings_immersive_hint), 0, SP_3));
+        col.addView(edgeRow());
+        col.addView(caption(getString(R.string.settings_edge_hint), 0, SP_3));
+        col.addView(choiceRow(R.string.settings_bars, R.array.settings_bars_modes,
+                ShellPrefs.bars(this), v -> ShellPrefs.setBars(this, v)));
+        col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
@@ -213,6 +219,90 @@ public class SettingsActivity extends Activity {
         c.setChecked(ShellPrefs.opensApp(this, key));
         c.setOnCheckedChangeListener((v, on) -> ShellPrefs.set(this, key, on));
         return c;
+    }
+
+    /**
+     * How the window's margins are painted. The custom colour is asked for the
+     * moment that value is chosen - and again whenever it is chosen again,
+     * which is the only affordance a one-line picker can offer for editing a
+     * value it does not show.
+     */
+    private View edgeRow() {
+        return choiceRow(R.string.settings_edge, R.array.settings_edge_modes,
+                ShellPrefs.edgeMode(this), v -> {
+                    ShellPrefs.setEdgeMode(this, v);
+                    if (v == ShellPrefs.EDGE_CUSTOM) edgeColorDialog();
+                });
+    }
+
+    private void edgeColorDialog() {
+        EditText e = new EditText(this);
+        e.setInputType(InputType.TYPE_CLASS_TEXT);
+        e.setHint(R.string.settings_edge_custom_hint);
+        e.setText(String.format("#%06X", 0xFFFFFF & ShellPrefs.edgeColorValue(this)));
+        int pad = dp(SP_5);
+        e.setPadding(pad, dp(SP_3), pad, dp(SP_3));
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_edge_custom)
+                .setView(e)
+                .setNegativeButton(R.string.settings_cancel, null)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    try {
+                        // parseColor takes #RGB, #RRGGBB and #AARRGGBB alike;
+                        // the alpha is forced opaque on the way in, because a
+                        // translucent margin would show the window behind it.
+                        ShellPrefs.setEdgeColorValue(this,
+                                Color.parseColor(e.getText().toString().trim()));
+                    } catch (IllegalArgumentException | NullPointerException bad) {
+                        toast(getString(R.string.settings_edge_custom_bad));
+                    }
+                })
+                .show();
+    }
+
+    /**
+     * A row whose value is one of several. The only picker on this screen, and
+     * it is a dialog rather than a Spinner because a Spinner's dropdown is a
+     * second window with its own theme to get wrong, and this screen already
+     * builds an AlertDialog for the restore confirmation.
+     *
+     * <p>Written on pick, like every other control here - see {@link #row}.
+     */
+    private View choiceRow(int label, int optionsRes, int current, IntConsumer onPick) {
+        String[] options = getResources().getStringArray(optionsRes);
+        // A stored value from a newer build, or a hand-edited file: show the
+        // first option rather than crash on the array bound.
+        final int[] sel = {current >= 0 && current < options.length ? current : 0};
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setMinimumHeight(dp(ROW_MIN));
+        box.setPadding(0, dp(SP_2), 0, dp(SP_2));
+        box.setClickable(true);
+        TypedValue bg = new TypedValue();
+        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, bg, true)) {
+            box.setBackgroundResource(bg.resourceId);
+        }
+
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
+        TextView value = caption(options[sel[0]], 0, 0);
+        value.setAlpha(1f); // it is the row's answer, not a footnote about it
+        box.addView(title);
+        box.addView(value);
+
+        box.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle(label)
+                .setSingleChoiceItems(options, sel[0], (d, w) -> {
+                    d.dismiss(); // a single choice IS the answer; no OK to press
+                    sel[0] = w;
+                    value.setText(options[w]);
+                    onPick.accept(w);
+                })
+                .setNegativeButton(R.string.settings_cancel, null)
+                .show());
+        return box;
     }
 
     /**

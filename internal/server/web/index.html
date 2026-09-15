@@ -82,7 +82,14 @@ html[data-theme="dark"]{
 /* ── chrome ────────────────────────────────────────────────────────── */
 *{box-sizing:border-box}
 html{color-scheme:light dark}
-body{margin:0;padding-top:4.236em;background:var(--bg);color:var(--fg);
+/* --wd-inset-top / --wd-inset-bottom are set by a host that puts the page
+   under the system's own chrome - the Android shell's edge-to-edge mode. They
+   are unset everywhere else, and every rule that reads them falls back to 0px,
+   so a plain browser sees exactly the layout it always did. Only top and
+   bottom: a side inset never reaches the page, because the host keeps landscape
+   cutouts off it. */
+body{margin:0;padding-top:calc(4.236em + var(--wd-inset-top,0px));
+  background:var(--bg);color:var(--fg);
   font-family:var(--font);line-height:var(--fi)}
 /* ── the content column ─────────────────────────────────────────────
    One geometry, worn by the toolbar and the results alike, so their edges
@@ -97,13 +104,19 @@ body{margin:0;padding-top:4.236em;background:var(--bg);color:var(--fg);
   padding-left:var(--sp-2);padding-right:var(--sp-2);
   transition:max-width .25s ease} /* on .col so the bar eases with the cards */
 body.wide .col{max-width:min(1280px,96vw)}
-.container{padding-bottom:var(--sp-5)}
+.container{padding-bottom:calc(var(--sp-5) + var(--wd-inset-bottom,0px))}
 
 .bar{position:fixed;top:0;left:0;right:0;z-index:100;background:var(--bg-bar);
   backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   /* no horizontal padding: the bar is full-bleed and the gutter belongs to
      .col, which the form wears. Two insets would inset the form twice. */
   border-bottom:1px solid var(--line);padding:var(--sp-1) 0;
+  /* The bar wears the top inset rather than the page doing it: its blurred
+     background then fills the strip behind a camera cutout and the form sits
+     clear below it. And since .bar.hidden translates the element - padding and
+     all - scrolling the bar away really does hand that strip back to the
+     article, with no second rule to keep in step. */
+  padding-top:calc(var(--sp-1) + var(--wd-inset-top,0px));
   transition:transform .28s ease}
 .bar.hidden{transform:translateY(-100%)}
 /* When the bar slides away, the stuck header takes the space it vacated
@@ -341,7 +354,8 @@ html{--styler-h:min(45vh,420px)}
 #styler{position:fixed;left:0;right:0;bottom:0;z-index:210;display:none;
   height:var(--styler-h);flex-direction:column;
   background:var(--bg);border-top:1px solid var(--line);box-shadow:var(--shadow);
-  padding:var(--sp-2) var(--sp-3)}
+  padding:var(--sp-2) var(--sp-3);
+  padding-bottom:calc(var(--sp-2) + var(--wd-inset-bottom,0px))}
 #styler.show{display:flex}
 body.styling{padding-bottom:var(--styler-h)}
 /* One row, at every width. nowrap is load-bearing and not a preference:
@@ -414,7 +428,12 @@ body.styling{padding-bottom:var(--styler-h)}
 #panel.show{display:block}
 .panel-card{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);
   background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow);
-  padding:0 var(--sp-3) var(--sp-3);overflow-y:auto}
+  padding:0 var(--sp-3) var(--sp-3);
+  /* position:fixed;inset:0 under it, so this card is the one element that
+     spans both insets by itself. */
+  padding-top:var(--wd-inset-top,0px);
+  padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px));
+  overflow-y:auto}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
 .panel-card h2 .headacts{margin-left:auto;display:flex;gap:var(--sp-1)}
@@ -736,7 +755,7 @@ body.styling{padding-bottom:var(--styler-h)}
      scope rides inside it. */
   body{padding-top:calc(var(--barh) + var(--sp-2))} /* --barh is measured; see the boot script */
   .col{width:auto;padding-left:var(--sp-1);padding-right:var(--sp-1)}
-  .container{padding-bottom:var(--sp-4)}
+  .container{padding-bottom:calc(var(--sp-4) + var(--wd-inset-bottom,0px))}
   /* Scoped to the top bar: the About wordmark inside the panel must survive
      on narrow screens — that is where the app says what it is. */
   .bar .brand{display:none}
