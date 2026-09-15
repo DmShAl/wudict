@@ -65,10 +65,17 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default is `tools platform-tools`, and `tools` - the
+          # old SDK Tools package - was retired from Google's repository, so
+          # the default now fails outright with "Failed to find package
+          # 'tools'". Nothing here ever needed it: the step below installs
+          # exactly what the build uses, by name and version.
+          packages: ""
 
       - name: Install platform, build-tools and NDK
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.15729638"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;30.0.15729638"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
 
       - name: Build the Go server as libwudict.so (cgo - FTS5 + speex)
