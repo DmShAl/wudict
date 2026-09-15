@@ -368,8 +368,29 @@ body.styling{padding-bottom:var(--styler-h)}
    on a desktop. */
 #styler .row{display:flex;align-items:center;gap:.4em;flex-wrap:nowrap}
 #styler .grow{flex:1 1 auto;min-width:0}
-#styler .tab,#styler .btn{flex:0 0 auto}
-#stylerPreset{flex:1 1 0;min-width:3.5em;max-width:14em}
+/* ...and nowrap alone only converts a second row into an overflow: the row
+   still needs somewhere for the excess to GO, in a stated order. Everything
+   here was rigid except the menu, which had a 3.5em floor and - the real trap
+   - a flex-basis of 0, and shrink weight is the shrink factor times the BASE
+   size, so a basis of 0 absorbs nothing however large its factor. Past that
+   floor the line simply ran off the screen, and the item at the end of it is
+   the one that closes the sheet.
+   So: ✕ and its neighbours stay rigid, because a button labelled "S..." is
+   not a button; the menu gives up its width first, from a real basis, down to
+   a floor you can still see and tap; only then do the tabs ellipsize. Flex
+   shrinks every eligible item AT ONCE and in proportion, so "only then" has
+   to be bought: at an equal factor the tabs gave up their last half-pixel to
+   a menu that still had 50px to give, and half a pixel is a whole "Arti...".
+   A hundredth of a factor puts that share below the pixel grid, and once the
+   menu freezes at its floor the tabs are the only items left unfrozen and
+   take the whole remainder however small their factor is.
+   The width this has to survive is not ours to choose - Android scales WebView
+   text by the system font-size setting, so the same phone hands this row a
+   third less room for a reader who asked for large text. */
+#styler .btn{flex:0 0 auto}
+#styler .tab{flex:0 .01 auto;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#stylerPreset{flex:5 20 9em;min-width:2.6em;max-width:14em}
 /* Two tabs over one textarea: the split is the whole teaching device, so the
    selected one is stated in colour AND in aria-selected, not by position. */
 #styler .tab{font:inherit;font-size:12px;line-height:1.2;padding:.34em .7em;
@@ -820,6 +841,17 @@ body.styling{padding-bottom:var(--styler-h)}
   .article{padding:var(--sp-1)}
   details.dict>summary{padding-left:.4rem;padding-right:.4rem}
   .scopenote{padding-left:.4rem;padding-right:.4rem}
+
+  /* The Custom styles sheet gives up the same gutter the column does, for the
+     same reason, and its toolbar gives up the desktop gap and the desktop
+     padding on top of that: at full metrics the nine controls want 352px of
+     the 328px a 360px phone offers, and the 24px that did not fit were ✕.
+     The shrink order above keeps the sheet closable at any width; this is
+     what keeps it from ever having to use it. */
+  #styler{padding-left:var(--sp-1);padding-right:var(--sp-1)}
+  #styler .row{gap:.25em}
+  #styler .tab{font-size:11.5px;padding:.32em .5em}
+  #styler .btn{font-size:12.5px;padding:.28em .45em}
 }
 </style>
 <!-- The user's own stylesheet for the app itself, injected by the server as a
