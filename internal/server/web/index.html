@@ -1366,6 +1366,23 @@ applyTheme(localStorage.getItem("wudict_theme")||"auto");
 
 /* ── dictionaries ──────────────────────────────────────────────────── */
 function dictLabel(d){return d.name||d.path.split("/").pop()}
+/* A DSL [ref dict="..."] names another dictionary by its #NAME, which is what
+   dictLabel shows, so the name is matched against the label as well as the
+   stored name - a dictionary whose file carries no #NAME is known here by its
+   file name and can be pointed at by it. Case- and space-insensitive, because
+   an author types the name by hand into the markup. null when nothing matches:
+   the caller then searches EVERYTHING rather than silently falling back to the
+   dictionary the link came from, which is the one place it certainly is not. */
+function dictIDByName(name){
+  const k=String(name||"").trim().toLowerCase().replace(/\s+/g," ");
+  if(!k)return null;
+  for(const d of dicts){
+    for(const c of [d.name,dictLabel(d)]){
+      if(c&&String(c).trim().toLowerCase().replace(/\s+/g," ")===k)return d.id;
+    }
+  }
+  return null;
+}
 
 /* Readiness (D30). An empty `dicts` used to mean two different things —
    "still loading" and "you disabled them all" — and the search path could not
@@ -2525,7 +2542,8 @@ addEventListener("message",e=>{
     // every reflow inside it.
     if(f&&navDet&&navDet.contains(f)){clearTimeout(navTimer);navTimer=setTimeout(navRefresh,200)}
   }else if(d.t==="ref"&&d.w){
-    searchFor(d.w,{scope:d.dict,frag:d.frag}); // author's link: exact, scoped
+    // d.xdict is set when the author pointed at ANOTHER dictionary by name.
+    searchFor(d.w,{scope:d.xdict?dictIDByName(d.xdict):d.dict,frag:d.frag});
   }else if(d.t==="pick"&&d.w){
     lookupSelection(d.w);                      // user's selection: tidied, global
   }else if(d.t==="open"&&d.url){
@@ -3499,7 +3517,12 @@ document.addEventListener("click",e=>{
   if(ref){
     e.preventDefault();
     if(ref.kind==="sub"){toggleSub(a,ref.word,dictID);return}
-    if(ref.kind==="lookup"){searchFor(ref.word,{scope:dictID,frag:ref.frag});return}
+    if(ref.kind==="lookup"){
+      // data-dict is a CROSS-dictionary link ([ref dict="..."]): it resolves to
+      // that dictionary, and to an unscoped search when the name is not
+      // installed - never back to the dictionary the link was written in.
+      const xd=a.dataset?.dict;
+      searchFor(ref.word,{scope:xd?dictIDByName(xd):dictID,frag:ref.frag});return}
     jumpInArticle(a,dd,ref.frag); // "anchor"
   }else if(a.classList.contains("wu-file")){
     // A dictionary's own attachment is opened in a new tab.

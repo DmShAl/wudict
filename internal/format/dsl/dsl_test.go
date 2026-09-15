@@ -170,37 +170,65 @@ func TestTransformMediaKinds(t *testing.T) {
 }
 
 func TestTransformTitle(t *testing.T) {
-	tr := transformTitle(`abandonar(se)`)
-	if tr.Full != "abandonar(se)"[:9]+"se" || tr.Alt != "abandonar" {
-		t.Errorf("parens: %+v", tr)
+	keys := func(line string) string { return strings.Join(transformTitle(line).Keys, "|") }
+
+	// An optional part is a pair of variants, and EVERY optional part is its
+	// own independent pair: n of them are 2^n headwords, fully-expanded first
+	// (lingvo-ref "Заголовок статьи").
+	for _, c := range []struct{ in, want string }{
+		{`abandonar(se)`, "abandonarse|abandonar"},
+		{`(пре)вращать(ся)`, "превращаться|вращаться|превращать|вращать"},
+		{`corazón`, "corazón"},
+		{`a\(b`, "a(b"},
+		{`a\{b\}c`, "a{b}c"},
+		{`word {[i]extra[/i]}`, "word"},
+		// Removing an unsorted part must not leave a double space in the key:
+		// the entry would be unreachable by its own headword.
+		{`sample {unsorted part} card`, "sample card"},
+		// A comment is a comment in a headword line too.
+		{`word {{a note}} two`, "word two"},
+		// Unterminated `{` must not eat the last character of the headword.
+		{`abc {[b]def`, "abc"},
+		// DSL lets the space that separates the unsorted part from the headword
+		// sit either inside or outside the braces.
+		{`{to }go away from`, "go away from"},
+		{`{to} go away from`, "go away from"},
+	} {
+		if got := keys(c.in); got != c.want {
+			t.Errorf("transformTitle(%q) keys = %q, want %q", c.in, got, c.want)
+		}
 	}
+
 	// The keys drop the brackets, the display form keeps them - that is how
 	// Lingvo and GoldenDict render an optional part.
-	if tr.Display != "abandonar(se)" {
-		t.Errorf("parens display: %q", tr.Display)
+	if d := transformTitle(`abandonar(se)`).Display; d != "abandonar(se)" {
+		t.Errorf("parens display: %q", d)
 	}
-	tr = transformTitle(`word {[i]extra[/i]}`)
-	if tr.Full != "word" || !strings.Contains(tr.Display, "<i>extra</i>") {
-		t.Errorf("curly: %+v", tr)
+	if d := transformTitle(`word {[i]extra[/i]}`).Display; !strings.Contains(d, "<i>extra</i>") {
+		t.Errorf("curly display: %q", d)
 	}
-	tr = transformTitle(`corazón`)
-	if tr.Full != "corazón" || tr.Alt != "corazón" {
-		t.Errorf("utf8 title: %+v", tr)
+	if d := transformTitle(`sample {unsorted part} card`).Display; d != "sample unsorted part card" {
+		t.Errorf("unsorted gap display: %q", d)
 	}
-	tr = transformTitle(`a\(b`)
-	if tr.Full != "a(b" {
-		t.Errorf("escaped paren: %+v", tr)
+	if d := transformTitle(`word {{a note}} two`).Display; d != "word  two" {
+		t.Errorf("title comment display: %q", d)
 	}
+	if d := transformTitle(`abc {[b]def`).Display; d != "abc <b>def" {
+		t.Errorf("unterminated curly display: %q", d)
+	}
+	for _, line := range []string{`{to }go away from`, `{to} go away from`} {
+		if d := transformTitle(line).Display; d != "to go away from" {
+			t.Errorf("unsorted display %q: got %q", line, d)
+		}
+	}
+
 	// Unsorted `{...}` parts nest inside optional `(...)` parts. Stress marks
 	// are written this way (the tag goes in braces so it is not indexed, the
 	// stressed vowel stays outside so it is), and a paren scanner blind to `{`
 	// used to copy the braces straight into the lookup key.
-	tr = transformTitle(`удар{[']}е{[/']}ние в загол{[']}о{[/']}вке (слов{[']}а{[/']}рной стать{[']}и{[/']})`)
-	if tr.Full != "ударение в заголовке словарной статьи" {
-		t.Errorf("accent in parens, Full: %q", tr.Full)
-	}
-	if tr.Alt != "ударение в заголовке" {
-		t.Errorf("accent in parens, Alt: %q", tr.Alt)
+	tr := transformTitle(`удар{[']}е{[/']}ние в загол{[']}о{[/']}вке (слов{[']}а{[/']}рной стать{[']}и{[/']})`)
+	if got := strings.Join(tr.Keys, "|"); got != "ударение в заголовке словарной статьи|ударение в заголовке" {
+		t.Errorf("accent in parens, keys: %q", got)
 	}
 	if strings.Contains(tr.Display, "{") || strings.Count(tr.Display, `<span class="wu-acc">`) != 4 {
 		t.Errorf("accent in parens, Display: %q", tr.Display)
@@ -209,40 +237,12 @@ func TestTransformTitle(t *testing.T) {
 		!strings.Contains(tr.Display, `вке (слов`) {
 		t.Errorf("accent in parens, brackets lost: %q", tr.Display)
 	}
-	// Removing an unsorted part must not leave a double space in the key:
-	// the entry would be unreachable by its own headword.
-	tr = transformTitle(`sample {unsorted part} card`)
-	if tr.Full != "sample card" || tr.Alt != "sample card" {
-		t.Errorf("unsorted gap: %+v", tr)
-	}
-	if tr.Display != "sample unsorted part card" {
-		t.Errorf("unsorted gap display: %q", tr.Display)
-	}
-	// A comment is a comment in a headword line too.
-	tr = transformTitle(`word {{a note}} two`)
-	if tr.Full != "word two" || tr.Display != "word  two" {
-		t.Errorf("title comment: %+v", tr)
-	}
-	// Unterminated `{` must not eat the last character of the headword.
-	tr = transformTitle(`abc {[b]def`)
-	if tr.Full != "abc" || tr.Display != "abc <b>def" {
-		t.Errorf("unterminated curly: %+v", tr)
-	}
-	// Escapes still win over every construct.
-	tr = transformTitle(`a\{b\}c`)
-	if tr.Full != "a{b}c" {
-		t.Errorf("escaped braces: %+v", tr)
-	}
-	// DSL lets the space that separates the unsorted part from the headword
-	// sit either inside or outside the braces.
-	for _, line := range []string{`{to }go away from`, `{to} go away from`} {
-		tr = transformTitle(line)
-		if tr.Full != "go away from" || tr.Alt != "go away from" {
-			t.Errorf("unsorted key %q: %+v", line, tr)
-		}
-		if tr.Display != "to go away from" {
-			t.Errorf("unsorted display %q: got %q", line, tr.Display)
-		}
+
+	// Past the cap the expansion collapses to the two extremes rather than
+	// growing without bound.
+	many := `a(1)b(2)c(3)d(4)e(5)f(6)g(7)`
+	if got := keys(many); got != "a1b2c3d4e5f6g7|abcdefg" {
+		t.Errorf("expansion cap: %q", got)
 	}
 }
 
@@ -781,4 +781,307 @@ func gzipBytesDSL(data []byte) []byte {
 	zw.Write(data)
 	zw.Close()
 	return buf.Bytes()
+}
+
+// TestRefDict covers [ref dict="..."], the cross-dictionary link: the target
+// dictionary is named by its #NAME, and the reader has to carry that name out
+// to the UI or the link lands in the dictionary it was written in
+// (lingvo-ref "Тэг [ref]···[/ref]").
+func TestRefDict(t *testing.T) {
+	cases := []struct{ in, want string }{
+		// The spec's only [ref] attribute. target= is GoldenDict's extension
+		// and still works alongside it.
+		{`[ref dict="Other Dict"]Word[/ref]`,
+			`<a class="wu-xref" data-dict="Other Dict" title="Other Dict" href="bword://Word">Word</a>`},
+		{`[ref dict="Other Dict" target="Real Head"]Shown[/ref]`,
+			`<a class="wu-xref" data-dict="Other Dict" title="Other Dict" href="bword://Real Head">Shown</a>`},
+		// No dict=: an in-dictionary link, unchanged.
+		{`[ref]Word[/ref]`, `<a href="bword://Word">Word</a>`},
+		// An empty or whitespace dict= names nothing and must not produce a
+		// cross-reference that resolves to no dictionary at all.
+		{`[ref dict=" "]Word[/ref]`, `<a href="bword://Word">Word</a>`},
+		// A hostile dictionary name cannot break out of either attribute.
+		{`[ref dict="a<b&c"]W[/ref]`,
+			`<a class="wu-xref" data-dict="a&lt;b&amp;c" title="a&lt;b&amp;c" href="bword://W">W</a>`},
+	}
+	for _, c := range cases {
+		got, _, err := transformBody(c.in, "KEY")
+		if err != nil {
+			t.Errorf("transformBody(%q) error: %v", c.in, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("transformBody(%q)\n got %q\nwant %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestBodyCommands covers the body-level constructs the transformer used to
+// pass through as text: [br], the "^" case inverter and the "]]" escape.
+func TestBodyCommands(t *testing.T) {
+	cases := []struct{ key, in, want string }{
+		// [br] is a hard break with no closing descriptor (Lingvo x5).
+		{"K", `a[br]b`, `a<br/>b`},
+		// "^" inverts the case of the character after it; "^~" is the whole
+		// point of it - a capitalised headword mirrored into running text.
+		{"Кубарем", `Скатиться ^~ с лестницы.`, `Скатиться кубарем с лестницы.`},
+		{"слово", `^~ здесь`, `Слово здесь`},
+		{"K", `^abc`, `Abc`},
+		{"K", `^Abc`, `abc`},
+		// An escaped "^" is a literal one, and a "^" with nothing to act on
+		// disappears rather than printing itself as markup.
+		{"K", `a\^b`, `a^b`},
+		{"K", `a^`, `a`},
+		// "]]" is a literal "]", the mirror of "[[".
+		{"K", `a]]b`, `a]b`},
+		{"K", `[[b]]`, `[b]`},
+		// A lone "]" is still emitted as-is.
+		{"K", `a]b`, `a]b`},
+		// "~" itself is unchanged: the mirrored headword, verbatim.
+		{"Кубарем", `~ x`, `Кубарем x`},
+	}
+	for _, c := range cases {
+		got, _, err := transformBody(c.in, c.key)
+		if err != nil {
+			t.Errorf("transformBody(%q) error: %v", c.in, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("transformBody(%q, key=%q)\n got %q\nwant %q", c.in, c.key, got, c.want)
+		}
+	}
+}
+
+// TestExpandTitleTilde: "~" in a sub-card heading is the PARENT headword, and
+// the parent may itself contain title syntax that must not be re-read as such.
+func TestExpandTitleTilde(t *testing.T) {
+	cases := []struct{ head, parent, want string }{
+		{`~ up`, `give`, `give up`},
+		{`no tilde`, `give`, `no tilde`},
+		{`\~ up`, `give`, `\~ up`},
+		// A parent carrying optional-part or unsorted-part syntax is escaped
+		// on the way in, so the child indexes one key, not four.
+		{`~ off`, `(the) sun`, `\(the\) sun off`},
+	}
+	for _, c := range cases {
+		if got := expandTitleTilde(c.head, c.parent); got != c.want {
+			t.Errorf("expandTitleTilde(%q, %q) = %q, want %q", c.head, c.parent, got, c.want)
+		}
+	}
+	// End to end: the escaped parent survives transformTitle unchanged.
+	if got := transformTitle(expandTitleTilde(`~ off`, `(the) sun`)).Keys; len(got) != 1 || got[0] != `(the) sun off` {
+		t.Errorf("tilde round-trip: %q", got)
+	}
+}
+
+// TestReaderDirectives covers the preprocessor rules a main file may use:
+// #INCLUDE pulls another file into the same dictionary, #FULL_NAME and a
+// main-file #LANGUAGE are the Lingvo 6.0/7.0 spellings of #NAME and
+// #INDEX_LANGUAGE, and a "#" line is a directive wherever it appears - never a
+// headword, whatever follows it.
+func TestReaderDirectives(t *testing.T) {
+	dir := t.TempDir()
+	main := filepath.Join(dir, "main.dsl")
+	part := filepath.Join(dir, "part.dsl")
+	// The include value is a Windows path with DOUBLED backslashes, which is
+	// how the manual writes it and how every real dictionary stores it.
+	if err := os.WriteFile(main, []byte(
+		"#FULL_NAME\t\"Legacy Dict\"\n"+
+			"#LANGUAGE\t\"English\"\t\"Russian\"\n"+
+			"#INCLUDE\t\"part.dsl\"\n"+
+			"alpha\n\t[m1]first[/m]\n"+
+			"#INCLUDE \"missing\\\\nowhere.dsl\"\n"+
+			"beta\n\t[m1]second[/m]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(part, []byte("gamma\n\t[m1]third[/m]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewReader(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if m := r.Meta(); m.Name != "Legacy Dict" || m.IndexLang != "en" {
+		t.Errorf("legacy header: name=%q indexLang=%q", m.Name, m.IndexLang)
+	}
+	var heads []string
+	for {
+		e, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		heads = append(heads, e.Headwords[0])
+	}
+	// The include is read after the main file, and the missing one is a
+	// warning, not the end of the dictionary.
+	if got := strings.Join(heads, ","); got != "alpha,beta,gamma" {
+		t.Errorf("entries = %q, want %q", got, "alpha,beta,gamma")
+	}
+}
+
+// A "#" line that is not a known directive is still not an entry: Lingvo
+// reserves column-0 "#" for the preprocessor, and treating one as a headword
+// indexes the directive text itself.
+func TestReaderUnknownDirectiveIsNotAHeadword(t *testing.T) {
+	p := writeDSL(t, "d.dsl", []byte("#NAME\t\"D\"\n#SOMETHING odd\nalpha\n\t[m1]x[/m]\n"))
+	r, err := NewReader(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	var got []dict.Entry
+	for {
+		e, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, e)
+	}
+	if len(got) != 1 || got[0].Headwords[0] != "alpha" {
+		t.Errorf("entries: %+v", got)
+	}
+}
+
+// A {{...}} comment zone may open in one card and close in another; every
+// headword caught between the two is ignored by the compiler
+// (lingvo-ref "Тэг {{···}}").
+func TestReaderSpanningComment(t *testing.T) {
+	p := writeDSL(t, "c.dsl", []byte("#NAME\t\"C\"\n"+
+		"alpha\n\t[m1]one[/m]\n"+
+		"{{ a note that runs\n"+
+		"beta\n\t[m1]two[/m]\n"+
+		"past a headword }}\n"+
+		"gamma\n\t[m1]three[/m]\n"))
+	r, err := NewReader(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	var heads []string
+	for {
+		e, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		heads = append(heads, e.Headwords[0])
+	}
+	if got := strings.Join(heads, ","); got != "alpha,gamma" {
+		t.Errorf("entries = %q, want %q", got, "alpha,gamma")
+	}
+}
+
+func TestStripLineComments(t *testing.T) {
+	cases := []struct {
+		line string
+		in   bool
+		want string
+		out  bool
+	}{
+		// closes on its own line: gone, wherever it sits
+		{`word {{ note }} two`, false, `word  two`, false},
+		{`{{ whole line }}`, false, ``, false},
+		{"\t{{ indented note }}", false, "\t", false},
+		// opens and stays open
+		{`word {{ note`, false, `word `, true},
+		{`still inside`, true, ``, true},
+		{`closes }} tail`, true, ` tail`, false},
+		// two zones on one line, the second still open
+		{`a {{x}} b {{y`, false, `a  b `, true},
+		// inside a zone the escape is dead: "\}}" still closes
+		{`a {{ n\}} b`, false, `a  b`, false},
+		// outside one it holds, so "\{\{" opens nothing
+		{`a \{\{ b`, false, `a \{\{ b`, false},
+		{`plain`, false, `plain`, false},
+	}
+	for _, c := range cases {
+		got, out := stripLineComments(c.line, c.in)
+		if got != c.want || out != c.out {
+			t.Errorf("stripLineComments(%q,%v) = %q,%v want %q,%v", c.line, c.in, got, out, c.want, c.out)
+		}
+	}
+}
+
+// TestBlankLine pins the one whitespace class that must NOT read as empty: the
+// non-standard spaces an author uses to force a paragraph break past the
+// space-collapsing rule.
+func TestBlankLine(t *testing.T) {
+	blank := []string{"", " ", "\t", " \t \t", "\v\f"}
+	full := []string{"\u00a0", "\t\u00a0", "\u2003", "\t\u2002 ", "x", "\t."}
+	for _, s := range blank {
+		if !blankLine(s) {
+			t.Errorf("blankLine(%q) = false, want true", s)
+		}
+	}
+	for _, s := range full {
+		if blankLine(s) {
+			t.Errorf("blankLine(%q) = true, want false", s)
+		}
+	}
+}
+
+// TestReaderCommentOnlyLines covers the two placements that produced
+// "entry block without headword": an indented {{...}} block standing between
+// two cards (a body-shaped run of lines belonging to no card), and a comment
+// zone sitting between the directives and the first headword, which the header
+// loop used to end on, turning the bare "{{" into a headword.
+func TestReaderCommentOnlyLines(t *testing.T) {
+	p := writeDSL(t, "cc.dsl", []byte("#NAME\t\"CC\"\n"+
+		"#INDEX_LANGUAGE\t\"English\"\n"+
+		"{{\nauthor note before any card\n}}\n"+
+		"alpha\n\t[m1]one[/m]\n"+
+		"\n\t{{\n\tsome text\n\t}}\n\n"+
+		"beta\n\t[m1]two[/m]\n"))
+	r, err := NewReader(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	var heads []string
+	for {
+		e, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Next: %v", err)
+		}
+		heads = append(heads, e.Headwords[0])
+	}
+	if got := strings.Join(heads, ","); got != "alpha,beta" {
+		t.Errorf("entries = %q, want %q", got, "alpha,beta")
+	}
+	if m := r.Meta(); m.Name != "CC" {
+		t.Errorf("name = %q, want %q", m.Name, "CC")
+	}
+}
+
+// TestBodyBlankLineIdiom covers the "отбивка": a body line holding one escaped
+// space, which editors reduce to a bare backslash. It must render as a line
+// that survives HTML whitespace collapsing, and it must not swallow the break
+// that follows it.
+func TestBodyBlankLineIdiom(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"one\n \\\ntwo", "one<br/>&nbsp;<br/>two"},
+		{"one\n \\ \ntwo", "one<br/>&nbsp;<br/>two"},
+		{"one\ntwo", "one<br/>two"},
+	}
+	for _, c := range cases {
+		got, _, err := transformBody(c.in, "k")
+		if err != nil {
+			t.Fatalf("transformBody(%q): %v", c.in, err)
+		}
+		if got != c.want {
+			t.Errorf("transformBody(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
 }

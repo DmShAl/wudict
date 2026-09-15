@@ -6,18 +6,37 @@ package dsl
 
 import "strings"
 
-// titleResult carries the two headword variants of one DSL title line
-// plus its display form. Port of pyglossary's TitleTransformer:
+// titleResult carries the headword variants of one DSL title line plus its
+// display form:
 //
-//	(...)  optional part: kept in Full, absent from Alt, bracketed in Display
+//	(...)  optional part: one variant with it and one without, for EVERY such
+//	       part independently - bracketed in Display
 //	{...}  unsorted part: rendered only into Display (markup allowed)
-//	{{..}} comment: dropped from all three
+//	{{..}} comment: dropped from both
 //	\x     escaped char
 type titleResult struct {
-	Full    string // headword with optional parts unwrapped
-	Alt     string // headword with optional parts removed
+	// Keys are the lookup variants, the fully-expanded one first (which is
+	// also the form `~` mirrors into the body). Deduplicated; empty only when
+	// the line indexes nothing at all.
+	Keys    []string
 	Display string // HTML display title (unsorted parts rendered)
 }
+
+// titlePart is one run of a headword line that either always belongs to a key
+// (opt false) or belongs to it only in half the variants (opt true).
+type titlePart struct {
+	text string
+	opt  bool
+}
+
+// maxOptionalParts caps the cartesian expansion. n optional parts are 2^n
+// headwords, and the 246-character limit on a title leaves room for enough of
+// them to turn one line into millions of index rows. Six is far past anything
+// a lexicographer writes (`(пре)вращать(ся)` is two) and bounds one line at 64
+// keys; past it the line falls back to the two extremes - everything in and
+// everything out - which is what the old two-variant parser produced for every
+// line, so no dictionary loses ground.
+const maxOptionalParts = 6
 
 // transformTitle parses one headword line. The three constructs are
 // independent and may be nested in either order, so this is one flat loop
@@ -26,7 +45,8 @@ type titleResult struct {
 // part, and a paren loop that did not know about `{` would copy the braces
 // verbatim into the lookup key and make the entry unfindable.
 func transformTitle(line string) titleResult {
-	var full, alt, display strings.Builder
+	var display, cur strings.Builder
+	var parts []titlePart
 	pos := 0
 	inParen := false
 
@@ -45,13 +65,18 @@ func transformTitle(line string) titleResult {
 			b.WriteByte(c)
 		}
 	}
-	// add appends one indexable byte: always to Full and Display, and to
-	// Alt only outside an optional part.
-	add := func(c byte) {
-		full.WriteByte(c)
-		if !inParen {
-			alt.WriteByte(c)
+	// flush closes the run being accumulated, recording whether it was inside
+	// an optional part. opt is passed rather than read from inParen because the
+	// flag has to change at the same instant the run ends.
+	flush := func(opt bool) {
+		if cur.Len() > 0 {
+			parts = append(parts, titlePart{text: cur.String(), opt: opt})
+			cur.Reset()
 		}
+	}
+	// add appends one indexable byte to the current run and to the display.
+	add := func(c byte) {
+		cur.WriteByte(c)
 		escByte(&display, c)
 	}
 
@@ -75,6 +100,7 @@ func transformTitle(line string) titleResult {
 			// key - but they are content in the display form, which is what
 			// Lingvo and GoldenDict show: "abandonar(se)", not "abandonarse".
 			// Without them the reader cannot tell which part is optional.
+			flush(false)
 			inParen = true
 			display.WriteByte(c)
 		case ')':
@@ -82,6 +108,7 @@ func transformTitle(line string) titleResult {
 				add(c)
 				break
 			}
+			flush(true)
 			inParen = false
 			display.WriteByte(c)
 		case '{':
@@ -123,21 +150,90 @@ func transformTitle(line string) titleResult {
 			add(c)
 		}
 	}
-	// The two keys get their interior whitespace collapsed, the display form
-	// does not. Deleting an unsorted or optional part leaves the spaces that
-	// surrounded it behind - `sample {unsorted part} card` keys as
-	// "sample  card", which nobody can type - and a key exists only to be
-	// matched. Display is the opposite case: its spacing is the author's.
+	flush(inParen) // an unterminated '(' still ends a run
+
 	return titleResult{
-		Full:    collapseSpace(full.String()),
-		Alt:     collapseSpace(alt.String()),
+		// Keys get their interior whitespace collapsed (in expandOptional), the
+		// display form does not. Deleting an unsorted or optional part leaves
+		// the spaces that surrounded it behind - `sample {unsorted part} card`
+		// keys as "sample  card", which nobody can type - and a key exists only
+		// to be matched. Display is the opposite case: its spacing is the
+		// author's.
+		Keys:    expandOptional(parts),
 		Display: strings.TrimSpace(display.String()),
 	}
 }
 
+// first is Keys[0], the canonical variant, or "" for a line that indexes
+// nothing.
+func (t titleResult) first() string {
+	if len(t.Keys) == 0 {
+		return ""
+	}
+	return t.Keys[0]
+}
+
+// expandOptional turns the runs of one title line into its lookup keys: the
+// cartesian product over the optional parts, fully-expanded first.
+// `(пре)вращать(ся)` is FOUR headwords - вращать, вращаться, превращать,
+// превращаться (lingvo-ref "Заголовок статьи") - not the two that keeping only
+// "all in" and "all out" yields, and the two it dropped are the two a reader is
+// most likely to type.
+func expandOptional(parts []titlePart) []string {
+	n := 0
+	for _, p := range parts {
+		if p.opt {
+			n++
+		}
+	}
+	build := func(in func(rank int) bool) string {
+		var b strings.Builder
+		rank := 0
+		for _, p := range parts {
+			if p.opt {
+				keep := in(rank)
+				rank++
+				if !keep {
+					continue
+				}
+			}
+			b.WriteString(p.text)
+		}
+		return collapseSpace(b.String())
+	}
+	all := func(int) bool { return true }
+	none := func(int) bool { return false }
+
+	var out []string
+	seen := map[string]bool{}
+	emit := func(s string) {
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	switch {
+	case n == 0:
+		emit(build(all))
+	case n > maxOptionalParts:
+		emit(build(all))
+		emit(build(none))
+	default:
+		// Counting DOWN keeps the fully-expanded form first: it is the key the
+		// rest of the pipeline treats as canonical (the card's `~`, the
+		// sub-card back-reference).
+		for mask := 1<<uint(n) - 1; mask >= 0; mask-- {
+			m := uint(mask)
+			emit(build(func(rank int) bool { return m&(1<<uint(rank)) != 0 }))
+		}
+	}
+	return out
+}
+
 // collapseSpace trims and squeezes runs of whitespace to a single space.
 func collapseSpace(s string) string {
-	if !strings.ContainsAny(s, " \t\n\v\f\r\u0085\u00a0") {
+	if !strings.ContainsAny(s, " \t\n\v\f\r ") {
 		return s
 	}
 	return strings.Join(strings.Fields(s), " ")

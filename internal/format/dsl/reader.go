@@ -8,9 +8,11 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/wuweidict/wudict/internal/dict"
 	"github.com/wuweidict/wudict/internal/lang"
+	"github.com/wuweidict/wudict/internal/logx"
 )
 
 // Reader is the sequential ingest scan over a .dsl / .dsl.dz file.
@@ -50,9 +53,23 @@ type Reader struct {
 	plainBody bool
 
 	buffered  []string     // lookahead lines
+	orphans   int          // body blocks skipped for having no headword
 	pending   []dict.Entry // sub-entries queued behind the main entry
 	scanCount int
 	eof       bool
+
+	// #INCLUDE continuation. The directive names further text files whose
+	// entries belong to THIS dictionary (lingvo-ref "Директива #INCLUDE"): the
+	// compiler concatenates them into one .lsd, so the reader concatenates them
+	// into one scan. Queued in file order, each opened only when the one before
+	// it runs out, and each decoded on its own - an include is a separate file
+	// and may well be a separate encoding.
+	includes  []string        // resolved paths still to read
+	opened    map[string]bool // absolute paths already read: include cycles
+	extra     []*os.File      // include handles, closed with the reader
+	inComment bool            // a {{...}} comment zone is open across lines
+	incPath   string          // file currently being read, "" while in the main one
+	err       error           // first scan error, from whichever file raised it
 }
 
 func NewReader(path string) (*Reader, error) {
@@ -60,7 +77,8 @@ func NewReader(path string) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Reader{f: f, header: map[string]string{}, path: path}
+	r := &Reader{f: f, header: map[string]string{}, path: path, opened: map[string]bool{}}
+	r.opened[absPath(path)] = true // a file that #INCLUDEs itself, once
 	if err := r.init(path); err != nil {
 		f.Close()
 		return nil, err
@@ -149,18 +167,23 @@ func (r *Reader) init(path string) error {
 	// header: leading #KEY "value" lines; first non-# line starts entries
 	for r.scanner.Scan() {
 		line := strings.TrimPrefix(strings.TrimRight(r.scanner.Text(), "\r"), "\uFEFF")
-		if strings.TrimSpace(line) == "" {
+		// A `{{...}}` zone is legal here too - a licence or authoring note
+		// between the directives and the first card is where dictionaries
+		// usually put one - and it may span lines. Without this the line that
+		// ends the header loop is the bare "{{", which then becomes the first
+		// headword and drags the note and the real first card in with it.
+		// r.inComment carries an unclosed zone straight into nextLine.
+		line, r.inComment = stripLineComments(line, r.inComment)
+		if blankLine(line) {
 			continue
 		}
 		if strings.HasPrefix(line, "#") {
-			// The key/value separator is "whitespace", not "a space":
-			// Lingvo's own sample writes #INDEX_LANGUAGE with a tab, and
-			// splitting on " " alone dropped the line entirely.
-			rest, k, v := line[1:], line[1:], ""
-			if i := strings.IndexAny(rest, " \t"); i >= 0 {
-				k, v = rest[:i], rest[i+1:]
+			k, v := parseDirective(line)
+			if k == "INCLUDE" {
+				r.queueInclude(path, v)
+				continue
 			}
-			r.header[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
+			r.header[k] = v
 			continue
 		}
 		r.buffered = append(r.buffered, line)
@@ -169,10 +192,24 @@ func (r *Reader) init(path string) error {
 
 	name := r.header["NAME"]
 	if name == "" {
+		// #FULL_NAME is what Lingvo 6.0/7.0 wrote instead, undocumented and
+		// then withdrawn in 8.0 (lingvo-ref "Общее описание", директивы). A
+		// dictionary of that vintage has a name; reading only #NAME threw it
+		// away and fell through to the file name.
+		name = r.header["FULL_NAME"]
+	}
+	if name == "" {
 		base := filepath.Base(path)
 		name = strings.TrimSuffix(strings.TrimSuffix(base, ".dz"), ".dsl")
 	}
 	from, to := r.header["INDEX_LANGUAGE"], r.header["CONTENTS_LANGUAGE"]
+	if from == "" {
+		// The same vintage: in 6.0/7.0 a main text file's #LANGUAGE named the
+		// language of the HEADWORDS, which is exactly #INDEX_LANGUAGE's job.
+		// (In a .ann it means something else entirely - ann.go - and a .ann is
+		// never read through here.)
+		from = r.header["LANGUAGE"]
+	}
 	desc := ""
 	if from != "" || to != "" {
 		desc = from + " → " + to
@@ -194,6 +231,90 @@ func (r *Reader) init(path string) error {
 		ContentsLang: lang.FromDeclared(to),
 	}
 	return nil
+}
+
+// parseDirective splits one `#KEY "value"` preprocessor line. The key/value
+// separator is "whitespace", not "a space": Lingvo's own sample writes
+// #INDEX_LANGUAGE with a tab, and splitting on " " alone dropped the line
+// entirely. The `#` must be the first character on the line - anything before
+// it is a compile error in Lingvo - which is the caller's guarantee, not this
+// function's.
+func parseDirective(line string) (key, value string) {
+	rest := line[1:]
+	key = rest
+	if i := strings.IndexAny(rest, " \t"); i >= 0 {
+		key, value = rest[:i], rest[i+1:]
+	}
+	return strings.TrimSpace(key), strings.Trim(strings.TrimSpace(value), `"'`)
+}
+
+func absPath(p string) string {
+	if a, err := filepath.Abs(p); err == nil {
+		return a
+	}
+	return p
+}
+
+// queueInclude resolves one #INCLUDE value against the file that wrote it.
+// The value is a Windows path with its backslashes DOUBLED ("Extra\\more.dsl",
+// lingvo-ref), so it is unescaped first and then read as a path in either
+// convention. A path that does not resolve is retried by base name in the
+// including file's own folder, which is where a dictionary that was copied off
+// its author's machine actually keeps its parts; an absolute "c:\Lingvo\..."
+// reaches that fallback and nothing else.
+func (r *Reader) queueInclude(from, value string) {
+	if value == "" {
+		return
+	}
+	p := strings.ReplaceAll(strings.ReplaceAll(value, `\\`, `\`), `\`, "/")
+	dir := filepath.Dir(from)
+	var cand []string
+	if filepath.IsAbs(p) {
+		cand = append(cand, filepath.Clean(p))
+	} else {
+		cand = append(cand, filepath.Join(dir, filepath.FromSlash(p)))
+	}
+	cand = append(cand, filepath.Join(dir, path.Base(p)))
+	for _, c := range cand {
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			r.includes = append(r.includes, c)
+			return
+		}
+	}
+	// Missing includes are not fatal: Lingvo would refuse to compile, but a
+	// reader that refuses to open the dictionary at all turns one absent file
+	// into no dictionary. The entries that file held are simply not there.
+	logx.Warn("dsl %s: #INCLUDE %q not found", from, value)
+}
+
+// nextSource switches the scan to the next #INCLUDE file, and reports whether
+// there was one. Each is opened at most once, so an include cycle terminates.
+func (r *Reader) nextSource() bool {
+	for len(r.includes) > 0 {
+		p := r.includes[0]
+		r.includes = r.includes[1:]
+		if a := absPath(p); r.opened[a] {
+			continue
+		} else {
+			r.opened[a] = true
+		}
+		f, err := os.Open(p)
+		if err != nil {
+			logx.Warn("dsl: #INCLUDE %s: %v", p, err)
+			continue
+		}
+		sc, err := decodedScanner(f, p)
+		if err != nil {
+			f.Close()
+			logx.Warn("dsl: #INCLUDE %s: %v", p, err)
+			continue
+		}
+		r.extra = append(r.extra, f)
+		r.scanner = sc
+		r.incPath = p
+		return true
+	}
+	return false
 }
 
 // detectEncoding sniffs the BOM, then the NUL pattern, then UTF-8 validity,
@@ -304,24 +425,113 @@ func utf16ByNULs(sample []byte) encoding.Encoding {
 
 func (r *Reader) Meta() dict.Meta { return r.meta }
 
-func (r *Reader) Close() error { return r.f.Close() }
+func (r *Reader) Close() error {
+	for _, f := range r.extra {
+		f.Close()
+	}
+	r.extra = nil
+	return r.f.Close()
+}
 
-// nextLine returns the next raw line (CR stripped) from lookahead or file.
+// curPath names the file the scan is in, for error text and for resolving a
+// nested #INCLUDE against the file that wrote it rather than against the main
+// one - they need not share a folder.
+func (r *Reader) curPath() string {
+	if r.incPath != "" {
+		return r.incPath
+	}
+	return r.path
+}
+
+// stripLineComments removes every `{{...}}` zone from one raw line, returning
+// whether a zone is still open when the line ends.
+//
+// This runs on the RAW line, before it is classified as a headword, a body line
+// or a directive, and that is the only place it can run. A comment is ignored
+// wholesale at compile time (lingvo-ref "Тэг {{···}}"), which has three
+// consequences the later passes cannot reproduce, because by then the line has
+// already been classified - or has decided which entry the lines around it
+// belong to:
+//
+//   - a zone may span lines, and any headword between the opening and the
+//     closing pair is ignored;
+//   - a comment standing alone on its line leaves an empty line, so a comment
+//     at column 0 is not a headword and an indented one is not a body line -
+//     both simply cease to exist;
+//   - where a comment and any other tag overlap, the comment wins.
+//
+// Inside a zone nothing is markup, not even the escape character: `{{c\}}`
+// closes (the compiler is happy) while `{{c}\}` does not (it reports the
+// unterminated comment). Outside one the escape still holds, so `\{\{` opens
+// nothing.
+func stripLineComments(line string, in bool) (string, bool) {
+	if !in && !strings.Contains(line, "{{") {
+		return line, false
+	}
+	var b strings.Builder
+	for i := 0; i < len(line); {
+		if in {
+			j := strings.Index(line[i:], "}}")
+			if j < 0 {
+				return b.String(), true
+			}
+			i += j + len("}}")
+			in = false
+			continue
+		}
+		switch {
+		case line[i] == '\\':
+			b.WriteByte(line[i])
+			if i+1 < len(line) {
+				b.WriteByte(line[i+1])
+			}
+			i += 2
+		case line[i] == '{' && i+1 < len(line) && line[i+1] == '{':
+			in = true
+			i += 2
+		default:
+			b.WriteByte(line[i])
+			i++
+		}
+	}
+	return b.String(), in
+}
+
+// blankLine reports whether a line carries nothing but layout whitespace.
+//
+// ASCII space and tab only, deliberately. U+00A0, U+2002 and the rest of the
+// Unicode space block are how a DSL author writes a blank line or an indent
+// that survives the space-collapsing rule (lingvo-ref "Об использовании
+// нестандартных пробелов"), so a line made of them is content, not emptiness -
+// strings.TrimSpace, which folds every Unicode space, deleted exactly the
+// paragraph breaks the author went out of their way to create.
+func blankLine(s string) bool { return strings.Trim(s, " \t\v\f\r") == "" }
+
+// nextLine returns the next raw line (CR stripped) from lookahead or file,
+// crossing into the #INCLUDE files when the current one runs out.
 func (r *Reader) nextLine() (string, bool) {
 	if len(r.buffered) > 0 {
 		l := r.buffered[0]
 		r.buffered = r.buffered[1:]
 		return l, true
 	}
-	if r.eof {
-		return "", false
+	for !r.eof {
+		if r.scanner.Scan() {
+			r.scanCount++
+			// An include file carries its own BOM, and the decoder passes a
+			// UTF-8 one through as U+FEFF on the first line.
+			l := strings.TrimPrefix(strings.TrimRight(r.scanner.Text(), "\r"), "\uFEFF")
+			l, r.inComment = stripLineComments(l, r.inComment)
+			return l, true
+		}
+		if err := r.scanner.Err(); err != nil && r.err == nil {
+			r.err = err
+		}
+		if !r.nextSource() {
+			r.eof = true
+		}
 	}
-	if !r.scanner.Scan() {
-		r.eof = true
-		return "", false
-	}
-	r.scanCount++
-	return strings.TrimRight(r.scanner.Text(), "\r"), true
+	return "", false
 }
 
 func (r *Reader) Next() (dict.Entry, error) {
@@ -331,17 +541,55 @@ func (r *Reader) Next() (dict.Entry, error) {
 		return e, nil
 	}
 
+	for {
+		entry, subs, err := r.nextBlock()
+		if errors.Is(err, errOrphanBlock) {
+			// Body lines belonging to no headword. Lingvo refuses to compile
+			// such a file, but here the file is already on the user's disk:
+			// failing the read turns one stray run of lines into no dictionary
+			// at all, so the block is dropped with a note and the scan goes on.
+			r.orphans++
+			if r.orphans <= 3 {
+				logx.Warn("%s: %v (skipped)", filepath.Base(r.meta.Path), err)
+			}
+			continue
+		}
+		if err != nil {
+			return dict.Entry{}, err
+		}
+		r.pending = subs
+		return entry, nil
+	}
+}
+
+// nextBlock reads one entry block: its headword lines, its body lines, and the
+// sub-entries the body declares.
+func (r *Reader) nextBlock() (dict.Entry, []dict.Entry, error) {
 	var termLines, textLines []string
 	for {
 		line, ok := r.nextLine()
 		if !ok {
 			break
 		}
-		if strings.TrimSpace(line) == "" {
+		if blankLine(line) {
 			continue
 		}
 		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
 			textLines = append(textLines, line)
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			// A headword is "a line beginning with any character except space,
+			// tab and #" (lingvo-ref "Заголовок статьи"): a `#` at column 0 is
+			// a preprocessor directive wherever it appears, never a word. Read
+			// as a headword it produced a phantom entry AND swallowed the
+			// article that followed it. Only #INCLUDE means anything this far
+			// in - it may also appear at the head of an included file, which
+			// is how a chain of them continues - and the rest are the header
+			// of an include, already read where they mattered.
+			if k, v := parseDirective(line); k == "INCLUDE" {
+				r.queueInclude(r.curPath(), v)
+			}
 			continue
 		}
 		// headword line: if a block is complete, push this line back
@@ -352,18 +600,20 @@ func (r *Reader) Next() (dict.Entry, error) {
 		termLines = append(termLines, line)
 	}
 	if len(textLines) == 0 {
-		if err := r.scanner.Err(); err != nil {
-			return dict.Entry{}, err
+		if r.err != nil {
+			return dict.Entry{}, nil, r.err
 		}
-		return dict.Entry{}, io.EOF
+		if err := r.scanner.Err(); err != nil {
+			return dict.Entry{}, nil, err
+		}
+		return dict.Entry{}, nil, io.EOF
 	}
-	entry, subs, err := r.parseBlock(termLines, textLines)
-	if err != nil {
-		return dict.Entry{}, err
-	}
-	r.pending = subs
-	return entry, nil
+	return r.parseBlock(termLines, textLines)
 }
+
+// errOrphanBlock marks a run of body lines that belongs to no headword. It is
+// a skip, not a failure: see Next.
+var errOrphanBlock = errors.New("dsl: entry block without headword")
 
 // parseBlock converts one entry block. Port of pyglossary parseEntryBlock:
 // titles yield Full/Alt headword variants; "@" lines split sub-entries,
@@ -371,21 +621,27 @@ func (r *Reader) Next() (dict.Entry, error) {
 func (r *Reader) parseBlock(termLines, textLines []string) (dict.Entry, []dict.Entry, error) {
 	var terms []string
 	var displayTitles []string
+	seenTerm := map[string]bool{}
 	for _, line := range termLines {
 		t := transformTitle(line)
-		if t.Full == "" {
+		if t.first() == "" {
 			continue
 		}
-		terms = append(terms, t.Full)
-		if t.Alt != "" && t.Alt != t.Full {
-			terms = append(terms, t.Alt)
+		// Two headword lines of one entry can expand onto the same key
+		// ("(the) sun" above "sun"); one key indexed twice is one duplicate row
+		// per hit in every result list.
+		for _, k := range t.Keys {
+			if !seenTerm[k] {
+				seenTerm[k] = true
+				terms = append(terms, k)
+			}
 		}
-		if t.Display != escape(t.Full) && t.Display != "" {
+		if t.Display != escape(t.first()) && t.Display != "" {
 			displayTitles = append(displayTitles, "<b>"+t.Display+"</b>")
 		}
 	}
 	if len(terms) == 0 {
-		return dict.Entry{}, nil, fmt.Errorf("dsl: entry block without headword near %q", textLines[0])
+		return dict.Entry{}, nil, fmt.Errorf("%w near %q", errOrphanBlock, textLines[0])
 	}
 
 	var mainText strings.Builder
@@ -405,17 +661,20 @@ func (r *Reader) parseBlock(termLines, textLines []string) (dict.Entry, []dict.E
 			subText.Reset()
 			subOpen, linesInCard = false, 0
 		}()
-		var heads, refs []string
+		var heads []string
+		seenHead := map[string]bool{}
 		for _, h := range subHeads {
-			t := transformTitle(h)
-			if t.Full == "" {
-				continue
-			}
-			heads = append(heads, t.Full)
-			refs = append(refs, t.Full)
-			if t.Alt != "" && t.Alt != t.Full {
-				heads = append(heads, t.Alt)
-				refs = append(refs, t.Alt)
+			// `~` mirrors the PARENT headword into a sub-card heading, which is
+			// how a phrase card is written under the word it belongs to
+			// ("@ ~ up"). Substituted before the title parser runs, and escaped
+			// on the way in, so a parent carrying "(" or "{" cannot turn into
+			// optional-part or unsorted-part syntax in its child's key.
+			t := transformTitle(expandTitleTilde(h, terms[0]))
+			for _, k := range t.Keys {
+				if !seenHead[k] {
+					seenHead[k] = true
+					heads = append(heads, k)
+				}
 			}
 		}
 		if len(heads) == 0 {
@@ -425,7 +684,7 @@ func (r *Reader) parseBlock(termLines, textLines []string) (dict.Entry, []dict.E
 		if err == nil {
 			subs = append(subs, dict.Entry{Headwords: heads, Body: body, Kind: dict.BodyHTML})
 		}
-		for _, k := range refs {
+		for _, k := range heads {
 			// The back-reference is re-parsed as DSL, so the key has to survive
 			// a second pass: an unescaped "[" or "~" in a sub-headword would be
 			// read as markup and swallow the link. The leading "- " is what
@@ -472,6 +731,46 @@ func dslEscape(s string) string { return dslEscaper.Replace(s) }
 var dslEscaper = strings.NewReplacer(
 	`\`, `\\`, "[", `\[`, "]", `\]`, "~", `\~`, "<", `\<`, ">", `\>`, "@", `\@`,
 )
+
+// titleEscaper escapes what a HEADWORD line - not a body - treats as syntax.
+// The body alphabet and the title alphabet differ: "(" and "{" are inert in a
+// body and are optional-part and unsorted-part markers in a title, while "[" is
+// markup in both. A parent headword such as "(the) sun" or "f{oo}" substituted
+// raw into a child heading would re-enter transformTitle as syntax and index
+// the sub-card under keys the dictionary never declared.
+var titleEscaper = strings.NewReplacer(
+	`\`, `\\`, "[", `\[`, "]", `\]`, "~", `\~`,
+	"(", `\(`, ")", `\)`, "{", `\{`, "}", `\}`,
+)
+
+// expandTitleTilde substitutes the parent headword for every unescaped "~" in a
+// sub-card heading, which is how Lingvo writes a phrase card under the word it
+// belongs to ("@ ~ up" under "give" is "give up"). An escaped "\~" is a literal
+// tilde and is left for transformTitle to unescape.
+func expandTitleTilde(head, parent string) string {
+	if !strings.Contains(head, "~") {
+		return head
+	}
+	esc := titleEscape(parent)
+	var b strings.Builder
+	for i := 0; i < len(head); i++ {
+		switch c := head[i]; c {
+		case '\\':
+			b.WriteByte(c)
+			if i+1 < len(head) {
+				i++
+				b.WriteByte(head[i])
+			}
+		case '~':
+			b.WriteString(esc)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+func titleEscape(s string) string { return titleEscaper.Replace(s) }
 
 // atSignHeading recognises a sub-card line. Lingvo puts the "@" first on the
 // line, but leading whitespace and leading DSL tags are allowed before it

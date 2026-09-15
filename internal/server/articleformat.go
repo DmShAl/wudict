@@ -109,7 +109,11 @@ func cleanAttrOK(tag, name string) bool {
 	}
 	switch tag {
 	case "a":
-		return name == "href"
+		// data-dict is wudict's own (internal/artmark wu-xref): the NAME of the
+		// dictionary a DSL [ref dict="..."] points at. Inert data - it carries
+		// no behaviour and no URL - and dropping it would silently retarget a
+		// cross-dictionary link at the dictionary it was written in.
+		return name == "href" || name == "data-dict"
 	case "img":
 		return name == "src" || name == "alt" || name == "width" || name == "height"
 	case "audio", "video":

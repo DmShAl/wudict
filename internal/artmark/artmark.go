@@ -53,6 +53,8 @@
 //	wu-c     author-coloured run   (--wd-c)
 //	wu-m     author-indented block (--wd-m, in em)
 //	wu-audio wu-video wu-file  media the article points at
+//	wu-xref  a link that leaves this dictionary (DSL [ref dict="..."]);
+//	         data-dict / title carry the target dictionary's own name
 //	wu-sub   an article section pulled in beside a link (written by the UI)
 //	wu-hl    a full-text match, marked at response time (internal/hilite)
 //	wu-cur   the one match being walked to (written by the UI, not ingested)
@@ -78,7 +80,7 @@ const Prefix = "wu-"
 // DefaultCSS. It is written into text.db meta as markup_version, and a stale
 // value is reported the way a stale fold_version is - as a fact about the
 // data, with a rebuild offered and never forced (internal/store).
-const Version = 1
+const Version = 2
 
 // DefaultCSS is the floor. It is injected verbatim into a JS template literal
 // (index.html ARTCSS), so it must contain no backtick, no ${ and no </.
@@ -96,6 +98,7 @@ const DefaultCSS = `
 :where(.wu-k){font-weight:600}
 :where(.wu-audio,.wu-file){text-decoration:none;cursor:pointer}
 :where(.wu-video){display:block;margin:.3em 0}
+:where(.wu-xref){text-decoration-style:dotted}
 :where(.wu-sub){margin:.4em 0;padding:.4em .6em;border-left:3px solid var(--wd-sub,#e08600);
   background:rgba(224,134,0,.06);border-radius:0 6px 6px 0}
 :where(.wu-sub-close){float:right;cursor:pointer;color:#999;font-size:12px;padding:0 .3em}

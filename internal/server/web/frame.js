@@ -418,7 +418,10 @@
 				// "ref", not "pick": an author's link is an exact headword and
 				// carries where it was written, so the app searches that
 				// dictionary and leaves the term untouched.
-				HOST.postMessage({ t: "ref", w: ref.word, dict: dictID, frag: ref.frag }, "*");
+				// data-dict names ANOTHER dictionary ([ref dict="..."] in DSL); the
+				// host owns the dictionary list, so it resolves the name.
+				HOST.postMessage({ t: "ref", w: ref.word, dict: dictID, frag: ref.frag,
+					xdict: a.getAttribute("data-dict") || "" }, "*");
 				return;
 			}
 			jumpToFragment(ref.frag); // "anchor": a place in this same article

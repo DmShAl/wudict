@@ -11,6 +11,8 @@ package dsl
 import (
 	"path"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/wuweidict/wudict/internal/artmark"
 	"github.com/wuweidict/wudict/internal/store"
@@ -217,6 +219,17 @@ func (tr *transformer) run() error {
 				tr.addTextByte(c)
 				return nil
 			}
+			if tr.follows("\n") {
+				// `\` with the line break right behind it is the escaped space
+				// of the blank-line idiom (lingvo-ref "Тело статьи": an empty
+				// line between paragraphs is written as a body line holding
+				// one escaped space). Editors strip the trailing space, so the
+				// backslash is usually all that is left of it. The newline is
+				// NOT consumed: the break it produces is the other half of the
+				// blank line.
+				tr.addHTML("&nbsp;")
+				break
+			}
 			e := tr.next()
 			switch {
 			case e == ' ':
@@ -232,10 +245,32 @@ func (tr *transformer) run() error {
 				return err
 			}
 		case ']':
-			// stray close bracket: emitted as-is (pyglossary parity)
-			tr.addHTML(string(c))
+			// "]]" is an escaped literal "]", the mirror of the "[[" that
+			// lexTag folds (lingvo-ref "Удвоение квадратных скобок"); a lone
+			// one is emitted as-is (pyglossary parity).
+			if tr.follows("]") {
+				tr.next()
+			}
+			tr.addText("]")
 		case '~':
 			tr.addText(tr.currentKey)
+		case '^':
+			// "^" inverts the case of the character that follows it
+			// (lingvo-ref "Команда ^"). Its one real use is "^~": a dictionary
+			// whose headwords are capitalised mirrors them into running text
+			// lower-cased. "^" before markup or at end of input has nothing to
+			// act on and disappears, which is what the compiler does with it.
+			switch {
+			case tr.end():
+			case tr.follows("~"):
+				tr.next()
+				tr.addText(flipCaseFirst(tr.currentKey))
+			case tr.follows("["), tr.follows("\\"):
+			default:
+				r, size := utf8.DecodeRuneInString(tr.input[tr.pos:])
+				tr.pos += size
+				tr.addText(flipCaseFirst(string(r)))
+			}
 		case '\n':
 			tr.skipAny(" \t")
 			if !tr.follows("[m") {
@@ -430,6 +465,10 @@ func (tr *transformer) processTag(tag string, attrs map[string]string) error {
 		} else {
 			tr.addHTML(`<p class="wu-m">`)
 		}
+	case tag == "br":
+		// Undocumented but compiled since Lingvo x5 (lingvo-ref "Тэг [br]"):
+		// a hard line break with no closing descriptor.
+		tr.addHTML("<br/>")
 	case tag == "p":
 		tr.labelOpen = true
 	case tag == "*":
@@ -508,7 +547,34 @@ func (tr *transformer) lexRefText(attrs map[string]string) {
 	if target == "" {
 		target = text
 	}
-	tr.addHTML("<a href=" + quoteAttr("bword://"+target) + ">" + escape(text) + "</a>")
+	href := quoteAttr("bword://" + target)
+	// dict="..." names ANOTHER dictionary by its #NAME, and the link is meant
+	// to land there rather than in this one (lingvo-ref "Тэг [ref]···[/ref]").
+	// Lingvo draws that name as the hover tooltip, so it rides in `title` -
+	// which is also the only attribute besides href that the article sanitiser
+	// keeps on an <a> (internal/server/articleformat.go); data-dict is the
+	// machine-readable copy the live UI resolves to a dictionary id, and a
+	// name that resolves to nothing degrades to an unscoped search.
+	if d := strings.TrimSpace(attrs["dict"]); d != "" {
+		tr.addHTML(`<a class="wu-xref" data-dict=` + quoteAttr(d) + ` title=` + quoteAttr(d) +
+			" href=" + href + ">" + escape(text) + "</a>")
+		return
+	}
+	tr.addHTML("<a href=" + href + ">" + escape(text) + "</a>")
+}
+
+// flipCaseFirst inverts the case of the first rune of s, the "перевёртыш"
+// operation behind the "^" command.
+func flipCaseFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	f := unicode.ToLower(r)
+	if unicode.IsLower(r) {
+		f = unicode.ToUpper(r)
+	}
+	return string(f) + s[size:]
 }
 
 func (tr *transformer) lexURLText(attrs map[string]string) {
