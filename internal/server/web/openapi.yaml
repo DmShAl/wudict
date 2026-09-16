@@ -1908,14 +1908,14 @@ components:
             feature working. It is remembered state for that UI and nothing
             else: the search endpoint never reads it, and marks are applied
             only when a request carries `hl=1`.
-        orderFirst:
+        fastFirst:
           type: boolean
           description: >
-            Unfolds the first dictionary in the user's own order that has a
-            result, instead of whichever dictionary answers first. Positive,
-            not negated, because here the zero value is the shipped behaviour:
-            the default is the fastest answer. Remembered state for wudict's
-            own UI - the search endpoint never reads it.
+            Unfolds whichever dictionary answers first, instead of the first
+            dictionary in the user's own order that has a result. Spelled as
+            the opt-out, so that absent is the default strategy - the reader's
+            own order. Remembered state for wudict's own UI - the search
+            endpoint never reads it.
 
     Style:
       type: object

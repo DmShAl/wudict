@@ -265,39 +265,38 @@ func TestPrefsUI(t *testing.T) {
 	}
 }
 
-// The two booleans are stored in opposite senses on purpose (hlOff negates a
-// feature that is on by default; orderFirst names a strategy that is off by
-// default), so what is checked here is that BOTH spellings of "absent means
-// the shipped behaviour" survive a round trip through the file - and that
-// setting one never silently clears the other or the font size beside them.
+// Both booleans are opt-OUTs of a default that is the zero value, so what is
+// checked here is that "absent means the default" survives a round trip through
+// the file for each of them - and that setting one never silently clears the
+// other or the font size beside them.
 func TestPrefsUIFlags(t *testing.T) {
 	s, state := newPrefsServer(t)
 
 	for _, tc := range []struct {
 		name             string
 		body             string
-		hlOff, wantOrder bool
+		hlOff, wantFast  bool
 	}{
 		{"absent is the default", `{"ui":{"fontSize":24}}`, false, false},
-		{"order first on", `{"ui":{"fontSize":24,"orderFirst":true}}`, false, true},
-		{"and highlighting off beside it", `{"ui":{"fontSize":24,"hlOff":true,"orderFirst":true}}`, true, true},
-		{"back to fastest, highlighting still off", `{"ui":{"fontSize":24,"hlOff":true}}`, true, false},
+		{"fastest on", `{"ui":{"fontSize":24,"fastFirst":true}}`, false, true},
+		{"and highlighting off beside it", `{"ui":{"fontSize":24,"hlOff":true,"fastFirst":true}}`, true, true},
+		{"back to my order, highlighting still off", `{"ui":{"fontSize":24,"hlOff":true}}`, true, false},
 		{"an empty ui record clears both", `{"ui":{}}`, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := putPrefs(t, s, tc.body)
-			if hl, of := got.UI.flags(); hl != tc.hlOff || of != tc.wantOrder {
-				t.Fatalf("PUT echoed hlOff=%v orderFirst=%v, want %v/%v", hl, of, tc.hlOff, tc.wantOrder)
+			if hl, ff := got.UI.flags(); hl != tc.hlOff || ff != tc.wantFast {
+				t.Fatalf("PUT echoed hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
 			}
 			var back prefsResp
 			getJSON(t, s, "/api/prefs", &back)
-			if hl, of := back.UI.flags(); hl != tc.hlOff || of != tc.wantOrder {
-				t.Fatalf("GET returned hlOff=%v orderFirst=%v, want %v/%v", hl, of, tc.hlOff, tc.wantOrder)
+			if hl, ff := back.UI.flags(); hl != tc.hlOff || ff != tc.wantFast {
+				t.Fatalf("GET returned hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
 			}
 			// and it is on disk, not merely in memory
 			ui := LoadPrefs(state).UI()
-			if hl, of := ui.flags(); hl != tc.hlOff || of != tc.wantOrder {
-				t.Fatalf("reloaded hlOff=%v orderFirst=%v, want %v/%v", hl, of, tc.hlOff, tc.wantOrder)
+			if hl, ff := ui.flags(); hl != tc.hlOff || ff != tc.wantFast {
+				t.Fatalf("reloaded hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
 			}
 		})
 	}
@@ -305,10 +304,10 @@ func TestPrefsUIFlags(t *testing.T) {
 	// A dictionary-only write must not reach into the ui record: the page that
 	// reorders the list and the page that picks a strategy send different
 	// bodies, and neither may erase the other.
-	putPrefs(t, s, `{"ui":{"orderFirst":true}}`)
+	putPrefs(t, s, `{"ui":{"fastFirst":true}}`)
 	putPrefs(t, s, `{"dicts":[{"id":"`+s.reg.all()[0].ID+`"}]}`)
-	if _, of := LoadPrefs(state).UI().flags(); !of {
-		t.Fatal("a dicts-only write cleared orderFirst")
+	if _, ff := LoadPrefs(state).UI().flags(); !ff {
+		t.Fatal("a dicts-only write cleared fastFirst")
 	}
 }
 
@@ -319,9 +318,9 @@ func (u *UIPrefs) size() int {
 	return u.FontSize
 }
 
-func (u *UIPrefs) flags() (hlOff, orderFirst bool) {
+func (u *UIPrefs) flags() (hlOff, fastFirst bool) {
 	if u == nil {
 		return false, false
 	}
-	return u.HLOff, u.OrderFirst
+	return u.HLOff, u.FastFirst
 }

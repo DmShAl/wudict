@@ -68,19 +68,21 @@ type UIPrefs struct {
 	// inheriting a preference set in somebody's browser.
 	HLOff bool `json:"hlOff,omitempty"`
 
-	// OrderFirst expands the first dictionary in the user's own order that has
-	// a result, instead of whichever dictionary answers first (D73, D142).
+	// FastFirst expands whichever dictionary answers first, instead of the
+	// first dictionary in the user's own order that has a result (D73, D142;
+	// default flipped in D144).
 	//
-	// Positive rather than negating, unlike HLOff above, because here the zero
-	// value IS the shipped behaviour: the default is the fastest answer, so an
-	// absent key is the app as it has always worked. The rule both spellings
-	// obey is the same one - a half-written state.json must not be able to
-	// invent a setting the user never made.
+	// Spelled as the opt-OUT, the way HLOff is, because the default is now the
+	// reader's own order: the list they arranged is the answer to "which of
+	// these do I want", and a race winner is not that answer. So an absent key
+	// is the default strategy, which is the rule both flags obey - a
+	// half-written state.json must not be able to invent a setting the user
+	// never made.
 	//
 	// Like HLOff it is remembered state for the UI and not an instruction to
 	// the server: /api/search knows nothing about it, because which section a
 	// reader unfolds is a property of the reader, not of the answer.
-	OrderFirst bool `json:"orderFirst,omitempty"`
+	FastFirst bool `json:"fastFirst,omitempty"`
 }
 
 // Article text-size bounds. The ceiling is deliberately past what the layout

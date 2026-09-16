@@ -1004,12 +1004,14 @@ body.styling{padding-bottom:var(--styler-h)}
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
        is in force. Named by what the user gets, not by the mechanism behind
-       it (D102) — "Fastest" is the answer that arrives soonest, "My order"
-       is the top of the dictionary list they arranged below. -->
+       it (D102) — "My order" is the top of the dictionary list they arranged
+       below, "Fastest" is whichever answer arrives soonest. The default is
+       first and pressed: the list a reader arranged IS their answer to "which
+       of these do I want", and a race winner is not that answer (D144). -->
   <span class="seg" role="group" aria-label="Which dictionary opens first">
     <span>Open first</span>
-    <button type="button" class="act" id="openFast" aria-pressed="true" title="Expand whichever dictionary answers first — the quickest definition on screen">Fastest</button>
-    <button type="button" class="act" id="openOrder" aria-pressed="false" title="Expand the first dictionary in your list that has a result — waits briefly for the ones above it">My order</button>
+    <button type="button" class="act" id="openOrder" aria-pressed="true" title="Expand the first dictionary in your list that has a result — waits briefly for the ones above it">My order</button>
+    <button type="button" class="act" id="openFast" aria-pressed="false" title="Expand whichever dictionary answers first — the quickest definition on screen">Fastest</button>
   </span>
 </div>
 <details id="folders">
@@ -1158,7 +1160,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!!st.ui.orderFirst,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
     disabled=new Set(rows.filter(d=>d.off).map(d=>d.id));
@@ -1180,7 +1182,7 @@ function savePrefs(now){
   if(!prefsReady){setStatus("⚠ settings are not being saved — reload the page");return}
   if(!now){prefsTimer=setTimeout(()=>savePrefs(true),400);return}
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,orderFirst}});
+    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -1322,13 +1324,15 @@ $("hlBtn").addEventListener("click",()=>{
   if($("mode").value==="fts"&&$("q").value.trim())doSearch();
 });
 applyHL(true,false);
-/* Which section auto-expands: the dictionary that ANSWERS first (D73, the
-   default), or the first one in the user's own order that has a result (D142).
+/* Which section auto-expands: the first dictionary in the user's own order
+   that has a result (D142, and the default since D144), or the one that
+   ANSWERS first (D73, now the opt-out). Stored as `fastFirst`, so an absent
+   key is the default here too.
    Server state like the two above, not localStorage: it is a reading habit,
    not a property of this browser, so it follows the person across ports and
    hosts. /api/search never learns of it — which section a reader unfolds is a
    property of the reader, not of the answer. */
-let orderFirst=false;
+let orderFirst=true;
 function applyOpenOrder(on,save){
   const v=!!on,moved=v!==orderFirst;
   orderFirst=v;
@@ -1345,7 +1349,7 @@ for(const [id,want] of [["openFast",false],["openOrder",true]])
   $(id).addEventListener("click",()=>{
     if(applyOpenOrder(want,true)&&$("q").value.trim())doSearch();
   });
-applyOpenOrder(false,false);
+applyOpenOrder(true,false);
 for(const [id,step] of [["fsDown",-1],["fsUp",1],["fsVal",0]])
   $(id).addEventListener("click",()=>applyFS(step?articleFS+step:FS_DEF,true));
 applyFS(FS_DEF,false);   // paints --wd-fs and the .lim state before any load
@@ -3130,12 +3134,12 @@ async function doSearch(ev){
     return true;
   };
   /* Both strategies, one function — which is why they cannot drift apart. In
-     "Fastest" `barrier` is always null, so the walk at the bottom runs, and at
-     the first results-bearing hit `ready` holds exactly one entry: that one
-     opens, which is byte-for-byte what this app has always done. In "My order"
-     the hold walks the prefix and stops at the first slot that has not spoken;
-     once the deadline has passed (barrier===null) or the prefix is exhausted
-     it falls through to the same walk and takes the best answer in hand. */
+     "My order" (the default) the hold walks the prefix and stops at the first
+     slot that has not spoken; once the deadline has passed (barrier===null) or
+     the prefix is exhausted it falls through to the walk at the bottom and
+     takes the best answer in hand. In "Fastest" `barrier` is always null, so
+     that walk runs from the first hit, where `ready` holds exactly one entry:
+     that one opens, which is byte-for-byte what this app did before D142. */
   const settle=()=>{
     if(expandAll||openedIdx!==null)return; // latched, or the user decided (-1)
     if(orderFirst&&barrier!==null&&frontier<boxes.length){
