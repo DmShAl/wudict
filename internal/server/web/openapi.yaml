@@ -1537,7 +1537,7 @@ components:
             Folders now in the library. Not always the candidate's name: a
             second import of the same bundle is numbered rather than merged.
           items: { type: string }
-        done: { type: integer, description: Bytes extracted, or downloaded, so far. }
+        done: { type: integer, description: "Bytes extracted, or downloaded, so far." }
         total:
           type: integer
           description: >
@@ -1555,7 +1555,7 @@ components:
         because that is what the choice costs.
       properties:
         name: { type: string, description: What it would be installed as. }
-        format: { type: string, description: Main-file extension, e.g. `.mdx`. }
+        format: { type: string, description: "Main-file extension, e.g. `.mdx`." }
         files:
           type: array
           description: >
@@ -1566,7 +1566,7 @@ components:
             are about to be written is, because a title on its own does not
             distinguish a 200 MB `.mdx` from that plus a 1.2 GB `.mdd`.
           items: { type: string }
-        size: { type: integer, description: Uncompressed bytes, from the archive's directory. }
+        size: { type: integer, description: "Uncompressed bytes, from the archive's directory." }
         missing:
           type: array
           description: >
@@ -1597,7 +1597,7 @@ components:
         derived from the link the caller already gave, and a link may carry a
         session token no page should display.
       properties:
-        name: { type: string, description: The file's name, as it would land beside the main file. }
+        name: { type: string, description: "The file's name, as it would land beside the main file." }
         size:
           type: integer
           description: >

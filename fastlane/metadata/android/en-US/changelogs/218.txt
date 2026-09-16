@@ -1,0 +1,6 @@
+- long-tap wudict launcher icon → Settings → Immersive Mode (edge-to-edge display paint, follow OS/wudict theme, custom color)
+- Install dictionaries from shared URLs and tap in file managers
+- Styler: simplify custom font CSS insert via Custom styles... Files > Insert
+- **Open dictionary strategy** ☰ → ⚙️  → [Fastest] vs [My order]
+- fix DSL format glitches
+- fix StarDict panic
