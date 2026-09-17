@@ -103,6 +103,7 @@ android {
 
     buildTypes {
         release {
+            applicationIdSuffix = ".sh"
             minifyEnabled = false  // nothing to shrink: two classes, no libraries
             shrinkResources = false
             if (System.getenv("KEYSTORE") != null) {

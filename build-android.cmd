@@ -1,11 +1,40 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions DisableDelayedExpansion
 
 rem ============================================================
-rem wuDict Android ARM64 FOSS debug build for Windows
+rem wuDict Android ARM64 FOSS build for Windows: [debug|release]
 rem ============================================================
 
 cd /d "%~dp0"
+
+rem Optional private settings; kept out of Git. Do not echo signing passwords.
+if exist "%~dp0build-android.local.bat" (
+    call "%~dp0build-android.local.bat"
+    if errorlevel 1 (
+        echo ERROR: Could not load build-android.local.bat.
+        exit /b 1
+    )
+)
+
+set "BUILD_TYPE=%~1"
+if not defined BUILD_TYPE set "BUILD_TYPE=debug"
+if /i "%BUILD_TYPE%"=="debug" (
+    set "BUILD_TYPE=debug"
+    set "GRADLE_TASK=assembleFossDebug"
+    set "APK_SUFFIX=-debug"
+) else if /i "%BUILD_TYPE%"=="release" (
+    set "BUILD_TYPE=release"
+    set "GRADLE_TASK=assembleFossRelease"
+    set "APK_SUFFIX=-unsigned"
+    if defined KEYSTORE (
+        set "APK_SUFFIX="
+    ) else (
+        echo No KEYSTORE configured: building an unsigned release APK.
+    )
+) else (
+    echo Usage: build-android.cmd [debug^|release]
+    exit /b 1
+)
 
 echo.
 echo ============================================================
@@ -207,13 +236,13 @@ rem Build Android APK
 rem ------------------------------------------------------------
 
 echo ============================================================
-echo Building FOSS debug APK
+echo Building FOSS %BUILD_TYPE% APK
 echo ============================================================
 echo.
 
 pushd android
 
-call gradlew.bat assembleFossDebug
+call gradlew.bat %GRADLE_TASK%
 
 if errorlevel 1 (
     popd
@@ -230,7 +259,7 @@ rem ------------------------------------------------------------
 rem Expected APK
 rem ------------------------------------------------------------
 
-set "APK=android\app\build\outputs\apk\foss\debug\wudict-android-arm64-foss-debug.apk"
+set "APK=android\app\build\outputs\apk\foss\%BUILD_TYPE%\wudict-android-arm64-foss%APK_SUFFIX%.apk"
 
 if not exist "%APK%" (
     echo ERROR: Gradle finished but APK was not found:
@@ -275,8 +304,12 @@ echo APK:
 echo   %CD%\%APK%
 echo.
 
-echo Install:
-echo   adb install -r "%APK%"
+if /i "%APK_SUFFIX%"=="-unsigned" (
+    echo Sign this release APK with your release key before installing.
+) else (
+    echo Install:
+    echo   adb install -r "%APK%"
+)
 echo.
 
 endlocal
