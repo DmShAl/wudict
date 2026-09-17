@@ -101,7 +101,56 @@ final class Shell {
         // Only a validated six-digit colour is interpolated into JavaScript.
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
                 + color + "'," + image + ")", null);
+        web.evaluateJavascript(DICTIONARY_PICKER_JS, null);
     }
+
+    // Keep the real select as the source of truth, including streamed options,
+    // groups, disabled entries and its existing change handler.
+    static final String DICTIONARY_PICKER_JS = """
+            (() => {
+              const select = document.getElementById('dict');
+              if (!select || select.dataset.shellPicker) return;
+              select.dataset.shellPicker = '1';
+              function open() {
+                if (select.disabled) return;
+                const options = Array.from(select.options), rows = [];
+                let group = null;
+                for (let index = 0; index < options.length; index++) {
+                  const option = options[index];
+                  const parent = option.parentElement;
+                  if (parent.tagName === 'OPTGROUP' && parent !== group) {
+                    rows.push({label: parent.label, index: -1, disabled: true});
+                  }
+                  group = parent;
+                  rows.push({label: option.textContent, index,
+                    disabled: option.disabled || (parent.tagName === 'OPTGROUP' && parent.disabled)});
+                }
+                const answer = window.prompt('wudict:dictionary-picker',
+                  JSON.stringify({rows, selected: select.selectedIndex}));
+                if (answer === null) return;
+                const index = Number(answer);
+                if (!Number.isInteger(index) || !options[index]) return;
+                if (index !== select.selectedIndex) {
+                  select.selectedIndex = index;
+                  select.dispatchEvent(new Event('change', {bubbles:true}));
+                }
+              }
+              select.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                event.preventDefault(); open();
+              });
+              // Accessibility activation can arrive as a click without a pointer.
+              select.addEventListener('click', event => {
+                event.preventDefault();
+                if (event.detail === 0) open();
+              });
+              select.addEventListener('keydown', event => {
+                if (['Enter',' ','ArrowDown','ArrowUp'].includes(event.key)) {
+                  event.preventDefault(); open();
+                }
+              });
+            })();
+            """;
 
     // URLEncoder writes ' ' as '+', which URLSearchParams reads back as ' ' -
     // the same pair the page already uses for its own links.
@@ -205,6 +254,15 @@ final class Shell {
     /** Answers window.open(): reads the URL the new window wants, then sends it out. */
     static WebChromeClient windows(Activity a) {
         return new WebChromeClient() {
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message,
+                                      String defaultValue, android.webkit.JsPromptResult result) {
+                if (!"wudict:dictionary-picker".equals(message)
+                        || url == null || !url.startsWith(origin(a) + "/")) return false;
+                DictionaryPicker.show(a, defaultValue, result);
+                return true;
+            }
+
             @Override
             public boolean onCreateWindow(WebView view, boolean isDialog,
                                           boolean isUserGesture, Message resultMsg) {
