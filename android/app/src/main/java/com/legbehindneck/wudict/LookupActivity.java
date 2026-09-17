@@ -113,7 +113,7 @@ public class LookupActivity extends Activity {
             forward();
             return;
         }
-		final int pageBg = 0xFFFF0000;
+		final int pageBg = 0xFFE8D4A8;
 		getWindow().setBackgroundDrawable(new ColorDrawable(pageBg));
         sizeWindow();
         setFinishOnTouchOutside(true);
