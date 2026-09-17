@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 glowinthedark -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- The debug build type's copy of src/main/res/xml/shortcuts.xml, differing in
-     one literal: applicationIdSuffix ".debug" (app/build.gradle) moves the
+     one literal: applicationIdSuffix ".debug_sh" (app/build.gradle) moves the
      package, and the framework parses a shortcut's <intent> against the system
      context's resources, so the id cannot be an @string reference. See the main
      file for what this is and why it exists (D100); keep the two in step. -->

@@ -12,7 +12,7 @@
      an @string reference there resolves to nothing and the launcher answers the
      tap with "App isn't installed" - while the labels above, which are parsed
      with the app's own resources, render correctly and hide the fault. The
-     debug build type moves the package (applicationIdSuffix ".debug",
+     release uses .sh; the debug build type moves the package (applicationIdSuffix ".debug_sh",
      app/build.gradle) and an attribute cannot be overridden per source set, so
      src/debug/res/xml/shortcuts.xml carries a copy with the suffixed id. Keep
      the two in step. -->
@@ -26,6 +26,6 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:targetClass="com.legbehindneck.wudict.SettingsActivity"
-            android:targetPackage="com.legbehindneck.wudict" />
+            android:targetPackage="com.legbehindneck.wudict.sh" />
     </shortcut>
 </shortcuts>

@@ -14,7 +14,7 @@
 // A shell fact is none of those: it is about the Android shell's own
 // behaviour, and two properties force it here rather than into any of them.
 //
-// It must be READABLE BY THE DECIDER AT DECISION TIME. LookupActivity chooses
+// It must be READABLE BY THE DECIDER AT DECISION TIME. LookupActivity_sh chooses
 // a window before ServerProcess.ensure() is even called, so there may be no
 // server and no WebView: localStorage is unreachable by construction (it is
 // keyed by origin and needs a live page), and a running server cannot be
