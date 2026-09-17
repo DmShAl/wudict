@@ -7,6 +7,9 @@ coverage.out
 /state.json
 .DS_Store
 
+# Local Android Studio / IntelliJ settings.
+.idea/
+
 # Android (D52) — build outputs and the cross-compiled server lib.
 # gradle-wrapper.jar is NOT ignored: it is the build, committed.
 android/.gradle/
