@@ -393,6 +393,8 @@ for the cgo flavour with internal speex decoder and optimized sqlite3, and
 Supported OS's: macOS (arm64/amd64), Linux (amd64/arm64/armv7/armv6) and Windows
 (amd64/arm64).
 
+More details: https://wudict.legbehindneck.com/reference/building/
+
 ### Building the macOS bundle from source
 
 > 💡A golang environment is required for the commands above to work. See [Build from source](#build-from-source) above.
