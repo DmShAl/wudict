@@ -45,6 +45,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.graphics.drawable.ColorDrawable;
 
 public class LookupActivity extends Activity {
 
@@ -112,15 +113,18 @@ public class LookupActivity extends Activity {
             forward();
             return;
         }
-
+		final int pageBg = 0xFFFF0000;
+		getWindow().setBackgroundDrawable(new ColorDrawable(pageBg));
         sizeWindow();
         setFinishOnTouchOutside(true);
 
         root = new FrameLayout(this);
-        root.setBackgroundColor(getColor(R.color.window_bg));
+        root.setBackgroundColor(pageBg);
         status = new TextView(this);
+		status.setTextColor(ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
         status.setText(getString(R.string.lookup_starting, query));
         status.setGravity(Gravity.CENTER);
+
         root.addView(status, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -129,7 +133,8 @@ public class LookupActivity extends Activity {
         setContentView(root, new ViewGroup.LayoutParams(winW, winH));
 
         web = new WebView(this);
-        web.setBackgroundColor(getColor(R.color.window_bg));
+        //web.setBackgroundColor(getColor(R.color.window_bg));
+		web.setBackgroundColor(pageBg);
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new WebViewClient() {

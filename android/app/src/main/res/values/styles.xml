@@ -26,9 +26,9 @@
          and MainActivity.applyEdges repaints the window from the preference
          the moment Java runs. -->
     <style name="Theme.WuWeiDict" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/window_bg</item>
-        <item name="android:colorBackground">@color/window_bg</item>
-        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/window_bg</item>
+        <item name="android:windowBackground">#FF0000</item>
+        <item name="android:colorBackground">#FF0000</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">#FF0000</item>
     </style>
 
     <!-- The selection-lookup popup (D67): a window that floats over whatever
@@ -36,7 +36,7 @@
          in the text. Floating windows are exempt from the edge-to-edge
          enforcement above, so LookupActivity needs none of that padding. -->
     <style name="Theme.WuWeiDict.Lookup" parent="android:Theme.Material.Light.Dialog.NoActionBar">
-        <item name="android:windowBackground">@color/window_bg</item>
+        <item name="android:windowBackground">#FF0000</item>
         <item name="android:windowIsFloating">true</item>
         <item name="android:windowCloseOnTouchOutside">true</item>
     </style>

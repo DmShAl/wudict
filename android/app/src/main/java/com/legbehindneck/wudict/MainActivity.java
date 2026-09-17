@@ -65,21 +65,27 @@ public class MainActivity extends Activity {
         // have not covered yet. applyEdges repaints it from the preference; do
         // it here too, before setContentView, so no frame of this activity is
         // ever drawn against the resource colour.
-        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.edgeColor(this)));
+        getWindow().setBackgroundDrawable(new ColorDrawable(0xFFFF0000));
 
         root = new FrameLayout(this);
         status = new TextView(this);
         status.setText(R.string.starting);
+		/*
         root.addView(status, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER));
+		*/
+		status.setGravity(Gravity.CENTER);
 
+		root.addView(status, new FrameLayout.LayoutParams(
+				FrameLayout.LayoutParams.MATCH_PARENT,
+				FrameLayout.LayoutParams.MATCH_PARENT));
         web = new WebView(this);
         // The PAGE's background, not the window's: this is the surface the
         // document lands on, and a user whose theme disagrees with their phone
         // would otherwise get one frame of the other one (D141).
-        web.setBackgroundColor(ShellPrefs.pageBg(this)); // no white flash before first paint
+        web.setBackgroundColor(0xFFFF0000); // no white flash before first paint
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new ShellWebViewClient());
@@ -218,7 +224,7 @@ public class MainActivity extends Activity {
     //
     // Cheap enough to re-run on every report: two setters and a resource read.
     private void applyEdges() {
-        int edge = ShellPrefs.edgeColor(this);
+        int edge = 0xFFFF0000;
         root.setBackgroundColor(edge);
         // The window too, not just our root: it is what the enter transition
         // and the pre-first-layout frames show, and the theme could only give
@@ -229,8 +235,12 @@ public class MainActivity extends Activity {
         // SHELL draws, and they sit on that same colour. Their theme colour is
         // the OS's, so a page-dark strip under a light OS put dark text on a
         // dark ground. Same arithmetic as the bar icons, same reason.
-        status.setTextColor(dark ? 0xDE000000 : 0xFFFFFFFF);
-        View decor = getWindow().getDecorView();
+        //status.setTextColor(dark ? 0xDE000000 : 0xFFFFFFFF);
+        int pageBg = 0xFFFF0000;
+		status.setBackgroundColor(pageBg);
+		status.setTextColor(
+			ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
+		View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = decor.getWindowInsetsController();
             if (c != null) {
@@ -296,7 +306,7 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (gone) return;
             if (!ShellPrefs.setPageDark(this, dark)) return;
-            web.setBackgroundColor(ShellPrefs.pageBg(this));
+            web.setBackgroundColor(0xFFFF0000);
             applyEdges();
         });
         return true;
@@ -383,7 +393,7 @@ public class MainActivity extends Activity {
             // arrives as a focus gain and nothing else. Re-asking for the
             // insets is what re-routes them when the mode itself changed.
             applyEdges();
-            web.setBackgroundColor(ShellPrefs.pageBg(this));
+            web.setBackgroundColor(0xFFFF0000);
             root.requestApplyInsets();
         }
     }

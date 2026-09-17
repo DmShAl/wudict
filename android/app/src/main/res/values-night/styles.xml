@@ -26,14 +26,14 @@
          and MainActivity.applyEdges repaints the window from the preference
          the moment Java runs. -->
     <style name="Theme.WuWeiDict" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/window_bg</item>
-        <item name="android:colorBackground">@color/window_bg</item>
-        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/window_bg</item>
+        <item name="android:windowBackground">#FF0000</item>
+        <item name="android:colorBackground">#FF0000</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">#FF0000</item>
     </style>
 
     <!-- The dark parent for the lookup popup (D67), for the same reason. -->
     <style name="Theme.WuWeiDict.Lookup" parent="android:Theme.Material.Dialog.NoActionBar">
-        <item name="android:windowBackground">@color/window_bg</item>
+        <item name="android:windowBackground">#FF0000</item>
         <item name="android:windowIsFloating">true</item>
         <item name="android:windowCloseOnTouchOutside">true</item>
     </style>
