@@ -4004,7 +4004,20 @@ measureBar();
 // ResizeObserver rather than a resize listener: the bar also changes height
 // when the dictionary <select> grows with the loaded names and wraps the row,
 // which fires no resize event at all.
-new ResizeObserver(measureBar).observe($("bar"));
+//
+// border-box, not the default content-box. --barh is offsetHeight — a BORDER
+// box — and the bar's padding-top is calc(--sp-1 + --wd-inset-top): a host that
+// publishes the top inset after the document has loaded (the Android shell does
+// it at onPageFinished, which is necessarily after this script) grows the bar's
+// padding and its border box while leaving its content box untouched. A
+// content-box observer sees nothing, so --barh kept the pre-inset height and
+// everything aimed at it landed one status bar too high: body's padding-top
+// below 600px, scroll-margin-top, and --stick — which is why the first stuck
+// summary sat clipped under the bar until the bar auto-hid and --stick went to
+// 0. Observing the box that is actually being published is the whole fix.
+// A border-box change is a superset of a content-box one here (nothing shrinks
+// the padding as the content grows), so the <select> case above still fires.
+new ResizeObserver(measureBar).observe($("bar"),{box:"border-box"});
 let prevScroll=window.pageYOffset;
 addEventListener("scroll",()=>{
   const cur=window.pageYOffset;
