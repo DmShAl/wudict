@@ -93,6 +93,7 @@ public class SettingsActivity extends Activity {
 
     private TextView staleText;
     private EditText sepiaField;
+    private final java.util.List<Runnable> backgroundButtonUpdates = new java.util.ArrayList<>();
     private Button applyNow;
     private volatile boolean gone;
 
@@ -163,6 +164,7 @@ public class SettingsActivity extends Activity {
         col.addView(staleText);
 
         applyNow = new Button(this);
+        styleBackgroundButton(applyNow);
         applyNow.setText(R.string.settings_apply_now);
         applyNow.setVisibility(View.GONE);
         applyNow.setOnClickListener(v -> applyNow());
@@ -176,6 +178,7 @@ public class SettingsActivity extends Activity {
         // otherwise cost two presses. Closing commits the fields on the way
         // out (onPause), exactly as Back and tapping outside already do.
         Button close = new Button(this);
+        styleBackgroundButton(close);
         close.setText(R.string.settings_close);
         close.setOnClickListener(v -> finish());
         col.addView(close, wide(SP_6));
@@ -269,6 +272,39 @@ public class SettingsActivity extends Activity {
     private void applySepiaWindow() {
         getWindow().setBackgroundDrawable(WindowBackground.drawable(this, ShellPrefs.sepia(this)
                 ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg)));
+        for (Runnable update : backgroundButtonUpdates) update.run();
+    }
+
+    private void styleBackgroundButton(Button button) {
+        android.graphics.drawable.Drawable original = button.getBackground();
+        android.content.res.ColorStateList originalText = button.getTextColors();
+        android.animation.StateListAnimator originalAnimator = button.getStateListAnimator();
+        float originalElevation = button.getElevation();
+        Runnable update = () -> {
+            boolean custom = ShellPrefs.sepia(this) || WindowBackground.active(this);
+            if (!custom) {
+                button.setBackground(original);
+                button.setTextColor(originalText);
+                button.setStateListAnimator(originalAnimator);
+                button.setElevation(originalElevation);
+                return;
+            }
+            int background = ShellPrefs.sepia(this)
+                    ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg);
+            int rgb = ShellPrefs.darkIcons(background) ? 0x000000 : 0xFFFFFF;
+            android.graphics.drawable.GradientDrawable outline = new android.graphics.drawable.GradientDrawable();
+            outline.setColor(Color.TRANSPARENT);
+            outline.setCornerRadius(dp(SP_3));
+            outline.setStroke(dp(1), 0x55000000 | rgb);
+            button.setBackground(new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x22000000 | rgb), outline, null));
+            button.setTextColor(0xDE000000 | rgb);
+            button.setStateListAnimator(null);
+            button.setElevation(0);
+            button.setTranslationZ(0);
+        };
+        backgroundButtonUpdates.add(update);
+        update.run();
     }
 
     private View backgroundImageRow() {
@@ -300,9 +336,25 @@ public class SettingsActivity extends Activity {
             labels[0] = getString(R.string.settings_background_none);
             for (int i = 0; i < names.size(); i++) labels[i + 1] = names.get(i);
             String selected = ShellPrefs.of(this).getString("background_image", "");
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.settings_background_image)
-                    .setSingleChoiceItems(labels, names.indexOf(selected) + 1, (dialog, which) -> {
+            int background = ShellPrefs.sepia(this)
+                    ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg);
+            int foreground = ShellPrefs.darkIcons(background) ? 0xDE000000 : 0xFFFFFFFF;
+            TextView heading = new TextView(this);
+            heading.setText(R.string.settings_background_image);
+            heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_HEAD);
+            heading.setTextColor(foreground);
+            heading.setPadding(dp(SP_5), dp(SP_5), dp(SP_5), dp(SP_3));
+            android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<String>(
+                    this, android.R.layout.simple_list_item_single_choice, labels) {
+                @Override public View getView(int position, View recycled, ViewGroup parent) {
+                    TextView text = (TextView) super.getView(position, recycled, parent);
+                    text.setTextColor(foreground);
+                    return text;
+                }
+            };
+            AlertDialog picker = new AlertDialog.Builder(this)
+                    .setCustomTitle(heading)
+                    .setSingleChoiceItems(adapter, names.indexOf(selected) + 1, (dialog, which) -> {
                         ShellPrefs.of(this).edit().putString("background_image",
                                 which == 0 ? "" : names.get(which - 1)).apply();
                         update.run();
@@ -311,6 +363,9 @@ public class SettingsActivity extends Activity {
                     })
                     .setPositiveButton(android.R.string.ok, null)
                     .show();
+            picker.getWindow().setBackgroundDrawable(WindowBackground.drawable(this, background));
+            picker.getListView().setBackgroundColor(Color.TRANSPARENT);
+            picker.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(foreground);
             if (names.isEmpty()) toast(getString(R.string.settings_background_empty));
         });
         return choose;
@@ -502,6 +557,7 @@ public class SettingsActivity extends Activity {
 
     private View restoreButton() {
         Button b = new Button(this);
+        styleBackgroundButton(b);
         b.setText(R.string.settings_restore);
         // Confirmed, because one tap clears several tuned fields at once.
         // Clearing restores inheritance - it writes nothing anywhere.
