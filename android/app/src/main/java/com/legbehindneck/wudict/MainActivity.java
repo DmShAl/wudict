@@ -54,18 +54,14 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // The manifest's translucent startup theme suppresses the system's
+        // opaque preview. Only startup is transparent; our views use the
+        // normal day/night theme and the saved background from the first frame.
+        setTheme(R.style.Theme_WuWeiDict);
         super.onCreate(savedInstanceState);
 
-        // The earliest point Java can correct the window's colour. The theme's
-        // splash/window background was resolved from the OS day/night setting
-        // before this process existed (values/styles.xml); the PAGE's theme is
-        // a stored preference, so for a user whose theme disagrees with their
-        // phone the window under everything is still the wrong colour - and it
-        // shows through during the enter transition and any frame our own views
-        // have not covered yet. applyEdges repaints it from the preference; do
-        // it here too, before setContentView, so no frame of this activity is
-        // ever drawn against the resource colour.
-        getWindow().setBackgroundDrawable(new ColorDrawable(0xFFE8D4A8));
+        // Paint before setContentView, including the optional Sepia override.
+        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.pageBg(this)));
 
         root = new FrameLayout(this);
         status = new TextView(this);
@@ -85,7 +81,7 @@ public class MainActivity extends Activity {
         // The PAGE's background, not the window's: this is the surface the
         // document lands on, and a user whose theme disagrees with their phone
         // would otherwise get one frame of the other one (D141).
-        web.setBackgroundColor(0xFFE8D4A8); // no white flash before first paint
+        web.setBackgroundColor(ShellPrefs.pageBg(this)); // no white flash before first paint
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new ShellWebViewClient());
@@ -224,19 +220,19 @@ public class MainActivity extends Activity {
     //
     // Cheap enough to re-run on every report: two setters and a resource read.
     private void applyEdges() {
-        int edge = 0xFFE8D4A8;
+        int edge = ShellPrefs.edgeColor(this);
         root.setBackgroundColor(edge);
         // The window too, not just our root: it is what the enter transition
         // and the pre-first-layout frames show, and the theme could only give
         // it the OS's colour.
-        getWindow().setBackgroundDrawable(new ColorDrawable(edge));
+        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.pageBg(this)));
         boolean dark = ShellPrefs.darkIcons(edge);
         // "Starting…" and the server-failure sentence are the only text the
         // SHELL draws, and they sit on that same colour. Their theme colour is
         // the OS's, so a page-dark strip under a light OS put dark text on a
         // dark ground. Same arithmetic as the bar icons, same reason.
         //status.setTextColor(dark ? 0xDE000000 : 0xFFFFFFFF);
-        int pageBg = 0xFFE8D4A8;
+        int pageBg = ShellPrefs.pageBg(this);
 		status.setBackgroundColor(pageBg);
 		status.setTextColor(
 			ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
@@ -306,7 +302,7 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (gone) return;
             if (!ShellPrefs.setPageDark(this, dark)) return;
-            web.setBackgroundColor(0xFFE8D4A8);
+            web.setBackgroundColor(ShellPrefs.pageBg(this));
             applyEdges();
         });
         return true;
@@ -393,7 +389,7 @@ public class MainActivity extends Activity {
             // arrives as a focus gain and nothing else. Re-asking for the
             // insets is what re-routes them when the mode itself changed.
             applyEdges();
-            web.setBackgroundColor(0xFFE8D4A8);
+            Shell.applyBackground(web);
             root.requestApplyInsets();
         }
     }
@@ -424,6 +420,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            Shell.applyBackground(view);
             // The Play flavour adds its import control here. Nothing in
             // web/index.html knows what Android is - the D54 rule (the shell
             // absorbs the platform, not the page), applied to the DOM.

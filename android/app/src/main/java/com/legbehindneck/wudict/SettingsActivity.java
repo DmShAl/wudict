@@ -23,6 +23,8 @@
 // device facts wearing a config key's name. Dictionary order, default search
 // mode, theme: still not here, and a row that would read identically on a
 // desktop still does not belong.
+// The fork additionally exposes an optional Sepia background here: the shell
+// must know it before the WebView exists, then pass it to the page at startup.
 //
 // Nothing here writes wudict.toml. An override is stored in SharedPreferences
 // and delivered on the child's exec line, which is a HIGHER config layer than
@@ -52,6 +54,7 @@ package com.legbehindneck.wudict;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.TypedValue;
@@ -89,6 +92,7 @@ public class SettingsActivity extends Activity {
     private final TextView[] hints = new TextView[keys.length];
 
     private TextView staleText;
+    private EditText sepiaField;
     private Button applyNow;
     private volatile boolean gone;
 
@@ -108,6 +112,7 @@ public class SettingsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setTitle(R.string.settings_title);
+        applySepiaWindow();
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -137,6 +142,7 @@ public class SettingsActivity extends Activity {
         col.addView(choiceRow(R.string.settings_bars, R.array.settings_bars_modes,
                 ShellPrefs.bars(this), v -> ShellPrefs.setBars(this, v)));
         col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
+        col.addView(sepiaRow());
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
@@ -193,6 +199,7 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        commitSepia();
         // Leaving with a half-typed number in a field must not lose it, and
         // must not store a value the server would refuse either: commit()
         // either stores a valid number or puts the field back.
@@ -208,6 +215,60 @@ public class SettingsActivity extends Activity {
     }
 
     // ── rows ─────────────────────────────────────────────────────────────
+
+    private View sepiaRow() {
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        CheckBox box = new CheckBox(this);
+        box.setText(R.string.settings_sepia);
+        box.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
+        box.setMinHeight(dp(ROW_MIN));
+        box.setChecked(ShellPrefs.sepia(this));
+        line.addView(box, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        sepiaField = new EditText(this);
+        sepiaField.setSingleLine(true);
+        sepiaField.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        sepiaField.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
+        sepiaField.setMinHeight(dp(ROW_MIN));
+        sepiaField.setContentDescription(getString(R.string.settings_sepia_color));
+        sepiaField.setText(ShellPrefs.sepiaColorText(this));
+        sepiaField.setOnFocusChangeListener((v, focused) -> {
+            if (!focused) commitSepia();
+        });
+        sepiaField.setOnEditorActionListener((v, id, event) -> {
+            commitSepia();
+            return false;
+        });
+        line.addView(sepiaField, new LinearLayout.LayoutParams(dp(144),
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        box.setOnCheckedChangeListener((v, on) -> {
+            commitSepia();
+            ShellPrefs.set(this, ShellPrefs.SEPIA, on);
+            applySepiaWindow();
+        });
+        return line;
+    }
+
+    private void commitSepia() {
+        if (sepiaField == null) return;
+        try {
+            ShellPrefs.setSepiaColor(this, sepiaField.getText().toString().trim());
+            sepiaField.setError(null);
+        } catch (IllegalArgumentException bad) {
+            sepiaField.setError(getString(R.string.settings_edge_custom_bad));
+        }
+        // Invalid or unfinished input never replaces the last valid colour.
+        sepiaField.setText(ShellPrefs.sepiaColorText(this));
+        applySepiaWindow();
+    }
+
+    private void applySepiaWindow() {
+        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.sepia(this)
+                ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg)));
+    }
 
     private CheckBox row(String key, int label) {
         CheckBox c = new CheckBox(this);

@@ -46,7 +46,7 @@ final class Shell {
 
     static String pageUrl(Context c) {
         String k = key(c);
-        return origin(c) + "/" + (k.isEmpty() ? "" : "?" + k);
+        return origin(c) + "/?" + backgroundQuery(c) + (k.isEmpty() ? "" : "&" + k);
     }
 
     /**
@@ -84,7 +84,21 @@ final class Shell {
         if (dict != null && !dict.isEmpty()) b.append("&dict=").append(enc(dict));
         String k = key(c);
         if (!k.isEmpty()) b.append("&").append(k);
-        return b.toString();
+        return b.append("&").append(backgroundQuery(c)).toString();
+    }
+
+    // Explicit empty value clears any cached override before the first paint.
+    private static String backgroundQuery(Context c) {
+        return "shell_bg=" + (ShellPrefs.sepia(c) ? enc(ShellPrefs.sepiaColorText(c)) : "");
+    }
+
+    static void applyBackground(WebView web) {
+        Context c = web.getContext();
+        web.setBackgroundColor(ShellPrefs.pageBg(c));
+        String color = ShellPrefs.sepia(c) ? ShellPrefs.sepiaColorText(c) : "";
+        // Only a validated six-digit colour is interpolated into JavaScript.
+        web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
+                + color + "')", null);
     }
 
     // URLEncoder writes ' ' as '+', which URLSearchParams reads back as ' ' -

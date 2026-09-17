@@ -69,6 +69,27 @@ final class ShellPrefs {
 
     private static final String FILE = "shell";
 
+    static final String SEPIA = "sepia";
+    private static final String SEPIA_COLOR = "sepia_color";
+    private static final int DEFAULT_SEPIA_COLOR = 0xFFE8D4A8;
+
+    static boolean sepia(Context c) {
+        return of(c).getBoolean(SEPIA, false);
+    }
+
+    static int sepiaColor(Context c) {
+        return of(c).getInt(SEPIA_COLOR, DEFAULT_SEPIA_COLOR) | 0xFF000000;
+    }
+
+    static String sepiaColorText(Context c) {
+        return String.format(java.util.Locale.ROOT, "#%06x", sepiaColor(c) & 0xFFFFFF);
+    }
+
+    static void setSepiaColor(Context c, String value) {
+        if (!value.matches("#[0-9a-fA-F]{6}")) throw new IllegalArgumentException(value);
+        of(c).edit().putInt(SEPIA_COLOR, Color.parseColor(value)).apply();
+    }
+
     // One key per way in, because the three carry different intent: a
     // selection-toolbar tap is a glance, a shared passage is deliberate, a
     // wudict:// call is programmatic. All default to false - float - so an
@@ -262,6 +283,7 @@ final class ShellPrefs {
 
     /** The page's own background colour, per whatever theme it is showing. */
     static int pageBg(Context c) {
+        if (sepia(c)) return sepiaColor(c);
         return c.getColor(pageDark(c) ? R.color.page_bg_dark : R.color.page_bg_light);
     }
 
@@ -274,6 +296,7 @@ final class ShellPrefs {
      * background is the only answer that cannot flash.
      */
     static int edgeColor(Context c) {
+        if (sepia(c)) return sepiaColor(c);
         switch (edgeMode(c)) {
             case EDGE_BLACK:
                 return 0xFF000000;

@@ -60,6 +60,8 @@
           API levels: there is nothing to do with that (D102). 
 	-->
 	<string name="settings_screen_head">Screen</string>
+    <string name="settings_sepia">Sepia</string>
+    <string name="settings_sepia_color">Sepia background colour, #RRGGBB</string>
 	<string name="settings_edge">Edges of the screen</string>
 	<string name="settings_edge_hint">What fills the margins around the page — the strip behind the camera at the top, and the band above the navigation bar at the bottom.</string>
 	<!--

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android sees this theme before our process starts and skips the
+         opaque starting window. MainActivity restores its normal theme
+         before creating views, then paints the saved page background. -->
+    <style name="Theme.WuWeiDict.Startup" parent="Theme.WuWeiDict">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

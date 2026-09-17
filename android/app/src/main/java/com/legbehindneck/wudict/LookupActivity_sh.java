@@ -113,7 +113,7 @@ public class LookupActivity_sh extends Activity {
             forward();
             return;
         }
-		final int pageBg = 0xFFE8D4A8;
+		final int pageBg = ShellPrefs.pageBg(this);
 		getWindow().setBackgroundDrawable(new ColorDrawable(pageBg));
         sizeWindow();
         setFinishOnTouchOutside(true);
@@ -139,6 +139,11 @@ public class LookupActivity_sh extends Activity {
         Ime.hideOnScroll(web);
         web.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageFinished(WebView view, String url) {
+                Shell.applyBackground(view);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 return Shell.openExternal(LookupActivity_sh.this, req.getUrl());
             }
@@ -159,6 +164,17 @@ public class LookupActivity_sh extends Activity {
     }
 
     // ── the string ───────────────────────────────────────────────────────
+
+    @Override
+    public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (!focused || root == null || web == null) return;
+        int color = ShellPrefs.pageBg(this);
+        getWindow().setBackgroundDrawable(new ColorDrawable(color));
+        root.setBackgroundColor(color);
+        status.setTextColor(ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF);
+        Shell.applyBackground(web);
+    }
 
     /** The selection, wherever this launch put it. */
     private static CharSequence text(Intent i) {
