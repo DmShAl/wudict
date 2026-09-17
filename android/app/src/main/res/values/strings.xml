@@ -1,227 +1,263 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2026 glowinthedark -->
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- Shared by both flavours. Anything that names a storage mechanism belongs
-     to a flavour's own values/ instead (D62). -->
+	<!-- Copyright (C) 2026 glowinthedark -->
+	<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+	<!--
+ Shared by both flavours. Anything that names a storage mechanism belongs
+     to a flavour's own values/ instead (D62). 
+	-->
 <resources>
-     <string name="app_name">wuDict</string>
-     <string name="starting">Starting wuDict…</string>
-     <string name="server_failed">wuDict server failed to start: %1$s</string>
-
-     <!-- The selection-toolbar entry (D67). It labels the PROCESS_TEXT filter
+	<string name="app_name">wuDict_SH</string>
+	<string name="starting">Starting wuDict…</string>
+	<string name="server_failed">wuDict server failed to start: %1$s</string>
+	<!--
+ The selection-toolbar entry (D67). It labels the PROCESS_TEXT filter
          only, where the toolbar is a row of verbs among other apps' verbs
          ("Read aloud", "Translate") and a product name would read as the odd
-         one out. The share sheet keeps app_name. -->
-     <string name="lookup_label">wuDict</string>
-     <string name="lookup_starting">Looking up “%1$s”…</string>
-     <string name="lookup_empty">Nothing to look up</string>
-     <string name="lookup_open_app">Open in wuDict</string>
-
-     <!-- The foreground service that keeps a demanded ingest alive
+         one out. The share sheet keeps app_name. 
+	-->
+	<string name="lookup_label">wuDict</string>
+	<string name="lookup_starting">Looking up “%1$s”…</string>
+	<string name="lookup_empty">Nothing to look up</string>
+	<string name="lookup_open_app">Open in wuDict</string>
+	<!--
+ The foreground service that keeps a demanded ingest alive
           (IndexService). The channel name is what appears in the system's
-          notification settings, so it names the work rather than the app. -->
-     <string name="index_channel">Preparing dictionaries</string>
-     <string name="index_title">Preparing a dictionary</string>
-     <string name="index_text">Building the search index. This can take a few minutes.</string>
-     <!-- The same notification, worn by the other two long jobs that hold it.
+          notification settings, so it names the work rather than the app. 
+	-->
+	<string name="index_channel">Preparing dictionaries</string>
+	<string name="index_title">Preparing a dictionary</string>
+	<string name="index_text">Building the search index. This can take a few minutes.</string>
+	<!--
+ The same notification, worn by the other two long jobs that hold it.
           It is a receipt for work the user is waiting on, so it must say which
           work: a download that announces itself as indexing is telling the
           user the wrong thing about how long it will take and what it is
           spending - and for a multi-gigabyte .mdd over mobile data that is not
-          a detail (D140). -->
-     <string name="index_import_title">Adding dictionaries</string>
-     <string name="index_import_text">Copying into your library. This can take a few minutes.</string>
-     <string name="index_download_title">Downloading a dictionary</string>
-     <string name="index_download_text">This continues while you use other apps.</string>
-
-     <!-- The shell's own settings (D100). The wording never names the Android
+          a detail (D140). 
+	-->
+	<string name="index_import_title">Adding dictionaries</string>
+	<string name="index_import_text">Copying into your library. This can take a few minutes.</string>
+	<string name="index_download_title">Downloading a dictionary</string>
+	<string name="index_download_text">This continues while you use other apps.</string>
+	<!--
+ The shell's own settings (D100). The wording never names the Android
           mechanism behind a row: the user is choosing where a lookup lands,
-          not which intent filter it arrived through. -->
-     <string name="settings_short_label">Settings</string>
-     <string name="settings_title">wuDict settings</string>
-     <string name="settings_lookup_head">Look up in the full app</string>
-     <string name="settings_lookup_hint">Otherwise a lookup floats over the app you were reading.</string>
-     <string name="settings_lookup_toolbar">From the text selection menu</string>
-     <string name="settings_lookup_share">From the share menu</string>
-     <string name="settings_lookup_link">From links and automation</string>
-
-     <!-- Window facts (D141), and the only rows on this screen whose effect the
+          not which intent filter it arrived through. 
+	-->
+	<string name="settings_short_label">Settings</string>
+	<string name="settings_title">wuDict settings</string>
+	<string name="settings_lookup_head">Look up in the full app</string>
+	<string name="settings_lookup_hint">Otherwise a lookup floats over the app you were reading.</string>
+	<string name="settings_lookup_toolbar">From the text selection menu</string>
+	<string name="settings_lookup_share">From the share menu</string>
+	<string name="settings_lookup_link">From links and automation</string>
+	<!--
+ Window facts (D141), and the only rows on this screen whose effect the
           user can see the moment they leave it. Each label says what they GET;
           each hint says the one thing they must know to live with it - that the
           bars are a swipe away rather than gone, and that the last edge choice
           trades a margin for reading room. Nothing about flags, cutout modes or
-          API levels: there is nothing to do with that (D102). -->
-     <string name="settings_screen_head">Screen</string>
-
-     <string name="settings_edge">Edges of the screen</string>
-     <string name="settings_edge_hint">What fills the margins around the page — the strip behind the camera at the top, and the band above the navigation bar at the bottom.</string>
-     <!-- Order is the stored order and may not be rearranged. Phrased as what
+          API levels: there is nothing to do with that (D102). 
+	-->
+	<string name="settings_screen_head">Screen</string>
+	<string name="settings_edge">Edges of the screen</string>
+	<string name="settings_edge_hint">What fills the margins around the page — the strip behind the camera at the top, and the band above the navigation bar at the bottom.</string>
+	<!--
+ Order is the stored order and may not be rearranged. Phrased as what
           the colour FOLLOWS, because that is the whole question: a user whose
           page is dark under a light phone is choosing which of the two the
-          margins should agree with. -->
-     <string-array name="settings_edge_modes">
-         <item>Match the phone\'s light or dark setting</item>
-         <item>Match the page</item>
-         <item>Black</item>
-         <item>A colour you pick</item>
-         <item>No margins — the page fills the screen</item>
-     </string-array>
-     <string name="settings_edge_custom">Margin colour</string>
-     <string name="settings_edge_custom_hint">A colour like #1A1A1A.</string>
-     <string name="settings_edge_custom_bad">That is not a colour. Use six digits after a #, like #1A1A1A.</string>
-     <string name="settings_edge_none_hint">The page runs under the clock and the navigation bar. The search field stays clear of the camera, and the rest of the screen is yours while you scroll.</string>
-
-     <string name="settings_bars">Hide while you read</string>
-     <string name="settings_bars_hint">Swipe in from the top or bottom edge to bring them back for a moment.</string>
-     <string-array name="settings_bars_modes">
-         <item>Nothing</item>
-         <item>The clock and status icons</item>
-         <item>The navigation bar</item>
-         <item>Both</item>
-     </string-array>
-
-     <!-- PLATFORM OVERRIDES (D101). Each row names a resource trade the DEVICE
+          margins should agree with. 
+	-->
+	<string-array name="settings_edge_modes">
+		<item>Match the phone\'s light or dark setting</item>
+		<item>Match the page</item>
+		<item>Black</item>
+		<item>A colour you pick</item>
+		<item>No margins — the page fills the screen</item>
+	</string-array>
+	<string name="settings_edge_custom">Margin colour</string>
+	<string name="settings_edge_custom_hint">A colour like #1A1A1A.</string>
+	<string name="settings_edge_custom_bad">That is not a colour. Use six digits after a #, like #1A1A1A.</string>
+	<string name="settings_edge_none_hint">The page runs under the clock and the navigation bar. The search field stays clear of the camera, and the rest of the screen is yours while you scroll.</string>
+	<string name="settings_bars">Hide while you read</string>
+	<string name="settings_bars_hint">Swipe in from the top or bottom edge to bring them back for a moment.</string>
+	<string-array name="settings_bars_modes">
+		<item>Nothing</item>
+		<item>The clock and status icons</item>
+		<item>The navigation bar</item>
+		<item>Both</item>
+	</string-array>
+	<!--
+ PLATFORM OVERRIDES (D101). Each row names a resource trade the DEVICE
           forces - space, memory, cores, an address - never a dictionary fact,
           which is the test for whether a row may exist here at all. The copy
           says what the value costs, because a number with no consequence
-          attached is a number nobody can set responsibly. -->
-     <!-- D102: the switch is here because the user must DECIDE - other apps on
-          the device can reach the dictionary server, and turning the key off
-          is how you let one. Nothing about how the key works reaches the
+          attached is a number nobody can set responsibly. 
+	-->
+	<!--
+ D102: the switch is here because the user must DECIDE - other apps on
+          the device can reach 
+the dictionary server, and turning the key off
+          is how you let one. Nothing about how the key 
+works reaches the
           screen; there is nothing to do with that.
 
-          The copy says CHANGES, not use: looking words up is deliberately left
-          open to other apps even with the key on (D69 - it is the same surface
-          a browser extension is given), so a label promising that only this app
+          The copy says CHANGES, 
+not use: looking words up is deliberately left
+          open to other apps even with the key on (D69 
+- it is the same surface
+          a browser extension is given), so a label promising that only this 
+app
           may use the dictionaries would be describing a thing the app does not
-          do. -->
-     <string name="settings_access_head">Access</string>
-     <string name="settings_access_key">Only this app may change your dictionaries</string>
-     <string name="settings_access_key_hint">Other apps on this phone can reach the dictionary server. With this on, they can look words up but cannot change anything — no importing, preparing or removing dictionaries, and no settings. Turn it off if another app should be able to change things too. Takes effect the next time wuDict starts.</string>
-     <string name="settings_advanced_head">Advanced</string>
-     <string name="settings_advanced_hint">These change how the dictionary server itself runs. Leave them alone unless you know what they do. Anything left empty follows the settings file.</string>
-
-     <string name="settings_no_compress">Store dictionaries uncompressed</string>
-     <string name="settings_no_compress_hint">Databases become roughly 3× larger — a 100 MB dictionary lands at about 300 MB. Reading gets slightly faster with no decompression step: expect a few percent, not a transformation. Applies to dictionaries prepared from now on. Default: off.</string>
-
-     <string name="settings_search_memory">Memory one search may use</string>
-     <string name="settings_search_memory_hint">A search that has to open dictionaries which are not prepared yet stops at this much; the rest are reported as not searched rather than opened. Prepared dictionaries are never capped. 0 removes the cap — one search across a large unprepared library has been measured at 6.3 GB, which on a phone means the app is killed.</string>
-
-     <string name="settings_preview_memory">Memory unprepared dictionaries may hold</string>
-     <string name="settings_preview_memory_hint">What stays open between searches: roughly 350 bytes per headword, so 64 MB holds about 180 000 of them. Past the cap the least recently used are closed and reopened on demand. Higher means fewer reopens and more memory the system will judge this app on.</string>
-
-     <string name="settings_index_workers">Dictionaries prepared at once</string>
-     <string name="settings_index_workers_hint">Each one saturates a core and holds a few hundred bytes per headword while it runs. More is faster and hotter; the phone stays comfortable at 1.</string>
-
-     <string name="settings_server_port">Server port</string>
-     <string name="settings_server_port_hint">Change only if something else on this device already uses 6888. Page preferences such as theme and panel state are saved per address, so a different port starts them fresh. Default: 6888.</string>
-
-     <string name="settings_range">Between %1$d and %2$d.</string>
-     <string name="settings_in_effect">In effect now: %1$s.</string>
-     <string name="settings_lan_at">While it is on, other devices on this network would use %1$s.</string>
-     <string name="settings_lan_none">This phone is not on a network right now.</string>
-     <string name="settings_out_of_range">“%1$s” must be a whole number between %2$d and %3$d.</string>
-
-     <!-- The running server was started with different values. Never claims a
+          do. 
+	-->
+	<string name="settings_access_head">Access</string>
+	<string name="settings_access_key">Only this app may change your dictionaries</string>
+	<string name="settings_access_key_hint">Other apps on this phone can reach the dictionary server. With this on, they can look words up but cannot change anything — no importing, preparing or removing dictionaries, and no settings. Turn it off if another app should be able to change things too. Takes effect the next time wuDict starts.</string>
+	<string name="settings_advanced_head">Advanced</string>
+	<string name="settings_advanced_hint">These change how the dictionary server itself runs. Leave them alone unless you know what they do. Anything left empty follows the settings file.</string>
+	<string name="settings_no_compress">Store dictionaries uncompressed</string>
+	<string name="settings_no_compress_hint">Databases become roughly 3× larger — a 100 MB dictionary lands at about 300 MB. Reading gets slightly faster with no decompression step: expect a few percent, not a transformation. Applies to dictionaries prepared from now on. Default: off.</string>
+	<string name="settings_search_memory">Memory one search may use</string>
+	<string name="settings_search_memory_hint">A search that has to open dictionaries which are not prepared yet stops at this much; the rest are reported as not searched rather than opened. Prepared dictionaries are never capped. 0 removes the cap — one search across a large unprepared library has been measured at 6.3 GB, which on a phone means the app is killed.</string>
+	<string name="settings_preview_memory">Memory unprepared dictionaries may hold</string>
+	<string name="settings_preview_memory_hint">What stays open between searches: roughly 350 bytes per headword, so 64 MB holds about 180 000 of them. Past the cap the least recently used are closed and reopened on demand. Higher means fewer reopens and more memory the system will judge this app on.</string>
+	<string name="settings_index_workers">Dictionaries prepared at once</string>
+	<string name="settings_index_workers_hint">Each one saturates a core and holds a few hundred bytes per headword while it runs. More is faster and hotter; the phone stays comfortable at 1.</string>
+	<string name="settings_server_port">Server port</string>
+	<string name="settings_server_port_hint">Change only if something else on this device already uses 6888. Page preferences such as theme and panel state are saved per address, so a different port starts them fresh. Default: 6888.</string>
+	<string name="settings_range">Between %1$d and %2$d.</string>
+	<string name="settings_in_effect">In effect now: %1$s.</string>
+	<string name="settings_lan_at">While it is on, other devices on this network would use %1$s.</string>
+	<string name="settings_lan_none">This phone is not on a network right now.</string>
+	<string name="settings_out_of_range">“%1$s” must be a whole number between %2$d and %3$d.</string>
+	<!--
+ The running server was started with different values. Never claims a
           restart that did not happen: the button appears only when stopping it
-          is actually safe. -->
-     <string name="settings_stale">The dictionary server is still running with the previous settings.</string>
-     <string name="settings_stale_later">It will pick them up the next time the app is opened.</string>
-     <string name="settings_apply_now">Restart server now</string>
-     <string name="settings_applied">Stopped. The new settings apply on the next lookup.</string>
-
-     <string name="settings_close">Close</string>
-     <string name="settings_restore">Restore defaults</string>
-     <string name="settings_restore_confirm">Clear every advanced setting and go back to what the settings file says?</string>
-     <string name="settings_restore_done">Advanced settings cleared.</string>
-     <string name="settings_cancel">Cancel</string>
-     <!-- Intake: an archive arriving from a file manager, a share sheet or the
+          is actually safe. 
+	-->
+	<string name="settings_stale">The dictionary server is still running with the previous settings.</string>
+	<string name="settings_stale_later">It will pick them up the next time the app is opened.</string>
+	<string name="settings_apply_now">Restart server now</string>
+	<string name="settings_applied">Stopped. The new settings apply on the next lookup.</string>
+	<string name="settings_close">Close</string>
+	<string name="settings_restore">Restore defaults</string>
+	<string name="settings_restore_confirm">Clear every advanced setting and go back to what the settings file says?</string>
+	<string name="settings_restore_done">Advanced settings cleared.</string>
+	<string name="settings_cancel">Cancel</string>
+	<!--
+ Intake: an archive arriving from a file manager, a share sheet or the
           page's own picker. Present in both flavours, unlike the import_*
           strings, which belong to the Play flavour's folder importer. Progress
           is one line and names no staging folder, no job and no archive
-          internals (D102). -->
-     <string name="intake_title">Add dictionaries</string>
-     <string name="intake_reading">Reading %1$s…</string>
-     <!-- The dialog's title. It names the SOURCE, not the outcome: nothing has
+          internals (D102). 
+	-->
+	<string name="intake_title">Add dictionaries</string>
+	<string name="intake_reading">Reading %1$s…</string>
+	<!--
+ The dialog's title. It names the SOURCE, not the outcome: nothing has
           been added at the moment it appears - the list below is the question
           and the Add button is the answer - and one archive can hold five
           dictionaries, so a title naming one of them would be naming the wrong
-          thing (D137). -->
-     <string name="intake_add_from">Add from %1$s</string>
-     <!-- A dictionary in that list. Name first, because it is the identity and
+          thing (D137). 
+	-->
+	<string name="intake_add_from">Add from %1$s</string>
+	<!--
+ A dictionary in that list. Name first, because it is the identity and
           what the library will call it; then the files it is made of, because
           a bare title does not say WHICH file is about to be downloaded or
           replaced and on a phone that is the whole of the decision; then the
           total, when there is a download to weigh. Same grammar as the extra
-          rows below - "·" separates facts, "—" introduces a state (D137). -->
-     <string name="intake_cand">%1$s · %2$s · %3$s</string>
-     <!-- The same row without the total: a dictionary that is already
+          rows below - "·" separates facts, "—" introduces a state (D137). 
+	-->
+	<string name="intake_cand">%1$s · %2$s · %3$s</string>
+	<!--
+ The same row without the total: a dictionary that is already
           installed, or that cannot be installed, costs no bytes to decide
-          about, and the state it carries instead is what the row is for. -->
-     <string name="intake_cand_short">%1$s · %2$s</string>
-     <!-- A StarDict set is a handful of files and a resource folder; the list
-          is cut rather than allowed to become the row. -->
-     <string name="intake_files_more">+%1$d more</string>
-     <!-- %2$s lists what the set is missing, so an entry that cannot be ticked
-          says why instead of simply refusing. -->
-     <string name="intake_needs">%1$s — needs %2$s</string>
-     <!-- The same missing files, but found beside the download and offered
+          about, and the state it carries instead is what the row is for. 
+	-->
+	<string name="intake_cand_short">%1$s · %2$s</string>
+	<!--
+ A StarDict set is a handful of files and a resource folder; the list
+          is cut rather than allowed to become the row. 
+	-->
+	<string name="intake_files_more">+%1$d more</string>
+	<!--
+ %2$s lists what the set is missing, so an entry that cannot be ticked
+          says why instead of simply refusing. 
+	-->
+	<string name="intake_needs">%1$s — needs %2$s</string>
+	<!--
+ The same missing files, but found beside the download and offered
           below: the choice is about the state AFTER the companions arrive, so
-          the entry can be ticked and says why. -->
-     <string name="intake_needs_found">%1$s — needs %2$s, found below</string>
-     <!-- A dictionary the library already holds. Adding it again REPLACES it
+          the entry can be ticked and says why. 
+	-->
+	<string name="intake_needs_found">%1$s — needs %2$s, found below</string>
+	<!--
+ A dictionary the library already holds. Adding it again REPLACES it
           rather than leaving two, so the entry says which of the two it is:
-          one worth ticking, one already done and left unticked (D134). -->
-     <string name="intake_update">%1$s — replaces your copy</string>
-     <string name="intake_same">%1$s — already installed</string>
-     <!-- A folder of that name is there and holds no dictionary: one a removal
+          one worth ticking, one already done and left unticked (D134). 
+	-->
+	<string name="intake_update">%1$s — replaces your copy</string>
+	<string name="intake_same">%1$s — already installed</string>
+	<!--
+ A folder of that name is there and holds no dictionary: one a removal
           left behind, or one the user made. The install takes it over either
           way, so it is said - but it is not an installation, and calling it
           one tells somebody a dictionary they have just removed is still
-          there (D137). -->
-     <string name="intake_stale">%1$s — takes over a folder of this name</string>
-     <string name="intake_install">Add</string>
-     <string name="intake_cancel">Cancel</string>
-     <!-- A link, fetched by the server. %1$s is the site, not the URL: a
+          there (D137). 
+	-->
+	<string name="intake_stale">%1$s — takes over a folder of this name</string>
+	<string name="intake_install">Add</string>
+	<string name="intake_cancel">Cancel</string>
+	<!--
+ A link, fetched by the server. %1$s is the site, not the URL: a
           shared link may carry a session token, and the host is what tells the
           user where this is coming from. No percentage when the site declared
-          no length - a number that stops moving is worse than none. -->
-     <string name="intake_connecting">Connecting…</string>
-     <string name="intake_downloading">Downloading from %1$s…</string>
-     <string name="intake_downloading_pct">Downloading from %1$s… %2$d%%</string>
-     <!-- Once the site has answered, the FILE is named: an import fetches a
+          no length - a number that stops moving is worse than none. 
+	-->
+	<string name="intake_connecting">Connecting…</string>
+	<string name="intake_downloading">Downloading from %1$s…</string>
+	<string name="intake_downloading_pct">Downloading from %1$s… %2$d%%</string>
+	<!--
+ Once the site has answered, the FILE is named: an import fetches a
           dictionary and then, one at a time, the companion files the user
           ticked, and a line that said only the host could not tell those
-          apart. %1$s is the file, %2$s the site. -->
-     <string name="intake_downloading_named">Downloading %1$s from %2$s…</string>
-     <string name="intake_downloading_named_pct">Downloading %1$s from %2$s… %3$d%%</string>
-     <!-- Companion files found beside the downloaded one and OFFERED, never
+          apart. %1$s is the file, %2$s the site. 
+	-->
+	<string name="intake_downloading_named">Downloading %1$s from %2$s…</string>
+	<string name="intake_downloading_named_pct">Downloading %1$s from %2$s… %3$d%%</string>
+	<!--
+ Companion files found beside the downloaded one and OFFERED, never
           taken: an .mdx is a few megabytes and its .mdd can be several
           gigabytes of somebody else's mobile data. Ticked by default because
           a dictionary without its media has no images or sound; ticked and not
           downloaded, because the size is the decision and it is the user's.
-          %1$s is the file, %2$s its size, %3$s why it belongs. -->
-     <string name="intake_extra">%1$s · %2$s — %3$s</string>
-     <string name="intake_extra_nosize">%1$s — %2$s</string>
-     <string name="intake_extra_needed">needed</string>
-     <string name="intake_extra_media">images and sounds</string>
-     <string name="intake_extra_other">optional</string>
-     <string name="intake_installing">Adding… %1$d%%</string>
-     <string name="intake_done">Added %1$s.</string>
-     <string name="intake_done_partial">Added %1$s.\n\nThe rest did not arrive: %2$s</string>
-     <string name="intake_none">Nothing was added.</string>
-     <string name="intake_nothing">%1$s holds no dictionaries wuDict can read.</string>
-     <!-- A file TAPPED in a file manager that turns out not to be one this
+          %1$s is the file, %2$s its size, %3$s why it belongs. 
+	-->
+	<string name="intake_extra">%1$s · %2$s — %3$s</string>
+	<string name="intake_extra_nosize">%1$s — %2$s</string>
+	<string name="intake_extra_needed">needed</string>
+	<string name="intake_extra_media">images and sounds</string>
+	<string name="intake_extra_other">optional</string>
+	<string name="intake_installing">Adding… %1$d%%</string>
+	<string name="intake_done">Added %1$s.</string>
+	<string name="intake_done_partial">Added %1$s.\n\nThe rest did not arrive: %2$s</string>
+	<string name="intake_none">Nothing was added.</string>
+	<string name="intake_nothing">%1$s holds no dictionaries wuDict can read.</string>
+	<!--
+ A file TAPPED in a file manager that turns out not to be one this
           app reads. It exists because the open-with filter can only match on
           MIME and every dictionary format arrives as application/octet-stream,
           so wuDict is offered for untyped files in general - and an app that
           was chosen and then did nothing visible reads as broken. Names the
           app, because in a sheet full of other apps' verbs "not supported" on
-          its own does not say WHO could not read it (D138). -->
-     <string name="intake_unsupported">wuDict cannot read %1$s.</string>
-     <string name="intake_cancelled">Cancelled.</string>
-     <string name="intake_busy">An import is already running.</string>
-     <string name="intake_failed">Could not add dictionaries: %1$s</string>
-     <string name="intake_no_server">The dictionary server did not start, so nothing could be added.</string>
-     <string name="intake_no_picker">This device has no file picker.</string>
+          its own does not say WHO could not read it (D138). 
+	-->
+	<string name="intake_unsupported">wuDict cannot read %1$s.</string>
+	<string name="intake_cancelled">Cancelled.</string>
+	<string name="intake_busy">An import is already running.</string>
+	<string name="intake_failed">Could not add dictionaries: %1$s</string>
+	<string name="intake_no_server">The dictionary server did not start, so nothing could be added.</string>
+	<string name="intake_no_picker">This device has no file picker.</string>
 </resources>

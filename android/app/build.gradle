@@ -110,7 +110,7 @@ android {
             }
         }
         debug {
-            applicationIdSuffix = ".debug"
+            applicationIdSuffix = ".debug_sh"
         }
     }
 
