@@ -1,8 +1,6 @@
-wuDict searches all dictionary files on your own phone, with no
-account and no network.
+wuDict searches all your MDict, StarDict, AARD2, Lingvo DSL, Babylon and ZIM dictionaries on your device.
 
-The app runs the wudict server locally and shows its pages in a WebView. Your
-dictionaries stay on your device. Nothing is uploaded, nothing is tracked,
+The app runs the wudict server locally and shows definitions in an embedded WebView. Nothing is uploaded, nothing is tracked,
 there is no sign-in — the app works fully offline.
 
 SUPPORTED FORMATS
@@ -12,18 +10,19 @@ SUPPORTED FORMATS
 - Aard 2 (.slob)
 - Lingvo DSL (.dsl)
 - Babylon (.bgl)
+- ZIM (.zim) - library.kiwix.org
 
-Pictures, audio pronunciation and the dictionary's own styling all render the
+Pictures, audio pronunciation and the dictionary's own styles render the
 way the dictionary authors intended.
 
 SEARCH
 
-Four ways to look a word up:
+Four ways to find a word up:
 
-- Exact — the headword itself
-- Prefix — everything starting with what you typed
-- Contains — the word anywhere in a headword
-- Full text — the word anywhere in an article
+- Prefix — all entries starting with your search term
+- Exact — just the headword itself
+- Contains — any text anywhere in a headword
+- Full text — the word or phrase anywhere in an article
 
 All dictionaries are searched concurrently, with results displayed live as they become available.
 
@@ -35,6 +34,10 @@ almost instant even across hundreds of dictionaries. Preparation is
 automatic and needs no configuration; contains-search, full-text search and
 media packing are per-dictionary switches you can turn on only for the dictionaries
 that you select — these will take extra space with the estimated size displayed in the dictionary panel.
+
+FEATURES
+- Long tap on a URL to a dictionary (.mdx/.slob/.dsl, etc) or a .zip/.7z and pick Share to wuDict to install it
+- Apply custom CSS styles and custom fonts via the embedded Styler ☰ → ⚙️ → Custom Style
 
 PRIVACY
 

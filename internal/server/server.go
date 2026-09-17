@@ -28,6 +28,7 @@ import (
 	"github.com/wuweidict/wudict/internal/artmark"
 	"github.com/wuweidict/wudict/internal/config"
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/facet"
 	"github.com/wuweidict/wudict/internal/ftsq"
 	"github.com/wuweidict/wudict/internal/hilite"
 	"github.com/wuweidict/wudict/internal/htmlref"
@@ -642,6 +643,12 @@ type dictInfo struct {
 	// acted on - the mode keeps working, and the panel offers a rebuild.
 	ContainsStale bool `json:"containsStale,omitempty"`
 
+	// Groups: the derived memberships the dictionary picker offers as single
+	// choices ("English", "Encyclopedias") instead of a hundred names. Derived
+	// from this row's own name, path and declared language and never stored -
+	// see internal/facet, which also says why absence never becomes a value.
+	Groups []facet.Group `json:"groups,omitempty"`
+
 	// provenance (panel display): where the dictionary came from and what
 	// derived files exist. All optional and filesystem-cheap.
 	Source   string   `json:"source,omitempty"`    // foreign source file, if still on disk
@@ -749,6 +756,7 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 				Caps:          dict.Caps{Exact: true, Prefix: true, Contains: meta["has_trigram"] == "1", FTS: meta["ingest_level"] != string(store.LevelHeadwords)},
 				DBPath:        textDB,
 				ContainsStale: store.FoldStale(meta),
+				Groups:        s.groupsFor(e.Path, meta["name"], meta["index_lang"], meta["contents_lang"]),
 			}
 		}
 	}
@@ -759,7 +767,8 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 		if m, err := dict.Probe(e.Path); err == nil {
 			return dictInfo{ // probeable, not prepared → direct backend
 				ID: e.ID, Path: e.Path, Name: m.Name, Format: m.Format, Entries: m.EntryCount,
-				Caps: dict.Caps{Exact: true, Prefix: true},
+				Caps:   dict.Caps{Exact: true, Prefix: true},
+				Groups: s.groupsFor(e.Path, m.Name, m.IndexLang, m.ContentsLang),
 			}
 		}
 	}
@@ -772,6 +781,7 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 	}
 	m := d.Meta()
 	info.Name, info.Format, info.Entries, info.Caps = m.Name, m.Format, m.EntryCount, d.Caps()
+	info.Groups = s.groupsFor(e.Path, m.Name, m.IndexLang, m.ContentsLang)
 	if cs, ok := d.(interface{ ContainsStale() bool }); ok {
 		info.ContainsStale = cs.ContainsStale()
 	}
@@ -779,6 +789,22 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 		info.DBPath = textDB
 	}
 	return info
+}
+
+// groupsFor derives one row's picker groups. It is called from every branch of
+// baseDictInfo with whatever that branch already read - no branch opens or
+// reads anything extra for it, which is the condition on which grouping was
+// allowed into this path at all: /api/dicts fans out across the whole library
+// (see docs.local/PERF.md M1), and a per-row cost here is paid a hundred times
+// at startup.
+func (s *Server) groupsFor(path, name, declared, contents string) []facet.Group {
+	return facet.Derive(facet.Input{
+		Name:     name,
+		Path:     langPath(path),
+		Roots:    s.reg.Dirs(),
+		Declared: declared,
+		Contents: contents,
+	})
 }
 
 // dbPathOf is the prepared database path for an entry, or "" when it has none.
@@ -1276,17 +1302,12 @@ func (s *Server) lemmaWave(
 		if !missed[i] {
 			continue
 		}
-		code := metas[i].IndexLang // what the dictionary declares, if anything
-		if code == "" {
-			code = lang.FromPath(langPath(entries[i].Path), s.reg.Dirs())
-		}
-		if code == "" {
-			// The title, last of the three naming sources: it is the one the
-			// user did not choose - a downloaded file can be renamed, its
-			// title is whoever built it - so it speaks only when the file and
-			// the folders were silent.
-			code = lang.FromTitle(metas[i].Name)
-		}
+		// The three naming sources in authority order - declared, then file
+		// and folder, then the title, which is the one label the user did not
+		// choose and so speaks only when the others were silent. The picker's
+		// groups read the same ladder through the same function; what differs
+		// is only what each does with "", immediately below.
+		code := lang.Resolve(metas[i].IndexLang, langPath(entries[i].Path), s.reg.Dirs(), metas[i].Name)
 		if code == "" {
 			// The one language assumed without evidence. It is the smallest
 			// pack by a wide margin (7 MB against 65 for Russian), an

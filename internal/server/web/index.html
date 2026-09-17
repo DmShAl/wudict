@@ -811,6 +811,22 @@ body.styling{padding-bottom:var(--styler-h)}
 .pd .aboutbody a:hover{color:var(--link);border-bottom-color:currentColor}
 .pd .aboutbody ul,.pd .aboutbody ol{margin:.25em 0;padding-left:1.2em}
 .pd .aboutlangs{margin-top:.4em;color:var(--fg-soft)}
+/* The traits the dictionary was filed under — the same values the picker's
+   sections are built from, on the card that describes the dictionary. They are
+   FACTS, not switches, so they deliberately do not borrow .feat's pill: a round
+   accent chip on this card means "press to spend disk on an index". A caption
+   above the value says which kind of fact it is without a legend, and the ones
+   that are also a way in (the picker has that section) gain a border on hover;
+   the rest sit quiet. */
+.pd .traits{display:flex;flex-wrap:wrap;gap:.3em;margin:0 0 .5em 1em}
+.pd .trait{display:inline-flex;flex-direction:column;align-items:flex-start;
+  font:inherit;font-size:11px;line-height:1.3;color:var(--fg-soft);text-align:left;
+  background:var(--line-soft);border:1px solid transparent;border-radius:5px;padding:.15em .5em}
+.pd .trait .tk{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-faint)}
+.pd button.trait{cursor:pointer;transition:color .12s,border-color .12s,background .12s}
+.pd button.trait:hover{color:var(--accent);border-color:var(--accent);background:transparent}
+.pd button.trait:hover .tk{color:var(--accent)}
+.pd button.trait:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 
 /* ── responsive ────────────────────────────────────────────────────── */
 @media (max-width:600px){
@@ -1013,6 +1029,18 @@ body.styling{padding-bottom:var(--styler-h)}
     <button type="button" class="act" id="openOrder" aria-pressed="true" title="Expand the first dictionary in your list that has a result — waits briefly for the ones above it">My order</button>
     <button type="button" class="act" id="openFast" aria-pressed="false" title="Expand whichever dictionary answers first — the quickest definition on screen">Fastest</button>
   </span>
+  <!-- How the dictionary PICKER lists the library. A pair for the same reason
+       as the one above: both halves are orders, and neither is an "off".
+       It moves the picker and nothing else — this list below stays in the
+       user's own order because this is where that order is made, by dragging,
+       and a list that re-sorted itself under the drag could not express one.
+       Alphabetical is first and pressed: it is what the picker has always
+       done, so nothing moves for anyone who never touches this. -->
+  <span class="seg" role="group" aria-label="How the dictionary list is ordered">
+    <span>Sort dictionaries</span>
+    <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
+    <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
+  </span>
 </div>
 <details id="folders">
   <summary title="Folders &amp; setup" aria-label="Folders and setup">
@@ -1139,6 +1167,9 @@ let dicts=[],lastQuery=null,searchSeq=0,searchAC=null;
    dictionaries, is also the only thing that can act on the answer (it skips
    disabled ones when warming up). */
 let prefOrder=[],disabled=new Set();
+/* Set when /api/dicts has delivered its last row. The picker's groups are
+   counted over the complete list or not shown at all. */
+let dictsSettled=false;
 function loadJSON(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
 /* One-time adoption of a pre-server build's localStorage, so upgrading does
    not silently throw away someone's curation. Self-erasing: the keys are
@@ -1160,7 +1191,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
     disabled=new Set(rows.filter(d=>d.off).map(d=>d.id));
@@ -1182,7 +1213,7 @@ function savePrefs(now){
   if(!prefsReady){setStatus("⚠ settings are not being saved — reload the page");return}
   if(!now){prefsTimer=setTimeout(()=>savePrefs(true),400);return}
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst}});
+    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -1200,6 +1231,23 @@ function orderedDicts(){
 }
 function orderedIds(){return orderedDicts().map(d=>d.id)}
 function enabledOrderedIds(){return orderedDicts().filter(d=>!disabled.has(d.id)).map(d=>d.id)}
+/* A group selection ("g:lang:en") stands for the dictionaries the server put
+   in that group — in the user's own order, minus the ones they switched off.
+   It is exactly what "All dictionaries" resolves to, narrowed: the same order
+   (so D142 still opens the first of THEIR dictionaries that answered), the
+   same respect for the off switch, the same comma-separated dict= parameter.
+   Nothing is asked of the server: the memberships arrived with the rows. */
+function groupIds(sel){
+  const i=sel.indexOf(":",2);
+  if(i<0)return [];
+  const f=sel.slice(2,i),v=sel.slice(i+1);
+  return orderedDicts().filter(d=>!disabled.has(d.id)&&(d.groups||[]).some(g=>g.f===f&&g.v===v)).map(d=>d.id);
+}
+/* The label a group is shown under, for a message that has to name it. */
+function groupLabel(sel){
+  const o=[...$("dict").options].find(o=>o.value===sel);
+  return o?(o.dataset.label||o.text):"";
+}
 
 /* ── theme: auto → light → dark, persisted ─────────────────────────── */
 const THEMES=["auto","light","dark"];
@@ -1341,6 +1389,30 @@ function applyOpenOrder(on,save){
   if(save&&moved)savePrefs();
   return moved;
 }
+/* How the PICKER lists the library: A→Z (what it has always done, and so the
+   zero value) or the reader's own arrangement. Server state like the three
+   above, because the arrangement it follows is server state.
+
+   It touches the picker alone. The panel keeps listing the user's order
+   whatever this says — the panel is where that order is made, by dragging, and
+   a list that re-sorted itself under the drag could not express one. "All
+   dictionaries" is searched in the user's order either way (D142): which
+   dictionary answers first is a property of the collection, not of how a menu
+   is sorted. So nothing here re-runs a query; only the menu is rebuilt. */
+let sortOwn=false;
+function applySortOrder(on,save){
+  const v=!!on,moved=v!==sortOwn;
+  sortOwn=v;
+  for(const [id,want] of [["sortAZ",false],["sortOwn",true]])
+    $(id).setAttribute("aria-pressed",v===want?"true":"false");
+  // Nothing to rebuild before the first row arrives; loadDicts draws it.
+  if(moved&&dicts.length)refreshDictUI(true);
+  if(save&&moved)savePrefs();
+  return moved;
+}
+for(const [id,want] of [["sortAZ",false],["sortOwn",true]])
+  $(id).addEventListener("click",()=>applySortOrder(want,true));
+applySortOrder(false,false);
 /* Re-run on a real change only. A policy control that visibly does nothing
    until the next query reads as broken — and pressing the half that is already
    in force is not a change, so it must not throw the answer away and rebuild
@@ -1603,17 +1675,82 @@ $("out").addEventListener("click",e=>{
 /* Rebuilding the dropdown and the panel is O(all dictionaries) — renderPanel
    throws its whole list away and rebuilds it — so streamed rows coalesce into
    one repaint instead of ~100 of them. */
+/* The groups the picker offers above the names, assembled from the per-row
+   memberships the server derived (internal/facet). The client holds no
+   taxonomy at all: a row says which group it is in, what to head that group
+   with and what to call it, and this only counts and orders.
+
+   Two suppressions, and they are what keeps the list honest rather than
+   tidy. A value with ONE member sorts nothing — the dictionary itself is in
+   the list below, one row further down. A facet with ONE value heads a group
+   that selects everything it heads. Both are dropped, so a library that
+   supports no grouping shows the plain list it always had, and a partly
+   labelled one shows only the groups that are worth a tap.
+
+   The counts are over every member, disabled or not, for the same reason
+   "All dictionaries" does not say "97 of 105": the groups are facts about
+   the collection, and the off switch is applied when the search is run, not
+   when the menu is drawn. */
+function facetGroups(){
+  if(!dictsSettled)return []; // mid-stream counts would be wrong, then change
+  const byF=new Map();
+  for(const d of dicts)for(const g of d.groups||[]){
+    let f=byF.get(g.f);
+    if(!f){f={id:g.f,label:g.fl,fo:g.fo,vals:new Map()};byF.set(g.f,f)}
+    const v=f.vals.get(g.v);
+    if(v)v.n++;else f.vals.set(g.v,{id:g.v,label:g.vl,n:1});
+  }
+  return [...byF.values()].sort((a,b)=>a.fo-b.fo)
+    .map(f=>({id:f.id,label:f.label,
+      values:[...f.vals.values()].filter(v=>v.n>1)
+        .sort((a,b)=>b.n-a.n||a.label.localeCompare(b.label,undefined,{sensitivity:"base"}))}))
+    .filter(f=>f.values.length>1);
+}
 let refreshTimer=null;
 function refreshDictUI(now){
   clearTimeout(refreshTimer);
   if(!now){refreshTimer=setTimeout(()=>refreshDictUI(true),120);return}
   dicts.sort((a,b)=>dictLabel(a).localeCompare(dictLabel(b),undefined,{sensitivity:"base"}));
-  const sel=$("dict"),prev=sel.value||localStorage.getItem("wudict_dict")||"all";
+  // The live value first, then the remembered one. They say the same thing
+  // until a rebuild has just dropped the option that held it — a rescan
+  // replaces the whole list row by row, and a group is only counted once the
+  // last row is in — and then only the remembered one still names the choice.
+  const sel=$("dict"),saved=localStorage.getItem("wudict_dict");
+  const prev=sel.value&&sel.value!=="all"?sel.value:(saved||sel.value||"all");
   sel.innerHTML='<option value="all">All dictionaries</option>';
-  for(const d of dicts){ // dropdown stays alphabetical for quick name lookup
+  /* <optgroup> and nothing more: the heading is the facet and is NOT
+     selectable, which is exactly the required behaviour for a section label,
+     and every row under it is an ordinary <option> the native picker already
+     knows how to search, key through and announce. A custom listbox would
+     have had to re-implement all of that to gain a collapse this list is too
+     short to need. */
+  const groups=facetGroups();
+  for(const f of groups){
+    const og=document.createElement("optgroup");
+    og.label=f.label;
+    for(const v of f.values){
+      const o=document.createElement("option");
+      o.value="g:"+f.id+":"+v.id;
+      o.textContent=`${v.label} (${v.n})`;
+      // The chip has room for the name, not for the tally: it says which
+      // scope is in force, and the count is a property of the menu.
+      o.dataset.label=v.label;
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+  // The whole library last, and under a heading only when there is something
+  // above it to be distinguished from: the groups are scrolled PAST once, the
+  // names are scrolled THROUGH looking for one.
+  const host=groups.length
+    ?sel.appendChild(Object.assign(document.createElement("optgroup"),{label:"Dictionaries"}))
+    :sel;
+  // A→Z by default, for quick name lookup; the reader's own arrangement when
+  // they asked for it (and the panel below always shows that arrangement).
+  for(const d of (sortOwn?orderedDicts():dicts)){
     const o=document.createElement("option");
     o.value=d.id;o.textContent=dictLabel(d);
-    sel.appendChild(o);
+    host.appendChild(o);
   }
   if([...sel.options].some(o=>o.value===prev))sel.value=prev;
   syncChips(); // the option list just changed under the chip
@@ -1627,6 +1764,11 @@ async function loadDicts(rescan){
   // A rescan happens in an app that already works — it must not black the UI
   // out. Only the first load (or a retry after a failure) blocks.
   const blocking=phase==="boot"||phase==="failed";
+  // A first load has no groups to show until the last row has resolved. A
+  // RESCAN keeps the ones it has: the list on screen is already the previous
+  // one being replaced row by row, and blanking the groups under it would
+  // drop a group the user currently has selected.
+  if(blocking)dictsSettled=false;
   if(blocking){setPhase("boot");startBootScreen();dictTotal=0;setStatus(esc(readyCount()),"load")}
   else setStatus('<span class="spin"></span>Loading dictionaries…',"load");
   const rows=[];
@@ -1664,6 +1806,7 @@ async function loadDicts(rescan){
   // (appends newly-added dicts A→Z, drops removed ones). ONLY on the complete
   // set — doing it mid-stream would drop the ids that had not arrived yet.
   prefOrder=orderedIds();savePrefs(true);
+  dictsSettled=true; // every row is in; the groups can be counted
   refreshDictUI(true);
   setPhase("ready");
   clearStatus("load");
@@ -1729,7 +1872,9 @@ function syncChips(){
   // is written to .value before /api/dicts has put that option in the list,
   // and assigning an id the <select> does not have yet leaves value "".
   const opt=d.selectedOptions[0],all=!opt||d.value==="all";
-  $("dictLbl").textContent=all?"":opt.text;
+  // dataset.label is set on the group rows, whose text carries a count the
+  // chip has no room for; a dictionary row has no dataset and reads as before.
+  $("dictLbl").textContent=all?"":(opt.dataset.label||opt.text);
   $("dictChip").classList.toggle("dflt",all);
 }
 /* Picking a dictionary is already a statement that it is about to be searched,
@@ -1740,7 +1885,11 @@ function syncChips(){
    the chip catches up on the next loadDicts(). */
 $("dict").onchange=e=>{const v=e.target.value;localStorage.setItem("wudict_dict",v);syncChips();
   if($("q").value.trim())doSearch();
-  else if(v&&v!=="all")fetch("/api/demand?dict="+encodeURIComponent(v),{method:"POST"}).catch(()=>{})};
+  // One dictionary only. A group would demand an index for every member at
+  // once, which is the unbounded auto-index fan-out (docs.local/PERF.md M1)
+  // — the single most expensive thing this app can be made to do — triggered
+  // by one tap on a menu, before the user has typed anything at all.
+  else if(v&&v!=="all"&&!v.startsWith("g:"))fetch("/api/demand?dict="+encodeURIComponent(v),{method:"POST"}).catch(()=>{})};
 /* Mode had no change handler at all: it took effect on the next submit. That
    was survivable while a 🔍 button sat next to it, but the narrow bar has no
    submit button, so picking a mode would have appeared to do nothing at all.
@@ -1761,6 +1910,35 @@ function mediaKind(list){
   if(f.endsWith(".zip"))return "zip";
   return "res";
 }
+/* The traits this dictionary was filed under, derived exactly as the picker's
+   sections are (internal/facet, from the row already in hand) — nothing is
+   fetched for them and nothing is stored, so a better rule tomorrow refiles
+   every card on the next load with nothing to undo. They live inside About
+   because that is the card's register for what the dictionary IS, below the
+   switches for what is done to it.
+
+   Each one is also a way in: pressing a trait searches every dictionary that
+   shares it, which is the picker's grouping reached from the dictionary in hand
+   instead of from a menu — and it is how a reader finds out the grouping exists
+   at all. A trait the picker suppressed (its group has only this member, or it
+   is the only value of its kind, so selecting it would select the whole list)
+   is rendered as plain text: still true, but it leads nowhere the flat list
+   does not already go, and a control that does nothing is worse than no
+   control. */
+function traits(d){
+  const gs=(d.groups||[]).slice().sort((a,b)=>a.fo-b.fo||a.vl.localeCompare(b.vl));
+  if(!gs.length)return "";
+  const opts=new Set([...$("dict").options].map(o=>o.value));
+  const body=gs.map(g=>{
+    const sel="g:"+g.f+":"+g.v;
+    const face=`<span class="tk">${esc(g.fl)}</span>${esc(g.vl)}`;
+    return opts.has(sel)
+      ? `<button class="trait" data-g="${escAttr(sel)}" title="Search every dictionary under &quot;${escAttr(g.vl)}&quot;">${face}</button>`
+      : `<span class="trait" title="${escAttr(g.fl)}: ${escAttr(g.vl)}">${face}</span>`;
+  }).join("");
+  return `<div class="traits">${body}</div>`;
+}
+
 function provenance(d){
   /* A row is a PATH with optional annotations around it — not a sentence.
      They used to be one string ("db: /Users/…/Name (text.db + media.db +
@@ -1928,7 +2106,7 @@ function renderPanel(){
       <div class="meta">${esc(d.format||"?")}${d.entries?" · "+d.entries.toLocaleString()+" entries":""}${d.dbSize?" · indexed":""}</div>
       <div>${caps}</div><div class="acts">${acts}</div>
       ${provenance(d)}
-      <details class="about"><summary>About this dictionary</summary><div class="aboutbody">…</div></details>`;
+      <details class="about"><summary>About this dictionary</summary>${traits(d)}<div class="aboutbody">…</div></details>`;
     el.appendChild(div);
   }
   if(scroller)scroller.scrollTop=top;
@@ -1981,7 +2159,8 @@ function hidePanel(){
      (lastScope) — reads that dictionary whether or not it is enabled, so the
      panel cannot have changed it; and re-running here would carry no scopeOnce
      and silently widen a cross-reference view back to "all". */
-  if(!lastQuery||was===null||lastScope||$("dict").value!=="all")return;
+  const sc=$("dict").value;
+  if(!lastQuery||was===null||lastScope||!(sc==="all"||sc.startsWith("g:")))return;
   // an empty enabled set is a real answer here, not a no-op: doSearch renders
   // "all dictionaries are disabled" rather than a zero-hit "not found"
   if(was!==panelState())doSearch();
@@ -2240,6 +2419,20 @@ function aboutLangs(j){
 $("panelList").addEventListener("click",e=>{
   const mv=e.target.closest("[data-mv]");
   if(mv){moveDict(mv.closest(".pd").dataset.id,mv.dataset.mv);return}
+  /* A trait is a scope, taken the same way the card title takes one (D109):
+     through the <select> and its change event, so it is persisted, chipped,
+     re-run and — because it is a group — demands no index (PERF.md M1). The
+     guard is not ceremony: the picker rebuilds as dictionaries arrive, and a
+     group that was worth a section when this card was drawn can be gone by the
+     time it is pressed. */
+  const tr=e.target.closest(".trait[data-g]");
+  if(tr){
+    const sel=$("dict"),v=tr.dataset.g;
+    if([...sel.options].some(o=>o.value===v)){sel.value=v;sel.dispatchEvent(new Event("change"))}
+    hidePanel();
+    if(!$("q").value.trim()&&matchMedia("(hover:hover)").matches)$("q").focus();
+    return;
+  }
   const path=e.target.closest(".path");
   // The absolute path the row was built from — not the ~-shortened text on
   // screen, and no longer a display string with its annotations cut back off.
@@ -3071,7 +3264,10 @@ async function doSearch(ev){
   const scope=scopeOnce;scopeOnce=null;lastScope=scope;
   const commit=commitOnce;commitOnce=false; // this query was asked for, not typed
   const widened=widenedFrom;widenedFrom=null; // set by the fallback below
-  const mode=$("mode").value,dictSel=scope||$("dict").value,seq=++searchSeq;
+  // ||"all" is the floor under a selection that no longer exists: assigning
+  // an id the <select> does not have leaves .value empty, and a saved id or a
+  // ?dict= from an older library can do exactly that.
+  const mode=$("mode").value,dictSel=scope||$("dict").value||"all",seq=++searchSeq;
   // abort the previous in-flight search so the server stops streaming
   // results nobody will render (superseded typing / mode change).
   if(searchAC)searchAC.abort();
@@ -3084,8 +3280,11 @@ async function doSearch(ev){
   // "All" queries the enabled dictionaries in preference order (fewer
   // results each); a specific pick queries just that one (more results).
   let dictParam,perDict;
-  if(dictSel==="all"){
-    const ids=enabledOrderedIds();
+  // A group resolves to a LIST of ids here and is sent as one, exactly like
+  // "all": the server has no notion of a group, and giving it one would mean
+  // versioning a taxonomy across two processes to save a join over 105 rows.
+  const ids=dictSel==="all"?enabledOrderedIds():dictSel.startsWith("g:")?groupIds(dictSel):null;
+  if(ids){
     if(!ids.length){
       // "You disabled them all" is only knowable once the list is complete:
       // mid-stream, the dictionaries that arrived may all be disabled while
@@ -3093,14 +3292,19 @@ async function doSearch(ev){
       // settled, non-empty list, and until then this reads as what it is —
       // still loading — and re-runs itself when the rest lands (D30).
       const settled=(phase==="ready"||phase==="failed")&&dicts.length>0;
+      const lbl=dictSel==="all"?"":groupLabel(dictSel);
       setBusy(false); // nothing was ever sent; both branches below are statements
       setStatus(settled
-        ?"⚠ All dictionaries are disabled — enable some in the ☰ panel"
+        ?(lbl?`⚠ Nothing enabled under “${esc(lbl)}” — enable some in the ☰ panel`
+             :"⚠ All dictionaries are disabled — enable some in the ☰ panel")
         :'<span class="spin"></span>'+esc(readyCount()));
       if(!settled)staleSearch=true;
       return;
     }
-    dictParam=ids.join(",");perDict=5;
+    dictParam=ids.join(",");
+    // One dictionary is one dictionary however it was arrived at: a group that
+    // narrows to a single member earns the deep answer, not the 5-hit summary.
+    perDict=ids.length===1?25:5;
   }else{dictParam=dictSel;perDict=25}
   const out=$("out");
   /* Never blank between two answers (D73/M2). Clearing on `begin` made every

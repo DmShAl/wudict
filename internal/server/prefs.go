@@ -83,6 +83,21 @@ type UIPrefs struct {
 	// the server: /api/search knows nothing about it, because which section a
 	// reader unfolds is a property of the reader, not of the answer.
 	FastFirst bool `json:"fastFirst,omitempty"`
+
+	// SortMine lists the dictionary PICKER in the user's own panel order
+	// instead of A->Z. Spelled positively, unlike the two above: alphabetical
+	// is what the picker has always done, so the zero value has to keep doing
+	// it. The rule both spellings obey is that an absent key is the standing
+	// default - not that the word is always a negation.
+	//
+	// It reorders the picker and nothing else. The panel keeps listing the
+	// user's own order whatever this says, because the panel is where that
+	// order is EDITED by dragging, and a list that re-sorted itself
+	// alphabetically under the drag could not express one. "All dictionaries"
+	// is likewise searched in the user's order either way (D142): which
+	// dictionary answers first is a property of the collection, not of how a
+	// menu happens to be sorted.
+	SortMine bool `json:"sortMine,omitempty"`
 }
 
 // Article text-size bounds. The ceiling is deliberately past what the layout

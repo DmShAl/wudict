@@ -1792,7 +1792,28 @@ components:
         dbSize: { type: integer, description: Bytes of text.db. }
         mediaSize: { type: integer, description: Bytes of media.db. }
         hasMedia: { type: boolean, description: 'Packable media exists, so "pack media" is offered.' }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/DictGroup' }
+          description: >
+            The groups this dictionary belongs to, which the picker offers as
+            single choices instead of a hundred names. Derived per request from
+            this row's own name, path and declared language - never stored -
+            and absent when nothing could be established, which is a normal
+            answer. A client selects a group by intersecting the rows itself;
+            there is no server-side group query.
       required: [id, name, format, path, entries, caps]
+
+    DictGroup:
+      type: object
+      description: One (facet, value) membership, with the labels to show for it.
+      properties:
+        f: { type: string, description: 'Facet id: lang | dir | kind | pub.' }
+        fl: { type: string, description: 'Facet label, heading the group in the picker.' }
+        fo: { type: integer, description: 'Facet rank, ascending.' }
+        v: { type: string, description: 'Value id, unique within the facet.' }
+        vl: { type: string, description: 'Value label, naming the choice.' }
+      required: [f, fl, fo, v, vl]
 
     LibEntry:
       type: object
