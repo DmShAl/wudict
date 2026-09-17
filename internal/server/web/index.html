@@ -11,12 +11,15 @@
 <script>
 // An optional host background. Session storage preserves it across page reloads;
 // an explicit empty URL value withdraws it on the next launch.
-window.wudictShellBackground = function (color) {
+window.wudictShellBackground = function (color, image) {
   var root = document.documentElement;
+  root.toggleAttribute('data-shell-image', !!image);
   var valid = /^#[0-9a-f]{6}$/i.test(color);
   if (valid) root.style.setProperty('--bg', color, 'important');
   else root.style.removeProperty('--bg');
   try {
+    if (image) sessionStorage.setItem('wudict_shell_image', '1');
+    else sessionStorage.removeItem('wudict_shell_image');
     if (valid) sessionStorage.setItem('wudict_shell_bg', color);
     else sessionStorage.removeItem('wudict_shell_bg');
   } catch (_) {}
@@ -24,15 +27,20 @@ window.wudictShellBackground = function (color) {
 (function () {
   var params = new URLSearchParams(location.search);
   var color = params.get('shell_bg');
-  if (params.has('shell_bg')) {
+  var image = params.get('shell_image');
+  if (params.has('shell_bg') || params.has('shell_image')) {
     params.delete('shell_bg');
+    params.delete('shell_image');
     var query = params.toString();
     history.replaceState(history.state, '', location.pathname + (query ? '?' + query : '') + location.hash);
   }
   if (color === null) {
     try { color = sessionStorage.getItem('wudict_shell_bg'); } catch (_) {}
   }
-  window.wudictShellBackground(color || '');
+  if (image === null) {
+    try { image = sessionStorage.getItem('wudict_shell_image'); } catch (_) {}
+  }
+  window.wudictShellBackground(color || '', image === '1');
 })();
 (function () {
   try {
@@ -49,6 +57,8 @@ window.wudictShellBackground = function (color) {
 <title>wudict</title>
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <style>
+/* The host paints the same local image behind the window and WebView. */
+html[data-shell-image], html[data-shell-image] body { background:transparent !important; }
 /* ── design tokens ─────────────────────────────────────────────────── */
 :root{
   --fi:1.618;                     /* φ */

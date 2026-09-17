@@ -296,7 +296,6 @@ final class ShellPrefs {
      * background is the only answer that cannot flash.
      */
     static int edgeColor(Context c) {
-        if (sepia(c)) return sepiaColor(c);
         switch (edgeMode(c)) {
             case EDGE_BLACK:
                 return 0xFF000000;

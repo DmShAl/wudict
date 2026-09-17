@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         // Paint before setContentView, including the optional Sepia override.
-        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.pageBg(this)));
+        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, ShellPrefs.pageBg(this)));
 
         root = new FrameLayout(this);
         status = new TextView(this);
@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
         // The PAGE's background, not the window's: this is the surface the
         // document lands on, and a user whose theme disagrees with their phone
         // would otherwise get one frame of the other one (D141).
-        web.setBackgroundColor(ShellPrefs.pageBg(this)); // no white flash before first paint
+        web.setBackgroundColor(WindowBackground.active(this) ? android.graphics.Color.TRANSPARENT : ShellPrefs.pageBg(this)); // no white flash before first paint
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new ShellWebViewClient());
@@ -221,11 +221,11 @@ public class MainActivity extends Activity {
     // Cheap enough to re-run on every report: two setters and a resource read.
     private void applyEdges() {
         int edge = ShellPrefs.edgeColor(this);
-        root.setBackgroundColor(edge);
+        root.setBackground(WindowBackground.withMargins(this, root, edge));
         // The window too, not just our root: it is what the enter transition
         // and the pre-first-layout frames show, and the theme could only give
         // it the OS's colour.
-        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.pageBg(this)));
+        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, ShellPrefs.pageBg(this)));
         boolean dark = ShellPrefs.darkIcons(edge);
         // "Starting…" and the server-failure sentence are the only text the
         // SHELL draws, and they sit on that same colour. Their theme colour is
@@ -233,7 +233,7 @@ public class MainActivity extends Activity {
         // dark ground. Same arithmetic as the bar icons, same reason.
         //status.setTextColor(dark ? 0xDE000000 : 0xFFFFFFFF);
         int pageBg = ShellPrefs.pageBg(this);
-		status.setBackgroundColor(pageBg);
+		status.setBackgroundColor(WindowBackground.active(this) ? android.graphics.Color.TRANSPARENT : pageBg);
 		status.setTextColor(
 			ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
 		View decor = getWindow().getDecorView();
@@ -302,7 +302,7 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (gone) return;
             if (!ShellPrefs.setPageDark(this, dark)) return;
-            web.setBackgroundColor(ShellPrefs.pageBg(this));
+            web.setBackgroundColor(WindowBackground.active(this) ? android.graphics.Color.TRANSPARENT : ShellPrefs.pageBg(this));
             applyEdges();
         });
         return true;

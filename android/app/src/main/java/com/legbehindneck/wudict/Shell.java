@@ -89,16 +89,18 @@ final class Shell {
 
     // Explicit empty value clears any cached override before the first paint.
     private static String backgroundQuery(Context c) {
-        return "shell_bg=" + (ShellPrefs.sepia(c) ? enc(ShellPrefs.sepiaColorText(c)) : "");
+        return "shell_bg=" + (ShellPrefs.sepia(c) ? enc(ShellPrefs.sepiaColorText(c)) : "")
+                + "&shell_image=" + (WindowBackground.active(c) ? "1" : "0");
     }
 
     static void applyBackground(WebView web) {
         Context c = web.getContext();
-        web.setBackgroundColor(ShellPrefs.pageBg(c));
+        boolean image = WindowBackground.active(c);
+        web.setBackgroundColor(image ? android.graphics.Color.TRANSPARENT : ShellPrefs.pageBg(c));
         String color = ShellPrefs.sepia(c) ? ShellPrefs.sepiaColorText(c) : "";
         // Only a validated six-digit colour is interpolated into JavaScript.
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
-                + color + "')", null);
+                + color + "'," + image + ")", null);
     }
 
     // URLEncoder writes ' ' as '+', which URLSearchParams reads back as ' ' -

@@ -143,6 +143,7 @@ public class SettingsActivity extends Activity {
                 ShellPrefs.bars(this), v -> ShellPrefs.setBars(this, v)));
         col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
         col.addView(sepiaRow());
+        col.addView(backgroundImageRow());
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
@@ -266,8 +267,53 @@ public class SettingsActivity extends Activity {
     }
 
     private void applySepiaWindow() {
-        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.sepia(this)
+        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, ShellPrefs.sepia(this)
                 ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg)));
+    }
+
+    private View backgroundImageRow() {
+        LinearLayout choose = new LinearLayout(this);
+        choose.setOrientation(LinearLayout.VERTICAL);
+        choose.setMinimumHeight(dp(ROW_MIN));
+        choose.setPadding(0, dp(SP_2), 0, dp(SP_2));
+        choose.setClickable(true);
+        choose.setFocusable(true);
+        TypedValue bg = new TypedValue();
+        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, bg, true)) {
+            choose.setBackgroundResource(bg.resourceId);
+        }
+        TextView title = new TextView(this);
+        title.setText(R.string.settings_background_image);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
+        TextView value = caption("", 0, 0);
+        value.setAlpha(1f);
+        choose.addView(title);
+        choose.addView(value);
+        Runnable update = () -> {
+            String name = ShellPrefs.of(this).getString("background_image", "");
+            value.setText(name.isEmpty() ? getString(R.string.settings_background_none) : name);
+        };
+        update.run();
+        choose.setOnClickListener(v -> {
+            java.util.List<String> names = WindowBackground.images(this);
+            String[] labels = new String[names.size() + 1];
+            labels[0] = getString(R.string.settings_background_none);
+            for (int i = 0; i < names.size(); i++) labels[i + 1] = names.get(i);
+            String selected = ShellPrefs.of(this).getString("background_image", "");
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.settings_background_image)
+                    .setSingleChoiceItems(labels, names.indexOf(selected) + 1, (dialog, which) -> {
+                        ShellPrefs.of(this).edit().putString("background_image",
+                                which == 0 ? "" : names.get(which - 1)).apply();
+                        update.run();
+                        applySepiaWindow();
+                        dialog.dismiss();
+                    })
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            if (names.isEmpty()) toast(getString(R.string.settings_background_empty));
+        });
+        return choose;
     }
 
     private CheckBox row(String key, int label) {

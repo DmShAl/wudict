@@ -114,12 +114,12 @@ public class LookupActivity_sh extends Activity {
             return;
         }
 		final int pageBg = ShellPrefs.pageBg(this);
-		getWindow().setBackgroundDrawable(new ColorDrawable(pageBg));
+		getWindow().setBackgroundDrawable(WindowBackground.drawable(this, pageBg));
         sizeWindow();
         setFinishOnTouchOutside(true);
 
         root = new FrameLayout(this);
-        root.setBackgroundColor(pageBg);
+        root.setBackground(WindowBackground.drawable(this, pageBg));
         status = new TextView(this);
 		status.setTextColor(ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
         status.setText(getString(R.string.lookup_starting, query));
@@ -134,7 +134,7 @@ public class LookupActivity_sh extends Activity {
 
         web = new WebView(this);
         //web.setBackgroundColor(getColor(R.color.window_bg));
-		web.setBackgroundColor(pageBg);
+		web.setBackgroundColor(WindowBackground.active(this) ? android.graphics.Color.TRANSPARENT : pageBg);
         Shell.configure(web);
         Ime.hideOnScroll(web);
         web.setWebViewClient(new WebViewClient() {
@@ -170,8 +170,8 @@ public class LookupActivity_sh extends Activity {
         super.onWindowFocusChanged(focused);
         if (!focused || root == null || web == null) return;
         int color = ShellPrefs.pageBg(this);
-        getWindow().setBackgroundDrawable(new ColorDrawable(color));
-        root.setBackgroundColor(color);
+        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, color));
+        root.setBackground(WindowBackground.drawable(this, color));
         status.setTextColor(ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF);
         Shell.applyBackground(web);
     }
