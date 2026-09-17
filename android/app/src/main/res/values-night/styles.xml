@@ -1,12 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Copyright (C) 2026 glowinthedark -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- System dark mode (API 29+): the dark parent so nothing the framework
          draws — dialogs, the storage-permission prompt — comes up white
          against a page that is dark. -->
+    <!-- The window's colour BEFORE our own views exist, in three places the
+         activity cannot reach from onCreate:
+
+         * windowSplashScreenBackground - on API 31+ (every device on
+           targetSdk 36) the starting window is the SPLASH SCREEN, not the
+           windowBackground below. Unset, it falls back to colorBackground,
+           and the Material parents supply pure #FFFFFF / #303030 there -
+           so the first frame of every cold start was a foreign colour, and
+           a white one on a light OS. This is the flash.
+         * colorBackground - the same fallback, plus whatever framework
+           widget reads it.
+         * windowBackground - the pre-31 starting window, and the activity
+           window under our root view during the enter transition.
+
+         All three are resource reads, resolved by the OS day/night setting
+         before this process exists; the PAGE's theme is a stored preference
+         (D141) and no resource can consult it. So a user whose page theme
+         disagrees with their phone still gets one system-coloured frame,
+         and MainActivity.applyEdges repaints the window from the preference
+         the moment Java runs. -->
     <style name="Theme.WuWeiDict" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_bg</item>
+        <item name="android:colorBackground">@color/window_bg</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/window_bg</item>
     </style>
 
     <!-- The dark parent for the lookup popup (D67), for the same reason. -->
