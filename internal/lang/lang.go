@@ -219,3 +219,30 @@ func under(dir string, stops map[string]bool) bool {
 	}
 	return false
 }
+
+// Resolve applies the three naming sources in the order the package doc gives:
+// what the dictionary DECLARES, then the file and folder names, then the title.
+// It exists so the two callers that need a language - the lemma wave and the
+// group derivation behind the dictionary picker - cannot drift apart in which
+// evidence they accept or in what order they weigh it.
+//
+// declared is a raw format field (Lingvo's #INDEX_LANGUAGE, Babylon's source
+// language), not a code: it goes through FromDeclared, so a value that carries
+// a collation name behind it still resolves and a group name still resolves to
+// nothing.
+//
+// There is NO fallback language here. "" is the honest answer for a dictionary
+// that says nothing about itself in any of the three places, and what to do
+// with it depends entirely on whether the guess will be VALIDATED or DISPLAYED:
+// the lemma wave may assume English because a wrong guess costs one failed
+// index probe nobody sees, while a group label is shown to the user as a fact
+// and must never be invented. The caller decides; this function does not.
+func Resolve(declared, path string, roots []string, title string) string {
+	if c := FromDeclared(declared); c != "" {
+		return c
+	}
+	if c := FromPath(path, roots); c != "" {
+		return c
+	}
+	return FromTitle(title)
+}

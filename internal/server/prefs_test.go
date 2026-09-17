@@ -265,38 +265,45 @@ func TestPrefsUI(t *testing.T) {
 	}
 }
 
-// Both booleans are opt-OUTs of a default that is the zero value, so what is
-// checked here is that "absent means the default" survives a round trip through
-// the file for each of them - and that setting one never silently clears the
-// other or the font size beside them.
+// Every UI boolean has the standing default as its ZERO value - two of them by
+// negating the feature (hlOff, fastFirst), the third by naming the non-default
+// list order (sortMine) - so what is checked here is that "absent means the
+// default" survives a round trip through the file for each of them, and that
+// setting one never silently clears another or the font size beside them.
 func TestPrefsUIFlags(t *testing.T) {
 	s, state := newPrefsServer(t)
 
 	for _, tc := range []struct {
-		name             string
-		body             string
-		hlOff, wantFast  bool
+		name            string
+		body            string
+		hlOff, wantFast bool
+		wantSort        bool
 	}{
-		{"absent is the default", `{"ui":{"fontSize":24}}`, false, false},
-		{"fastest on", `{"ui":{"fontSize":24,"fastFirst":true}}`, false, true},
-		{"and highlighting off beside it", `{"ui":{"fontSize":24,"hlOff":true,"fastFirst":true}}`, true, true},
-		{"back to my order, highlighting still off", `{"ui":{"fontSize":24,"hlOff":true}}`, true, false},
-		{"an empty ui record clears both", `{"ui":{}}`, false, false},
+		{"absent is the default", `{"ui":{"fontSize":24}}`, false, false, false},
+		{"fastest on", `{"ui":{"fontSize":24,"fastFirst":true}}`, false, true, false},
+		{"and highlighting off beside it", `{"ui":{"fontSize":24,"hlOff":true,"fastFirst":true}}`, true, true, false},
+		{"back to my order, highlighting still off", `{"ui":{"fontSize":24,"hlOff":true}}`, true, false, false},
+		{"my own list order, nothing else moved", `{"ui":{"fontSize":24,"sortMine":true}}`, false, false, true},
+		{"all three at once", `{"ui":{"hlOff":true,"fastFirst":true,"sortMine":true}}`, true, true, true},
+		{"an empty ui record clears them all", `{"ui":{}}`, false, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := putPrefs(t, s, tc.body)
-			if hl, ff := got.UI.flags(); hl != tc.hlOff || ff != tc.wantFast {
-				t.Fatalf("PUT echoed hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
+			if hl, ff := got.UI.flags(); hl != tc.hlOff || ff != tc.wantFast || got.UI.sorted() != tc.wantSort {
+				t.Fatalf("PUT echoed hlOff=%v fastFirst=%v sortMine=%v, want %v/%v/%v",
+					hl, ff, got.UI.sorted(), tc.hlOff, tc.wantFast, tc.wantSort)
 			}
 			var back prefsResp
 			getJSON(t, s, "/api/prefs", &back)
-			if hl, ff := back.UI.flags(); hl != tc.hlOff || ff != tc.wantFast {
-				t.Fatalf("GET returned hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
+			if hl, ff := back.UI.flags(); hl != tc.hlOff || ff != tc.wantFast || back.UI.sorted() != tc.wantSort {
+				t.Fatalf("GET returned hlOff=%v fastFirst=%v sortMine=%v, want %v/%v/%v",
+					hl, ff, back.UI.sorted(), tc.hlOff, tc.wantFast, tc.wantSort)
 			}
 			// and it is on disk, not merely in memory
 			ui := LoadPrefs(state).UI()
-			if hl, ff := ui.flags(); hl != tc.hlOff || ff != tc.wantFast {
-				t.Fatalf("reloaded hlOff=%v fastFirst=%v, want %v/%v", hl, ff, tc.hlOff, tc.wantFast)
+			if hl, ff := ui.flags(); hl != tc.hlOff || ff != tc.wantFast || ui.sorted() != tc.wantSort {
+				t.Fatalf("reloaded hlOff=%v fastFirst=%v sortMine=%v, want %v/%v/%v",
+					hl, ff, ui.sorted(), tc.hlOff, tc.wantFast, tc.wantSort)
 			}
 		})
 	}
@@ -323,4 +330,11 @@ func (u *UIPrefs) flags() (hlOff, fastFirst bool) {
 		return false, false
 	}
 	return u.HLOff, u.FastFirst
+}
+
+func (u *UIPrefs) sorted() bool {
+	if u == nil {
+		return false
+	}
+	return u.SortMine
 }

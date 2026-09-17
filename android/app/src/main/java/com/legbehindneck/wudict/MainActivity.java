@@ -10,6 +10,7 @@ package com.legbehindneck.wudict;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Insets;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.net.Uri;
@@ -55,8 +56,18 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // The earliest point Java can correct the window's colour. The theme's
+        // splash/window background was resolved from the OS day/night setting
+        // before this process existed (values/styles.xml); the PAGE's theme is
+        // a stored preference, so for a user whose theme disagrees with their
+        // phone the window under everything is still the wrong colour - and it
+        // shows through during the enter transition and any frame our own views
+        // have not covered yet. applyEdges repaints it from the preference; do
+        // it here too, before setContentView, so no frame of this activity is
+        // ever drawn against the resource colour.
+        getWindow().setBackgroundDrawable(new ColorDrawable(ShellPrefs.edgeColor(this)));
+
         root = new FrameLayout(this);
-        root.setBackgroundColor(getColor(R.color.window_bg));
         status = new TextView(this);
         status.setText(R.string.starting);
         root.addView(status, new FrameLayout.LayoutParams(
@@ -209,7 +220,16 @@ public class MainActivity extends Activity {
     private void applyEdges() {
         int edge = ShellPrefs.edgeColor(this);
         root.setBackgroundColor(edge);
+        // The window too, not just our root: it is what the enter transition
+        // and the pre-first-layout frames show, and the theme could only give
+        // it the OS's colour.
+        getWindow().setBackgroundDrawable(new ColorDrawable(edge));
         boolean dark = ShellPrefs.darkIcons(edge);
+        // "Starting…" and the server-failure sentence are the only text the
+        // SHELL draws, and they sit on that same colour. Their theme colour is
+        // the OS's, so a page-dark strip under a light OS put dark text on a
+        // dark ground. Same arithmetic as the bar icons, same reason.
+        status.setTextColor(dark ? 0xDE000000 : 0xFFFFFFFF);
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = decor.getWindowInsetsController();
