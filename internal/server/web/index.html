@@ -1018,6 +1018,7 @@ body.styling{padding-bottom:var(--styler-h)}
      search (an empty query never runs one) and it is a control the user has
      a motor habit for. .qbox is a real element at both widths; .pill is
      display:contents above 600px and could not position this. -->
+<button type="button" class="btn" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false" style="padding:.3em .4em;font-size:16px;line-height:1;margin-right:.3em;">📌</button>
 <span class="qbox" id="qbox">
 <span class="qled" aria-hidden="true">
 <svg class="mag" viewBox="0 0 16 16" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M7.1 2.4a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm3.6 8.3l3 3"/></svg>
@@ -1050,7 +1051,6 @@ body.styling{padding-bottom:var(--styler-h)}
      as you type. The button's only remaining ground was a magnifier next
      to a magnifier. -->
 <button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
-<button type="button" class="btn tools" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false">📌</button>
 <button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
 <button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
 <button type="button" class="btn tools" id="panelBtn" title="Dictionaries" aria-label="Manage dictionaries">☰</button>
@@ -1378,7 +1378,7 @@ applyWide(localStorage.getItem("wudict_wide")==="1");
 let barPinned=false;
 function applyBarPinned(on){
   document.body.classList.toggle("barpinned",on);
-  $("pinBtn").style.color=on?"var(--accent)":"";
+  $("pinBtn").textContent=on?"📍":"📌";
   $("pinBtn").setAttribute("aria-pressed",on?"true":"false");
 }
 $("pinBtn").onclick=()=>{
