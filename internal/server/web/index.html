@@ -263,8 +263,8 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
 .btn{font-size:15px;background:var(--bg-card);color:var(--fg-soft);
   border:1px solid var(--line);border-radius:8px;padding:.3em .55em;cursor:pointer;line-height:1.2}
 .btn:hover{color:var(--fg);border-color:var(--fg-faint)}
-#pinBtn{color:var(--link);border-color:color-mix(in srgb,var(--link) 40%,var(--line))}
-#pinBtn:hover{color:var(--link-hover);border-color:var(--link-hover)}
+#pinBtn{color:var(--link);border:none;background:none;padding:.3em .4em;font-size:16px;line-height:1;cursor:pointer}
+#pinBtn:hover{color:var(--link-hover)}
 .btn:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 
 /* ── results ───────────────────────────────────────────────────────── */
@@ -1020,7 +1020,7 @@ body.styling{padding-bottom:var(--styler-h)}
      search (an empty query never runs one) and it is a control the user has
      a motor habit for. .qbox is a real element at both widths; .pill is
      display:contents above 600px and could not position this. -->
-<button type="button" class="btn" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false" style="padding:.3em .4em;font-size:16px;line-height:1;margin-right:.3em;">📌</button>
+<button type="button" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false" style="padding:.3em .4em;font-size:16px;line-height:1;margin-right:.3em;border:none;background:none;cursor:pointer;">📌</button>
 <span class="qbox" id="qbox">
 <span class="qled" aria-hidden="true">
 <svg class="mag" viewBox="0 0 16 16" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M7.1 2.4a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm3.6 8.3l3 3"/></svg>
