@@ -176,7 +176,7 @@ Blank (the default) lets any installed  extension reach the read-only dictionary
 Set it to allow only specific extensions:
 
 ```toml
-BROWSER_EXTENSIONS = ["chrome-extension://abcdefghijklmnopabcdefghijklmnop"]
+BROWSER_EXTENSIONS = ["chrome-extension://bknaaoffefipfnpefmkbipcdemljbhjh"]
 ```
 
 (Firefox generates a fresh `moz-extension://` id for every installation, so
