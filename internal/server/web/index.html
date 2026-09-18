@@ -266,6 +266,7 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
 #status>.msg{overflow:hidden;min-height:0}
 #status .txt{padding:var(--sp-2) 0}
 #status.show{grid-template-rows:1fr;opacity:1}
+#status[hidden]{display:none}
 /* one spinner, two homes: inline in #status, and large in the startup
    panel below (.empty) while the dictionary list is still arriving */
 .spin{display:inline-block;width:1em;height:1em;border:2px solid var(--line);
@@ -3023,7 +3024,7 @@ function setStatus(html,owner){
   const el=$("status");
   const apply=()=>{
     // the text goes in the inner .txt; .show drives the row from 0fr to 1fr
-    if(statusPending){$("statusMsg").innerHTML=statusPending;el.classList.add("show");statusTs=Date.now()}
+    if(statusPending){el.hidden=false;$("statusMsg").innerHTML=statusPending;el.classList.add("show");statusTs=Date.now()}
     else{el.classList.remove("show");statusTs=0}
   };
   // every displayed message stays readable for STATUS_MIN; bursts of
@@ -3033,6 +3034,15 @@ function setStatus(html,owner){
   apply();
 }
 function clearStatus(owner){if(statusOwner===owner)setStatus("")}
+// Results must enter at their final position, without waiting for the status
+// minimum display time or its collapsing-row transition.
+function clearStatusForResults(){
+  clearTimeout(statusTimer);statusTimer=null;
+  statusPending="";statusOwner=null;statusTs=0;
+  const el=$("status");
+  el.hidden=true;el.classList.remove("show");
+  $("statusMsg").textContent="";
+}
 
 /* Search progress: the field's own leading glyph, not a line of text.
    Most searches settle in 200–600ms, and a spinner shown at t=0 for 180ms is
@@ -3468,9 +3478,10 @@ async function doSearch(ev){
         // and under expand-all there is no latch to hold back.
         if(orderFirst&&!expandAll&&boxes.length>1)
           barrier=setTimeout(()=>{barrier=null;if(seq===searchSeq)settle()},OPEN_BARRIER_MS);
-        setStatus("");
+        clearStatusForResults();
       }else if(msg.t==="hit"){
         const box=boxes[msg.i];if(!box)return;
+        if(!anyShown)clearStatusForResults();
         const res=renderSlot(box,msg,mode,q,perDict,boxes.length>1);
         if(res.shown)swap(); // including the grouped line: it is this generation's first paint
         if(res.noIndex){noIdx=noIndexRow(noIdx,out,res.noIndex);noIdxCount++}
