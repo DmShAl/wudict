@@ -517,7 +517,20 @@ body.styling{padding-bottom:var(--styler-h)}
 #stylerFiles .n:hover b{color:var(--accent)}
 #stylerFiles .btn{flex:0 0 auto;font-size:12px;padding:.25em .55em}
 
-/* ── dictionaries panel ────────────────────────────────────────────── */
+/* ── groups editor dialog ───────────────────────────────────────────── */
+#groupsEditor{position:fixed;left:0;right:0;bottom:0;z-index:220;display:none;
+  background:var(--bg-card);border-top:1px solid var(--line);box-shadow:var(--shadow);
+  padding:var(--sp-2) var(--sp-3);max-height:70vh;display:flex;flex-direction:column}
+#groupsEditor.show{display:flex}
+#groupsEditor .row{display:flex;align-items:center;gap:.4em;flex-wrap:nowrap;margin-bottom:var(--sp-2)}
+#groupsEditor #groupSelect{flex:1 1 auto;min-width:0;font-size:14px;padding:.35em .5em;border-radius:8px;border:1px solid var(--line);background:var(--bg-card);color:var(--fg)}
+#groupsEditor #showAllInGroup{margin-right:.3em}
+#groupsEditor .panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#groupsEditor .gdl-item{display:flex;align-items:center;gap:.5em;padding:.35em 0;border-bottom:1px solid var(--line-soft)}
+#groupsEditor .gdl-item:last-child{border-bottom:0}
+#groupsEditor .gdl-item label{flex:1 1 auto;min-width:0;cursor:pointer;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#groupsEditor .gdl-chk{flex:0 0 auto;width:18px;height:18px}
+
 #panel{position:fixed;inset:0;z-index:200;display:none;background:color-mix(in srgb,var(--fg) 24%,transparent)}
 #panel.show{display:block}
 .panel-card{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);
@@ -1076,6 +1089,7 @@ body.styling{padding-bottom:var(--styler-h)}
 <div class="panel-card">
 <div class="panel-head"><h2>Dictionaries
 <span class="headacts">
+<button type="button" class="btn" id="editGroupsBtn" title="Edit dictionary groups">Groups…</button>
 <!-- The theme control's narrow-viewport home. Not a second control: both
      elements carry .themeBtn and one handler drives the pair, the way the
      wordmark has two mount points selected by media query. -->
@@ -1227,6 +1241,17 @@ body.styling{padding-bottom:var(--styler-h)}
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
   <div id="stylerNote"></div>
+</div>
+
+<!-- Dictionary groups editor dialog -->
+<div id="groupsEditor" role="dialog" aria-label="Dictionary groups" aria-modal="true" hidden>
+  <div class="row">
+    <select id="groupSelect" aria-label="Select group"></select>
+    <label><input type="checkbox" id="showAllInGroup"> Show All</label>
+    <span class="grow"></span>
+    <button type="button" class="btn" id="groupsClose" aria-label="Close">✕</button>
+  </div>
+  <div id="groupDictsList" class="panel-scroll"></div>
 </div>
 
 <script>
