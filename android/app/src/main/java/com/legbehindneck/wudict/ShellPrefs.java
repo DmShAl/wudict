@@ -76,7 +76,7 @@ final class ShellPrefs {
         return of(c).getBoolean(FOUND_DICTIONARIES, false);
     }
     private static final String SEPIA_COLOR = "sepia_color";
-    private static final int DEFAULT_SEPIA_COLOR = 0xFFE8D4A8;
+    private static final int DEFAULT_SEPIA_COLOR = 0xFFF4ECD8;
 
     static boolean sepia(Context c) {
         return of(c).getBoolean(SEPIA, false);
@@ -91,7 +91,9 @@ final class ShellPrefs {
     }
 
     static void setSepiaColor(Context c, String value) {
-        if (!value.matches("#[0-9a-fA-F]{6}")) throw new IllegalArgumentException(value);
+        value = value.trim();
+        if (!value.matches("#?[0-9a-fA-F]{6}")) throw new IllegalArgumentException(value);
+        if (!value.startsWith("#")) value = "#" + value;
         of(c).edit().putInt(SEPIA_COLOR, Color.parseColor(value)).apply();
     }
 

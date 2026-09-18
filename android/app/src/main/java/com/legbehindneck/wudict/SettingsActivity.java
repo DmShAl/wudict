@@ -238,7 +238,7 @@ public class SettingsActivity extends Activity {
         sepiaField.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
         sepiaField.setMinHeight(dp(ROW_MIN));
         sepiaField.setContentDescription(getString(R.string.settings_sepia_color));
-        sepiaField.setText(ShellPrefs.sepiaColorText(this));
+        sepiaField.setText(ShellPrefs.sepiaColorText(this).substring(1));
         sepiaField.setOnFocusChangeListener((v, focused) -> {
             if (!focused) commitSepia();
         });
@@ -246,7 +246,14 @@ public class SettingsActivity extends Activity {
             commitSepia();
             return false;
         });
-        line.addView(sepiaField, new LinearLayout.LayoutParams(dp(144),
+        // Reserve only enough width for a hex colour, including larger system fonts.
+        float digitWidth = 0;
+        for (char digit : "0123456789abcdefABCDEF".toCharArray()) {
+            digitWidth = Math.max(digitWidth, sepiaField.getPaint().measureText(String.valueOf(digit)));
+        }
+        int colorWidth = (int) Math.ceil(sepiaField.getPaint().measureText("#") + 6 * digitWidth)
+                + sepiaField.getCompoundPaddingLeft() + sepiaField.getCompoundPaddingRight() + dp(8);
+        line.addView(sepiaField, new LinearLayout.LayoutParams(colorWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
         box.setOnCheckedChangeListener((v, on) -> {
             commitSepia();
@@ -262,10 +269,10 @@ public class SettingsActivity extends Activity {
             ShellPrefs.setSepiaColor(this, sepiaField.getText().toString().trim());
             sepiaField.setError(null);
         } catch (IllegalArgumentException bad) {
-            sepiaField.setError(getString(R.string.settings_edge_custom_bad));
+            sepiaField.setError(getString(R.string.settings_sepia_color_bad));
         }
         // Invalid or unfinished input never replaces the last valid colour.
-        sepiaField.setText(ShellPrefs.sepiaColorText(this));
+        sepiaField.setText(ShellPrefs.sepiaColorText(this).substring(1));
         applySepiaWindow();
     }
 
