@@ -1369,6 +1369,118 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/browse:
+    get:
+      tags: [internal]
+      operationId: browse
+      x-internal: true
+      summary: One page of the dictionary's headword list
+      description: >
+        The reading view, as opposed to `/api/search`'s answering view: the
+        dictionary as an ordered, addressable list of its own headwords, turned
+        a page at a time. Article bodies are never included - this lists what a
+        dictionary contains, it does not answer with it.
+
+
+        Index-backed only. The order, the page offsets and the letter strip are
+        three reads of the prepared index (`idx_entry_w`), which is what makes a
+        jump to `M` in a 2.9 M-entry dictionary a seek rather than a scan; a
+        dictionary that has not been prepared answers `409` instead of a slower
+        browse. Browse order is that index's order - case-insensitive by
+        headword - and NOT the source file's entry order, which is what
+        `wudict keys` reads.
+
+
+        `size` is fixed by the server and is not a parameter: the page number is
+        the whole address of a browse view, so `?p=37` has to mean the same
+        place tomorrow as it does today.
+
+
+        Same-origin only. It is not part of the client API a browser extension
+        reaches (D69): that grant is lookup, and this dumps a dictionary a page
+        at a time.
+      parameters:
+        - name: dict
+          in: query
+          required: true
+          description: Dictionary id, as returned by `/api/dicts`.
+          schema: { type: string }
+        - name: p
+          in: query
+          description: >
+            1-based page number. Out of range is clamped to the last page rather
+            than refused, so a stale bookmark still opens.
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: at
+          in: query
+          description: >
+            Jump to the page holding this word, or the first one after it.
+            Overrides `p`. The reader lands on a page boundary, not on the word:
+            a page that started mid-letter would have no stable address.
+          schema: { type: string }
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s 'http://127.0.0.1:6888/api/browse?dict=<id>&p=1'
+      responses:
+        '200':
+          description: >
+            One page, plus everything needed to draw the chrome around it, so a
+            page turn is a single request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dict, name, total, page, pages, size, words, alphabet]
+                properties:
+                  dict: { type: string }
+                  name: { type: string }
+                  total:
+                    type: integer
+                    description: Headwords in the whole dictionary, in browse order.
+                  page:
+                    type: integer
+                    description: The page actually served, 1-based, after clamping.
+                  pages: { type: integer, description: 0 when the dictionary is empty. }
+                  size: { type: integer, description: Headwords per page, fixed by the server. }
+                  words:
+                    type: array
+                    description: The headwords on this page. Homographs appear once.
+                    items: { type: string }
+                  alphabet:
+                    type: array
+                    description: >
+                      Every initial present, in browse order. Offsets are
+                      positions in the same sequence the pages walk, so a chip
+                      becomes a page by integer division and nothing has to
+                      agree about page size across the wire.
+                    items:
+                      type: object
+                      required: [l, o, n]
+                      properties:
+                        l: { type: string, description: 'The chip label: an uppercase initial, `0-9`, or `#`.' }
+                        o: { type: integer, description: Browse offset of the first headword under it. }
+                        n: { type: integer, description: How many headwords it holds. }
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >
+            This dictionary has no index yet, so there is nothing ordered to
+            page through. `indexing` separates the two things a client can say
+            about that: work already in flight is something to wait for,
+            its absence means the index has to be switched on.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, prepared, indexing]
+                properties:
+                  error: { type: string }
+                  prepared: { type: boolean, description: Always false here. }
+                  indexing: { type: boolean, description: Preparation is running right now. }
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/reveal:
     get:
       tags: [internal]

@@ -63,6 +63,14 @@ type Store struct {
 	mediaMu    sync.Mutex
 	media      *Media
 	mediaTried bool // opened and failed, or opened and rejected: do not retry
+
+	// The browse strip (browse.go), computed on the first browse of this
+	// handle and kept for its life: a text.db does not change under an open
+	// reader, and re-walking the index for forty numbers on every page turn
+	// would be the one expensive thing about turning a page.
+	alphaOnce sync.Once
+	alpha     []dict.Letter
+	alphaErr  error
 }
 
 // foldVersionOf reads the folding version a database records.

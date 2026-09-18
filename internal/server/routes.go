@@ -102,6 +102,9 @@ func (s *Server) routes() []route {
 		// annotation names a sidecar file on the user's disk, and the list
 		// endpoint an extension does get deliberately carries no description.
 		{"GET", "/api/about", s.handleAbout, "/api/about", false},
+		// one page of the headword list (browse.go). Never CORS: the D69
+		// grant is lookup, and this dumps a dictionary a page at a time.
+		{"GET", "/api/browse", s.handleBrowse, "/api/browse", false},
 		// what the platform is doing to us (D64) - the Android shell's channel
 		// for onStop / onTrimMemory / thermal / battery-saver, which the
 		// exec'd server has no other way of learning.
@@ -136,6 +139,9 @@ func (s *Server) routes() []route {
 		// the lemma installer, reached from setup and from the app's
 		// configuration disclosure
 		{"GET", "/lemmas", s.handleLemmasPage, "", false},
+		// reading the dictionary instead of querying it (browse.go), reached
+		// from the panel's action row and from each dictionary's own card
+		{"GET", "/browse", s.handleBrowsePage, "", false},
 		// The user's global stylesheets, served the way a res/ override is:
 		// no-cache, because this is a file they are actively editing. Not
 		// under /assets/ - nothing here is embedded in the binary, and the
