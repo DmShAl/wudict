@@ -3,4 +3,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
     <string name="app_name">wuDictDebug</string>
+    <string name="app_name_sh">wuDictDebug_SH</string>
 </resources>

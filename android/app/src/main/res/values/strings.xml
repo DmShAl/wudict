@@ -6,7 +6,8 @@
      to a flavour's own values/ instead (D62). 
 	-->
 <resources>
-	<string name="app_name">wuDict_SH</string>
+	<string name="app_name">wuDict</string>
+	<string name="app_name_sh">wuDict_SH</string>
 	<string name="starting">Starting wuDict…</string>
 	<string name="server_failed">wuDict server failed to start: %1$s</string>
 	<!--

@@ -32,7 +32,7 @@ import java.io.ByteArrayInputStream;
 
 public class MainActivity extends Activity {
 
-    // An optional search to run on load, handed over by LookupActivity_sh - either
+    // An optional search to run on load, handed over by LookupActivity - either
     // by the popup's handoff row (D67) or because the entry point is set to open
     // the app outright (D100). All three parts travel together: the wudict://
     // entry point can carry a mode and a dictionary, and forwarding the word
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
     private volatile boolean gone;   // onDestroy ran: late server callbacks must not touch the views
     private Object backCallback;     // OnBackInvokedCallback (API 33+), registered only while canGoBack()
     private boolean wantAutoFocus;   // this load is a cold start onto an empty screen
-    private String pendingQuery;     // arrived from LookupActivity_sh (D67, D100)
+    private String pendingQuery;     // arrived from LookupActivity (D67, D100)
     private String pendingMode;
     private String pendingDict;
 
@@ -629,7 +629,7 @@ public class MainActivity extends Activity {
         // Only what THIS intent brought: an unrelated intent must not fire a
         // query left pending by an earlier one - showPage owns that.
         if (takeQuery(intent) && !gone && web.getParent() != null) {
-            // Handed over by LookupActivity_sh, so the app is very likely already
+            // Handed over by LookupActivity, so the app is very likely already
             // up and showing something else; if it is not, showPage takes it.
             String q = pendingQuery;
             String m = pendingMode, d = pendingDict;

@@ -9,6 +9,14 @@ plugins {
     id 'com.android.application'
 }
 
+// Optional parallel installation, selected by build-android.cmd's second argument.
+def appVariant = providers.gradleProperty('appVariant').getOrElse('original')
+if (!(appVariant in ['original', 'sh'])) {
+    throw new GradleException('appVariant must be original or sh')
+}
+def parallelApp = appVariant == 'sh'
+if (parallelApp) layout.buildDirectory.set(layout.projectDirectory.dir('build-sh'))
+
 // Same stamp the Makefile puts into the Go binary: git describe, or "dev".
 // build-android.yml overrides versionName with the release TAG; versionCode is
 // computed here and nowhere else, so a local build and a CI build of the same
@@ -66,6 +74,8 @@ android {
 
     defaultConfig {
         applicationId 'com.legbehindneck.wudict'
+        manifestPlaceholders = [shortcutsResource: parallelApp ? '@xml/shortcuts_sh' : '@xml/shortcuts',
+                                appLabel: parallelApp ? '@string/app_name_sh' : '@string/app_name']
         // arm64-v8a only (D52): every arm64 device ships API 26+, and the
         // vector adaptive icon needs no PNG fallbacks at 26+.
         minSdk 26
@@ -103,7 +113,7 @@ android {
 
     buildTypes {
         release {
-            applicationIdSuffix = ".sh"
+            if (parallelApp) applicationIdSuffix = '.sh'
             minifyEnabled = false  // nothing to shrink: two classes, no libraries
             shrinkResources = false
             if (System.getenv("KEYSTORE") != null) {
@@ -111,7 +121,7 @@ android {
             }
         }
         debug {
-            applicationIdSuffix = ".debug_sh"
+            applicationIdSuffix = parallelApp ? '.debug_sh' : '.debug'
         }
     }
 
@@ -155,7 +165,7 @@ androidComponents {
                 ? (apkSigned ? '' : '-unsigned')
                 : "-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${suffix}.apk")
+            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${parallelApp ? '_sh' : ''}${suffix}.apk")
         }
     }
 }

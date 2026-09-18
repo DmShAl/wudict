@@ -73,7 +73,7 @@ final class Intake {
     private static volatile boolean cancelled;
 
     /**
-     * A link handed over by LookupActivity_sh, which is where a shared http(s)
+     * A link handed over by LookupActivity, which is where a shared http(s)
      * URL lands: a browser shares a download link as text/plain, and that is
      * the filter the lookup popup owns. It recognises a link and forwards it
      * here rather than looking it up as a word.

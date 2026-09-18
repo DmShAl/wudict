@@ -47,7 +47,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.graphics.drawable.ColorDrawable;
 
-public class LookupActivity_sh extends Activity {
+public class LookupActivity extends Activity {
 
     // A selection can be a whole paragraph - PROCESS_TEXT hands over whatever
     // was highlighted, and a "select all" in a reader is megabytes. Two caps,
@@ -145,7 +145,7 @@ public class LookupActivity_sh extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                return Shell.openExternal(LookupActivity_sh.this, req.getUrl());
+                return Shell.openExternal(LookupActivity.this, req.getUrl());
             }
         });
         web.setWebChromeClient(Shell.windows(this));
