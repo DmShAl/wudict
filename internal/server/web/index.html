@@ -11,10 +11,17 @@
 <script>
 // An optional host background. Session storage preserves it across page reloads;
 // an explicit empty URL value withdraws it on the next launch.
-window.wudictShellBackground = function (color, image) {
+window.wudictShellBackground = function (color, image, imageName) {
   var root = document.documentElement;
   root.toggleAttribute('data-shell-image', !!image);
   var valid = /^#[0-9a-f]{6}$/i.test(color);
+  root.toggleAttribute('data-shell-sepia', valid);
+  root.style.setProperty('--paper-bg', valid ? color : 'var(--bg)');
+  if (imageName === undefined) {
+    try { imageName = sessionStorage.getItem('wudict_shell_image_name'); } catch (_) {}
+  }
+  var file = image && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(imageName || '') ? imageName : '';
+  root.style.setProperty('--paper-bk-image', file ? 'url("/files/' + file + '")' : 'none');
   if (valid) root.style.setProperty('--bg', color, 'important');
   else root.style.removeProperty('--bg');
   try {
@@ -23,6 +30,10 @@ window.wudictShellBackground = function (color, image) {
     if (valid) sessionStorage.setItem('wudict_shell_bg', color);
     else sessionStorage.removeItem('wudict_shell_bg');
   } catch (_) {}
+  try { sessionStorage.setItem('wudict_shell_image_name', file); } catch (_) {}
+  // Existing iframe articles must receive Settings changes as well.
+  if (document.readyState === 'complete' && typeof pushFrameCSS === 'function') pushFrameCSS();
+  if (document.readyState === 'complete' && typeof stylerFillPresets === 'function') stylerFillPresets();
 };
 (function () {
   var params = new URLSearchParams(location.search);
@@ -1520,7 +1531,9 @@ function articleTokens(){
   const cs=getComputedStyle(document.documentElement);
   const v=(n,d)=>(cs.getPropertyValue(n)||"").trim()||d;
   return ":root{--wd-article-bg:"+v("--wd-article-bg","#fff")+
-         ";--wd-article-fg:"+v("--wd-article-fg","#1a1a1a")+"}\n";
+         ";--wd-article-fg:"+v("--wd-article-fg","#1a1a1a")+
+         ";--paper-bg:"+v("--paper-bg",v("--bg","transparent"))+
+         ";--paper-bk-image:"+v("--paper-bk-image","none")+"}\n";
 }
 function frameCSS(){return articleTokens()+userArticleCSS}
 function pushFrameCSS(){
@@ -4297,15 +4310,8 @@ const ART_THROUGH=
 const BOXNAME={app:"App",article:"Article"};
 
 const STYLER_PRESETS=[
-  {n:"Sepia",g:"Colour",article:ART_THROUGH,app:
-`/* Light mode only. The last two tokens are the article surface, so the page
-   and the definitions turn together — that is the whole reason this is an
-   App preset and not an Article one. */
-html:not([data-dark]){
-  --bg:#f4ecd8; --bg-card:#faf3e3; --bg-bar:rgba(244,236,216,.92);
-  --fg:#3b3229; --fg-soft:#6b5f4e; --line:#e0d5bd; --line-soft:#ebe2cf;
-  --wd-article-bg:#faf3e3; --wd-article-fg:#3b3229;
-}`},
+  {n:"Background",g:"Colour",append:true,...{{BACKGROUND_PRESET}}},
+  {n:"Sepia",g:"Colour",append:true,...{{SEPIA_PRESET}}},
   {n:"High contrast",g:"Colour",article:ART_THROUGH,app:
 `/* Contrast without the blinding white: near-black on a warm off-white, with
    the hairlines darkened so the structure stays visible at any font size.
@@ -4893,16 +4899,17 @@ async function stylerUpload(list){
   }
   if(done){stylerNote(done===1?"Added":"Added "+done+" files");setTimeout(stylerNote,1600)}
 }
-/* One menu for both tabs, built once. Grouped, because a reader arrives
+/* One menu for both tabs, refreshed when the host background changes. Grouped, because a reader arrives
    wanting a RESULT — sepia, a wider column — and not knowing which of our two
    files it is spelled in; that is the placement rule's job, above. */
 function stylerFillPresets(){
   const sel=$("stylerPreset");
-  if(sel.options.length)return;
+  sel.replaceChildren();
   const head=document.createElement("option");
   head.value="";head.textContent="Examples…";sel.appendChild(head);
   const groups={};
   for(const p of STYLER_PRESETS){
+    if(p.n==="Background"&&!document.documentElement.hasAttribute("data-shell-image"))continue;
     const g=groups[p.g]||(groups[p.g]=Object.assign(document.createElement("optgroup"),{label:p.g}));
     const o=document.createElement("option");o.value=p.n;o.textContent=p.n;g.appendChild(o);
   }
@@ -4924,6 +4931,7 @@ function stylerApplyPreset(p){
     if(stylerText[box].includes(css)){had.push(BOXNAME[box]);continue}
     if(stylerTab!==box)stylerShowTab(box);
     const ta=$("stylerCSS");
+    if(p.append)ta.setSelectionRange(ta.value.length,ta.value.length);
     stylerEdit((ta.value&&!ta.value.endsWith("\n")?"\n\n":"")+css+"\n");
     put.push(BOXNAME[box]);
   }

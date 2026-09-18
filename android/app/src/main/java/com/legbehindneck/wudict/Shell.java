@@ -100,7 +100,8 @@ final class Shell {
         String color = ShellPrefs.sepia(c) ? ShellPrefs.sepiaColorText(c) : "";
         // Only a validated six-digit colour is interpolated into JavaScript.
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
-                + color + "'," + image + ")", null);
+                + color + "'," + image + "," + org.json.JSONObject.quote(image
+                ? ShellPrefs.of(c).getString("background_image", "") : "") + ")", null);
         web.evaluateJavascript("(window.wudictSetDictionaryMode || function(found){"
                 + "window.wudictFoundDictionaryMode=found;})("
                 + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);

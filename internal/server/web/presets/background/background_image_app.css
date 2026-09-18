@@ -1,0 +1,337 @@
+/* =========================================================
+   BACKGROUND FROM SETTINGS
+   ========================================================= */
+
+/* The app supplies --paper-bg and --paper-bk-image from Settings.
+   This stylesheet only uses them; no colour or file needs to be set here. */
+
+/* =========================================================
+   PAPER THEME
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) {
+  /*
+     Large surfaces are transparent so the paper texture can show through.
+     Controls receive their own translucent backgrounds below.
+  */
+  --bg-card:transparent;
+
+  /* Main text colours. */
+  --fg:#3b3229;
+  --fg-soft:#5d4d3a;
+  --fg-faint:#79664e;
+
+  /* Warm borders suitable for the paper background. */
+  --line:#cdbb96;
+  --line-soft:#ddceb0;
+
+  /* Links keep the original blue-grey family. */
+  --link:#5b7a99;
+  --link-hover:#3f5e7d;
+
+  /*
+     The article surface itself must be transparent.
+     Otherwise wuDict paints an opaque rectangle behind the definition.
+  */
+  --wd-article-bg:transparent;
+  --wd-article-fg:#3b3229;
+}
+
+
+/* =========================================================
+   MAIN PAGE PAPER
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) body {
+  background:transparent;
+}
+
+
+/* =========================================================
+   TOP wuDict BAR
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .bar {
+  background-color:var(--paper-bg);
+
+  /*
+     The same paper texture with a light translucent wash.
+     This keeps the toolbar readable while preserving the paper grain.
+  */
+  background-image:
+    linear-gradient(
+      rgba(255,245,220,.25),
+      rgba(255,245,220,.25)
+    ),
+    var(--paper-bk-image, none);
+
+  background-size:100% 100%, 100% 100%;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+
+  /* Keep the texture visible instead of blurring it away. */
+  backdrop-filter:blur(1px);
+  -webkit-backdrop-filter:blur(1px);
+
+  border-bottom:1px solid rgba(120,90,45,.22);
+}
+
+
+/* =========================================================
+   TOP BAR CONTROLS
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) input[type=search],
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) select,
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .btn {
+  background:rgba(248,232,196,.40);
+  border-color:rgba(120,90,45,.25);
+}
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) input[type=search]:focus {
+  background:rgba(255,240,205,.55);
+}
+
+
+/* =========================================================
+   MOBILE SEARCH PILL
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .pill {
+  background:rgba(248,232,196,.38);
+  border-color:rgba(120,90,45,.24);
+}
+
+
+/* =========================================================
+   DICTIONARIES PANEL OVERLAY
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) #panel {
+  /*
+     Warm dark overlay over the article when the drawer is open.
+  */
+  background:rgba(74,55,30,.28);
+}
+
+
+/* =========================================================
+   DICTIONARIES SIDE PANEL
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card {
+  background-color:var(--paper-bg);
+
+  /*
+     The drawer uses the same paper texture as the main page.
+     A slight light wash improves small-text readability.
+  */
+  background-image:
+    linear-gradient(
+      rgba(255,245,220,.18),
+      rgba(255,245,220,.18)
+    ),
+    var(--paper-bk-image, none);
+
+  background-size:100% 100%, 100% 100%;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+
+  border-left:1px solid rgba(120,90,45,.25);
+
+  /*
+     The default faint colours are too weak on textured paper,
+     so make muted text darker inside the drawer.
+  */
+  --fg-soft:#5d4d3a;
+  --fg-faint:#79664e;
+}
+
+
+/* =========================================================
+   STICKY DICTIONARIES HEADER
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-head {
+  /*
+     The header is sticky. Giving it its own copy of the paper prevents
+     scrolling text from showing through underneath it.
+  */
+  background-color:var(--paper-bg);
+
+  background-image:
+    linear-gradient(
+      rgba(255,245,220,.18),
+      rgba(255,245,220,.18)
+    ),
+    var(--paper-bk-image, none);
+
+  background-size:100% 100%, 100% 100%;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+}
+
+
+/* =========================================================
+   DICTIONARY CARDS
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .pd {
+  /*
+     Keep each dictionary visually grouped without hiding the paper texture.
+  */
+  background:rgba(255,245,220,.18);
+  border-color:rgba(120,90,45,.22);
+}
+
+
+/* =========================================================
+   DISABLED DICTIONARIES
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd.off {
+  /*
+     wuDict normally fades the complete disabled card with opacity:.5.
+     On paper this makes all metadata nearly unreadable.
+
+     The toggle switch already communicates the enabled/disabled state,
+     so keep the card text fully opaque.
+  */
+  opacity:1 !important;
+}
+
+
+/* =========================================================
+   DICTIONARY METADATA
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .meta {
+  /*
+     Lines such as:
+       dsl · 58,964 entries · indexed
+  */
+  color:#79654b !important;
+}
+
+
+/* Paths, provenance and other secondary information. */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .prov,
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .prov1,
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .prow {
+  color:#806d54 !important;
+}
+
+
+/* =========================================================
+   NORMAL FEATURE BADGES
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .feat,
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .tag {
+  /*
+     Examples:
+       contains
+       full-text
+       media
+  */
+  color:#725d43 !important;
+  border-color:rgba(105,78,43,.30) !important;
+  background:rgba(255,245,220,.22) !important;
+}
+
+
+/* =========================================================
+   ACTIVE FEATURE BADGES
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .feat.on:not(.locked),
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .tag.on {
+  /*
+     Enabled features such as full-text should be noticeable,
+     but still stay within the muted paper palette.
+  */
+  color:#54391e !important;
+  background:rgba(224,134,0,.24) !important;
+  border-color:rgba(160,94,15,.42) !important;
+  font-weight:500;
+}
+
+
+/* =========================================================
+   DATABASE SIZE BADGE
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .pd .feat.on.locked {
+  /*
+     The locked active badge is the database size:
+       58 MB
+       42 MB
+       20 MB
+       ...
+
+     Give it stronger contrast than the ordinary feature badges.
+  */
+  color:#472d16 !important;
+  background:rgba(224,134,0,.34) !important;
+  border-color:rgba(135,78,15,.58) !important;
+  font-weight:600;
+}
+
+
+/* =========================================================
+   DICTIONARIES PANEL BUTTONS
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .btn,
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .panel-card .fs button {
+  background:rgba(250,235,200,.36);
+  border-color:rgba(120,90,45,.25);
+}
+
+
+/* =========================================================
+   FULL-TEXT / AUXILIARY BOXES
+   ========================================================= */
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) .bulkbox {
+  background:rgba(255,245,220,.15);
+  border-color:rgba(120,90,45,.20);
+}
+
+/* =========================================================
+   STICKY DICTIONARY SECTION HEADER
+   ========================================================= */
+
+/*
+   The dictionary title remains sticky while its article scrolls underneath.
+
+   --bg-card is transparent in the paper theme, so without an explicit
+   background the article text is visible through the sticky header.
+
+   Give it the same paper treatment as the main search bar.
+*/
+
+html:is([data-shell-sepia], [data-shell-image]):not([data-theme="dark"]) details.dict > summary {
+  background-color:var(--paper-bg) !important;
+
+  background-image:
+    linear-gradient(
+      rgba(255,245,220,.25),
+      rgba(255,245,220,.25)
+    ),
+    var(--paper-bk-image, none) !important;
+
+  background-size:100% 100%, 100% 100% !important;
+  background-position:center !important;
+  background-repeat:no-repeat !important;
+  background-attachment:fixed !important;
+
+  backdrop-filter:blur(1px);
+  -webkit-backdrop-filter:blur(1px);
+
+  border-bottom-color:rgba(120,90,45,.22) !important;
+}

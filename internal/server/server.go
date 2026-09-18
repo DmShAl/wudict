@@ -44,6 +44,18 @@ import (
 //go:embed web/index.html
 var indexHTML []byte
 
+//go:embed web/presets/background/background_image_app.css
+var backgroundAppCSS string
+
+//go:embed web/presets/background/background_image_article.css
+var backgroundArticleCSS string
+
+//go:embed web/presets/background/sepia_app.css
+var sepiaAppCSS string
+
+//go:embed web/presets/background/sepia_article.css
+var sepiaArticleCSS string
+
 //go:embed web/setup.html
 var setupHTML string
 
@@ -359,6 +371,11 @@ func (s *Server) basePage() []byte {
 		}
 		page := strings.ReplaceAll(string(indexHTML), "{{VERSION}}", v)
 		page = strings.ReplaceAll(page, "{{FRAMEJS}}", assetTag(frameJS))
+		// JSON escapes CSS safely for the inline script, including </script>.
+		background, _ := json.Marshal(map[string]string{"app": backgroundAppCSS, "article": backgroundArticleCSS})
+		page = strings.ReplaceAll(page, "{{BACKGROUND_PRESET}}", string(background))
+		sepia, _ := json.Marshal(map[string]string{"app": sepiaAppCSS, "article": sepiaArticleCSS})
+		page = strings.ReplaceAll(page, "{{SEPIA_PRESET}}", string(sepia))
 		// The role stylesheet for articles wudict writes itself
 		// (internal/artmark). It is a floor under BOTH article surfaces, so
 		// it is substituted once here and index.html hands it to the shadow
