@@ -10,6 +10,10 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.ColorDrawable;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,8 +23,30 @@ final class WindowBackground {
     private static Bitmap cached;
     private static String cachedKey = "";
 
-    static File directory(Context c) {
-        return new File(AppDirs.home(c), ".wudict/style/assets");
+    static synchronized File directory(Context c) {
+        File dir = new File(AppDirs.home(c), ".wudict/style/assets");
+        // Publish complete files only, and never replace an imported user file.
+        for (String name : new String[]{"paper_01.jpg", "paper_02.jpg"}) {
+            File target = new File(dir, name);
+            if (target.exists()) continue;
+            File temporary = null;
+            try {
+                if (!dir.isDirectory() && !dir.mkdirs()) continue;
+                temporary = File.createTempFile(".paper-", ".tmp", dir);
+                try (InputStream input = c.getAssets().open("backgrounds/" + name)) {
+                    Files.copy(input, temporary.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+                // No REPLACE_EXISTING: another writer's file always wins.
+                Files.move(temporary.toPath(), target.toPath());
+            } catch (IOException | SecurityException ignored) {
+                // Storage may be unavailable; ordinary backgrounds still work.
+            } finally {
+                if (temporary != null) {
+                    try { temporary.delete(); } catch (SecurityException ignored) {}
+                }
+            }
+        }
+        return dir;
     }
 
     static List<String> images(Context c) {
@@ -39,9 +65,10 @@ final class WindowBackground {
     }
 
     private static synchronized Bitmap bitmap(Context c) {
+        File dir = directory(c);
         String name = ShellPrefs.of(c).getString("background_image", "");
         if (!name.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")) return null;
-        File file = new File(directory(c), name);
+        File file = new File(dir, name);
         if (!file.isFile()) { cached = null; cachedKey = ""; return null; }
         String key = file.getPath() + ":" + file.lastModified() + ":" + file.length();
         if (key.equals(cachedKey)) return cached;
