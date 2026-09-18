@@ -19,6 +19,8 @@ final class DictionaryPicker {
         try {
             JSONObject data = new JSONObject(payload);
             boolean found = data.optBoolean("found");
+            boolean examples = "stylerPreset".equals(data.optString("kind"));
+            boolean plain = found || examples;
             JSONArray rows = data.getJSONArray("rows");
             String[] labels = new String[rows.length()];
             int[] indices = new int[rows.length()];
@@ -34,7 +36,7 @@ final class DictionaryPicker {
             int color = ShellPrefs.pageBg(activity);
             int textColor = ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF;
             ArrayAdapter<String> adapter = new ArrayAdapter<String>(activity,
-                    found ? android.R.layout.simple_list_item_1
+                    plain ? android.R.layout.simple_list_item_1
                             : android.R.layout.simple_list_item_single_choice, labels) {
                 @Override public boolean areAllItemsEnabled() { return false; }
                 @Override public boolean isEnabled(int position) { return !disabled[position]; }
@@ -47,9 +49,15 @@ final class DictionaryPicker {
                         int pad = (int)(16 * activity.getResources().getDisplayMetrics().density);
                         text.setPadding(pad, pad, pad, pad / 2);
                         text.setTypeface(null, Typeface.BOLD);
+                        if (examples) text.setTextSize(18);
                         text.setText(labels[position]);
                     } else {
                         text = (TextView) super.getView(position, recycled, parent);
+                        if (examples) {
+                            int indent = (int)(32 * activity.getResources().getDisplayMetrics().density);
+                            text.setPaddingRelative(indent, text.getPaddingTop(),
+                                    text.getPaddingEnd(), text.getPaddingBottom());
+                        }
                     }
                     text.setTextColor(textColor);
                     text.setAlpha(disabled[position] && indices[position] >= 0 ? .5f : 1f);
@@ -75,7 +83,7 @@ final class DictionaryPicker {
                         d.dismiss();
                     };
             if (rows.length() == 0) builder.setMessage(R.string.found_dictionaries_empty);
-            else if (found) builder.setAdapter(adapter, select);
+            else if (plain) builder.setAdapter(adapter, select);
             else builder.setSingleChoiceItems(adapter, checked, select);
             AlertDialog dialog = builder.setNegativeButton(android.R.string.cancel, (d, which) -> {})
                     .create();
@@ -85,7 +93,7 @@ final class DictionaryPicker {
             dialog.setCanceledOnTouchOutside(true);
             dialog.show();
             dialog.getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(activity, color));
-            if ("mode".equals(data.optString("kind"))) {
+            if (examples || "mode".equals(data.optString("kind"))) {
                 android.util.DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
                 int width = Math.min((int)(260 * metrics.density), (int)(metrics.widthPixels * .9f));
                 dialog.getWindow().setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT);

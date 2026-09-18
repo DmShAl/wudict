@@ -111,7 +111,7 @@ final class Shell {
     // groups, disabled entries and its existing change handler.
     static final String DICTIONARY_PICKER_JS = """
             (() => {
-              for (const id of ['dict', 'mode']) {
+              for (const id of ['dict', 'mode', 'stylerPreset']) {
               const select = document.getElementById(id);
               if (!select || select.dataset.shellPicker) continue;
               select.dataset.shellPicker = '1';
@@ -125,6 +125,7 @@ final class Shell {
                 let group = null;
                 for (let index = 0; index < options.length; index++) {
                   const option = options[index];
+                  if (id === 'stylerPreset' && !option.value) continue;
                   const parent = option.parentElement;
                   if (parent.tagName === 'OPTGROUP' && parent !== group) {
                     rows.push({label: parent.label, index: -1, disabled: true});
@@ -143,18 +144,40 @@ final class Shell {
                   select.dispatchEvent(new Event('change', {bubbles:true}));
                 }
               }
+              let pointer = null, pointerClick = false, opening = false;
+              function scheduleOpen() {
+                if (opening) return;
+                opening = true;
+                // Let WebView finish the gesture before a native window takes focus.
+                setTimeout(() => { try { open(); } finally { opening = false; } }, 0);
+              }
               select.addEventListener('pointerdown', event => {
                 if (event.button !== 0) return;
-                event.preventDefault(); open();
+                event.preventDefault();
+                pointer = {id:event.pointerId, x:event.clientX, y:event.clientY};
+                pointerClick = true;
+              });
+              select.addEventListener('pointerup', event => {
+                const start = pointer; pointer = null;
+                if (!start || start.id !== event.pointerId) return;
+                event.preventDefault();
+                if (select.hasPointerCapture(event.pointerId)) select.releasePointerCapture(event.pointerId);
+                if (Math.hypot(event.clientX-start.x, event.clientY-start.y) < 12) scheduleOpen();
+              });
+              select.addEventListener('pointercancel', () => {
+                pointer = null;
               });
               // Accessibility activation can arrive as a click without a pointer.
               select.addEventListener('click', event => {
                 event.preventDefault();
-                if (event.detail === 0) open();
+                if (pointerClick) { pointerClick = false; return; }
+                if (event.detail === 0) scheduleOpen();
               });
               select.addEventListener('keydown', event => {
                 if (['Enter',' ','ArrowDown','ArrowUp'].includes(event.key)) {
-                  event.preventDefault(); open();
+                  event.preventDefault();
+                  pointerClick = false;
+                  if (!event.repeat) scheduleOpen();
                 }
               });
               }

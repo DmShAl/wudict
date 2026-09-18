@@ -471,7 +471,7 @@ body.styling{padding-bottom:var(--styler-h)}
   border-radius:8px;cursor:pointer}
 #styler .tab:hover{color:var(--fg);border-color:var(--fg-faint)}
 #styler .tab[aria-selected="true"]{color:var(--fg);border-color:var(--accent);
-  background:var(--accent-soft)}
+  background:var(--styler-active-bg,color-mix(in srgb,var(--accent) 18%,var(--bg)))}
 /* One glyph, two questions. Faint: this box holds something - readable while
    looking at the other tab, without which "do I have custom styles?" can only
    be answered by clicking both. Accent: and it is not saved yet, which is why
