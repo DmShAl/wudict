@@ -204,7 +204,7 @@
              in src/main, so foss and play get them identically - nothing here
              touches storage. -->
         <activity
-            android:name=".LookupActivity"
+            android:name="${lookupActivity}"
             android:configChanges="keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"
             android:excludeFromRecents="true"
             android:exported="true"
