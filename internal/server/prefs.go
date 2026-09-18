@@ -41,10 +41,11 @@ const prefsVersion = 1
 // folder changes every id at once. Recording the path - and, through it, the
 // file name - lets the state be re-attached instead of silently reset.
 type DictPref struct {
-	ID   string `json:"id"`
-	Path string `json:"path"`
-	Name string `json:"name,omitempty"` // display name, for a readable file
-	Off  bool   `json:"off,omitempty"`  // excluded from "All dictionaries"
+	Groups []string `json:"groups,omitempty"` // user group IDs; independent of Off
+	ID     string   `json:"id"`
+	Path   string   `json:"path"`
+	Name   string   `json:"name,omitempty"` // display name, for a readable file
+	Off    bool     `json:"off,omitempty"`  // excluded from "All dictionaries"
 }
 
 // UIPrefs is the part of the reading experience that belongs to the PERSON
@@ -125,15 +126,18 @@ func (u *UIPrefs) normalize() {
 }
 
 type prefsFile struct {
-	Version int        `json:"version"`
-	UI      *UIPrefs   `json:"ui,omitempty"`
-	Dicts   []DictPref `json:"dicts"` // array ORDER is the user's order
+	Groups  []DictionaryGroup `json:"groups,omitempty"`
+	Version int               `json:"version"`
+	UI      *UIPrefs          `json:"ui,omitempty"`
+	Dicts   []DictPref        `json:"dicts"` // array ORDER is the user's order
 }
 
 // Prefs is the state file, loaded once and written on change. A Prefs with an
 // empty path is in-memory only: it answers questions and forgets on exit,
 // which is what tests and a home-less environment need.
 type Prefs struct {
+	editMu sync.Mutex // serialize read/merge/write operations, including identity healing
+	groups []DictionaryGroup
 	path   string
 	mu     sync.RWMutex
 	exists bool // a file was there when we started: no state to adopt otherwise
@@ -165,6 +169,7 @@ func LoadPrefs(path string) *Prefs {
 	}
 	f.UI.normalize()
 	p.exists, p.dicts, p.ui = true, f.Dicts, f.UI
+	p.groups = f.Groups
 	return p
 }
 
@@ -213,15 +218,25 @@ func (p *Prefs) Replace(dicts []DictPref) error { return p.update(dicts, nil) }
 // it. One write, not two, so the two settings can never disagree on disk.
 func (p *Prefs) update(dicts []DictPref, ui *UIPrefs) error {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+	oldDicts, oldUI, oldExists := p.dicts, p.ui, p.exists
 	p.dicts, p.exists = append([]DictPref(nil), dicts...), true
 	if ui != nil {
 		u := *ui
 		u.normalize()
 		p.ui = &u
 	}
+	if err := p.saveLocked(); err != nil {
+		p.dicts, p.ui, p.exists = oldDicts, oldUI, oldExists
+		return err
+	}
+	return nil
+}
+
+// Keep the lock through rename: concurrent writes must reach disk in order.
+func (p *Prefs) saveLocked() error {
 	path := p.path
-	data, err := json.MarshalIndent(prefsFile{Version: prefsVersion, UI: p.ui, Dicts: p.dicts}, "", "  ")
-	p.mu.Unlock()
+	data, err := json.MarshalIndent(prefsFile{Version: prefsVersion, UI: p.ui, Dicts: p.dicts, Groups: p.groups}, "", "  ")
 	if err != nil || path == "" {
 		return err
 	}
@@ -234,6 +249,10 @@ func (p *Prefs) update(dicts []DictPref, ui *UIPrefs) error {
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -273,6 +292,8 @@ func samePath(a, b string) bool {
 // common case, and forgetting a user's curation because a disk was asleep
 // would be exactly the failure this whole file exists to prevent.
 func (p *Prefs) heal(r *Registry) []DictPref {
+	p.editMu.Lock()
+	defer p.editMu.Unlock()
 	stored, _ := p.Snapshot()
 	entries := r.all()
 
@@ -349,6 +370,14 @@ func (p *Prefs) merge(r *Registry, want []DictPref) []DictPref {
 		if d.Name == "" && d.Path != "" {
 			d.Name = filepath.Base(d.Path)
 		}
+		// The legacy preferences endpoint cannot change group membership.
+		d.Groups = nil
+		for _, old := range stored {
+			if old.ID == d.ID || samePath(old.Path, d.Path) {
+				d.Groups = append([]string(nil), old.Groups...)
+				break
+			}
+		}
 		seenID[d.ID] = true
 		if d.Path != "" {
 			seenPath[cleanAbs(d.Path)] = true
@@ -391,6 +420,8 @@ func (s *Server) handleSavePrefs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	s.reg.prefs.editMu.Lock()
+	defer s.reg.prefs.editMu.Unlock()
 	merged := s.reg.prefs.merge(s.reg, req.Dicts)
 	if err := s.reg.prefs.update(merged, req.UI); err != nil {
 		http.Error(w, "could not save: "+err.Error(), http.StatusInternalServerError)

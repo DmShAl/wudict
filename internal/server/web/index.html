@@ -1082,6 +1082,7 @@ body.styling{padding-bottom:var(--styler-h)}
 <button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">◐</button>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
+<button type="button" class="btn" id="editGroups">Edit dictionary groups</button>
 <!-- The reading strip (D143). Two controls, admitted by one rule: nothing here
      spends disk, CPU or navigation. They are what a reader reaches for WHILE
      READING, so they are visible without opening anything; everything that
@@ -1838,6 +1839,7 @@ let refreshTimer=null;
 function refreshDictUI(now){
   clearTimeout(refreshTimer);
   if(!now){refreshTimer=setTimeout(()=>refreshDictUI(true),120);return}
+  if($("groupEditor").open)renderGroupRows();
   dicts.sort((a,b)=>dictLabel(a).localeCompare(dictLabel(b),undefined,{sensitivity:"base"}));
   // The live value first, then the remembered one. They say the same thing
   // until a rebuild has just dropped the option that held it — a rescan
@@ -3679,11 +3681,13 @@ function editable(el){
    the user is working in and keeps its keys — the old "/" handler tested only
    `!== #q` and so stole the character out of the custom-CSS editor. */
 function typeTarget(){
+  if(document.querySelector("dialog[open]"))return null;
   if($("styler").classList.contains("show")||$("panel").classList.contains("show"))return null;
   if(document.activeElement===$("q")||editable(document.activeElement))return null;
   return $("q").disabled?null:$("q");
 }
 document.addEventListener("keydown",e=>{
+  if(document.querySelector("dialog[open]"))return;
   if(e.key==="Escape"){
     // Focus return (D102 is about labels, this is the same courtesy for the
     // caret): dismissing an overlay from the keyboard must not drop focus
@@ -5089,6 +5093,113 @@ $("styler").addEventListener("keydown",e=>{
 // cards need its home prefix to render paths as ~/… on the FIRST draw; run
 // concurrently it costs no extra latency, and it cannot reject.
 Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(applyURL);
+</script>
+<style>
+dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560px,94vw);height:fit-content;max-height:85vh;max-height:85dvh;padding:1em;border:1px solid var(--line);border-radius:12px;color:var(--fg);background-color:var(--bg);box-shadow:var(--shadow);overflow:auto}
+dialog.group-dialog:not([open]){display:none}
+dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
+.group-dialog::backdrop{background:rgba(0,0,0,.4)}
+.group-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.8em}
+.group-toolbar select{flex:1;min-width:0;max-width:100%;width:12em}
+.group-dialog select,.group-dialog input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:.6em}
+.group-dialog h2{display:flex;align-items:center;gap:1em;margin:0}
+.group-dialog h2 button{margin-left:auto}
+#groupRows{overflow:auto;min-height:0;overscroll-behavior:contain}
+.group-row{display:flex;align-items:center;gap:.7em;min-height:44px;padding:.5em 0;overflow-wrap:anywhere}
+.group-row input{flex:none;width:20px;height:20px;accent-color:var(--accent)}
+.group-row.group-other-first{border-top:1px solid var(--line);margin-top:.5em;padding-top:1em}
+.group-error{color:var(--danger);margin:0;overflow-wrap:anywhere}
+#groupHint{color:var(--fg-soft);margin:0}
+#newGroupForm{display:flex;flex-direction:column;gap:.8em}
+</style>
+<dialog id="groupEditor" class="group-dialog panel-card" aria-labelledby="groupTitle">
+  <h2 id="groupTitle">Dictionary groups <button type="button" class="btn" id="closeGroups" aria-label="Close dictionary groups">✕</button></h2>
+  <div class="group-toolbar"><select id="groupSelect" aria-label="Dictionary group"></select><label><input id="groupShowAll" type="checkbox"> Show All</label></div>
+  <p id="groupError" class="group-error" role="alert"></p>
+  <p id="groupHint" role="status"></p>
+  <div id="groupRows"></div>
+</dialog>
+<dialog id="newGroupDialog" class="group-dialog panel-card" aria-labelledby="newGroupTitle">
+  <h2 id="newGroupTitle">New Group</h2>
+  <form id="newGroupForm">
+    <label for="groupName">Group Name</label><input type="text" id="groupName" maxlength="100" autocomplete="off">
+    <p id="newGroupError" class="group-error" role="alert"></p>
+    <div class="group-toolbar"><button type="submit" class="btn" id="createGroup">Create</button><button type="button" class="btn" id="cancelGroup">Cancel</button></div>
+  </form>
+</dialog>
+<script>
+// Group membership never writes disabled, prefOrder or the search selector.
+let userGroups=[], selectedGroup="all", groupSaving=false;
+async function groupRequest(path,method,body){
+  const response=await fetch(path,{method,headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
+  if(!response.ok)throw new Error((await response.text()).trim());
+  return response.json();
+}
+function renderGroupOptions(){
+  const select=$("groupSelect");select.replaceChildren();
+  for(const group of userGroups)select.add(new Option(group.name,group.id));
+  select.add(new Option("New Group","new"));select.value=selectedGroup;
+}
+function renderGroupRows(){
+  const group=userGroups.find(g=>g.id===selectedGroup), rows=$("groupRows");rows.replaceChildren();
+  if(!group)return;
+  const ordered=orderedDicts(), members=new Set(group.readonly?ordered.map(d=>d.id):group.members);
+  const inside=ordered.filter(d=>members.has(d.id)), outside=$("groupShowAll").checked?ordered.filter(d=>!members.has(d.id)):[];
+  $("groupHint").textContent=group.readonly?"All dictionaries belong to this group automatically.":inside.length?"":!$("groupShowAll").checked?"This group is empty. Turn on Show All to add dictionaries.":outside.length?"Select dictionaries to add to this group.":"No dictionaries available. Add dictionaries to your collection first.";
+  for(const d of inside.concat(outside)){
+    const label=document.createElement("label");label.className="group-row";
+    if(inside.length&&d===outside[0])label.classList.add("group-other-first");
+    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.dataset.dict=d.id;checkbox.checked=members.has(d.id);checkbox.disabled=group.readonly||groupSaving;
+    const name=document.createElement("span");name.textContent=dictLabel(d);
+    label.append(checkbox,name);rows.append(label);
+    checkbox.addEventListener("change",async()=>{
+      const member=checkbox.checked;groupSaving=true;$("groupError").textContent="";
+      $("closeGroups").disabled=true;$("groupSelect").disabled=true;
+      rows.querySelectorAll("input").forEach(input=>input.disabled=true);
+      try{
+        await groupRequest("/api/groups/member","PUT",{group:group.id,dict:d.id,member});
+        group.members=group.members.filter(id=>id!==d.id);if(member)group.members.push(d.id);
+      }catch(error){$("groupError").textContent=error.message}
+      finally{
+        groupSaving=false;$("closeGroups").disabled=false;$("groupSelect").disabled=false;renderGroupRows();
+        ([...rows.querySelectorAll("input")].find(input=>input.dataset.dict===d.id)||$("groupSelect")).focus();
+      }
+    });
+  }
+}
+$("editGroups").addEventListener("click",async()=>{
+  const button=$("editGroups");button.disabled=true;
+  $("groupError").textContent="";$("groupHint").textContent="Loading…";$("groupRows").replaceChildren();
+  $("groupSelect").disabled=true;$("groupEditor").showModal();
+  try{
+    userGroups=await groupRequest("/api/groups","GET");
+    if(!userGroups.some(g=>g.id===selectedGroup))selectedGroup="all";
+    renderGroupOptions();renderGroupRows();$("groupSelect").disabled=false;
+  }catch(error){$("groupError").textContent=error.message;$("groupHint").textContent=""}
+  finally{button.disabled=false}
+});
+$("closeGroups").onclick=()=>$("groupEditor").close();
+$("groupEditor").addEventListener("close",()=>$("editGroups").focus());
+$("groupEditor").addEventListener("cancel",event=>{if(groupSaving)event.preventDefault()});
+$("groupShowAll").onchange=renderGroupRows;
+$("groupSelect").onchange=()=>{
+  if($("groupSelect").value==="new"){
+    $("groupSelect").value=selectedGroup;$("groupName").value="";$("newGroupError").textContent="";
+    $("newGroupDialog").showModal();$("groupName").focus();
+  }else{selectedGroup=$("groupSelect").value;$("groupError").textContent="";renderGroupRows()}
+};
+$("cancelGroup").onclick=()=>$("newGroupDialog").close();
+$("newGroupDialog").addEventListener("close",()=>$("groupSelect").focus());
+$("newGroupForm").onsubmit=async event=>{
+  event.preventDefault();if($("createGroup").disabled)return;
+  $("createGroup").disabled=true;$("cancelGroup").disabled=true;$("newGroupError").textContent="";
+  try{
+    const group=await groupRequest("/api/groups","POST",{name:$("groupName").value});
+    userGroups.push(group);selectedGroup=group.id;renderGroupOptions();renderGroupRows();$("newGroupDialog").close();
+  }catch(error){$("newGroupError").textContent=error.message}
+  finally{$("createGroup").disabled=false;$("cancelGroup").disabled=false}
+};
+$("newGroupDialog").addEventListener("cancel",event=>{if($("createGroup").disabled)event.preventDefault()});
 </script>
 </body>
 </html>

@@ -990,6 +990,61 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ConfigInfo' }
 
+  /api/groups:
+    get:
+      operationId: getDictionaryGroups
+      summary: List user groups and the automatic All Dictionaries group
+      description: Private collection API. Members are current dictionary IDs, including globally disabled dictionaries. Unavailable dictionaries retain their stored membership for later rescans.
+      responses:
+        '200':
+          description: Array of groups with id, name, members (dictionary IDs), and readonly.
+    post:
+      operationId: createDictionaryGroup
+      summary: Create an empty user dictionary group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Created group with empty members.
+        '400':
+          description: Empty, overlong or invalid name.
+        '409':
+          description: Duplicate or reserved name (case insensitive).
+        '500':
+          description: State could not be saved; no group created.
+
+  /api/groups/member:
+    put:
+      operationId: setDictionaryGroupMember
+      summary: Set one dictionary's membership without changing search settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group, dict, member]
+              properties:
+                group: { type: string }
+                dict: { type: string }
+                member: { type: boolean }
+      responses:
+        '200':
+          description: Membership saved.
+        '400':
+          description: Invalid request or attempt to edit All Dictionaries.
+        '404':
+          description: Group or dictionary no longer exists.
+        '500':
+          description: State could not be saved; membership unchanged.
+
   /api/prefs:
     get:
       tags: [internal]

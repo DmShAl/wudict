@@ -89,6 +89,9 @@ func (s *Server) routes() []route {
 		{"DELETE", "/api/library", s.handleRemoveLibrary, "/api/library", false},
 		{"GET", "/api/config", s.handleConfig, "/api/config", false},
 		{"GET", "/api/prefs", s.handlePrefs, "/api/prefs", false},
+		{"GET", "/api/groups", s.handleGroups, "/api/groups", false},
+		{"POST", "/api/groups", s.handleCreateGroup, "/api/groups", false},
+		{"PUT", "/api/groups/member", s.handleGroupMember, "/api/groups/member", false},
 		{"PUT", "/api/prefs", s.handleSavePrefs, "/api/prefs", false},
 		{"GET", "/api/reveal", s.handleReveal, "/api/reveal", false},
 		// the user's own global stylesheets (style.go). Never CORS: the GET
