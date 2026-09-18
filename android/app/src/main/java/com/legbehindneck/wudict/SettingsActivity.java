@@ -145,11 +145,6 @@ public class SettingsActivity extends Activity {
         col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
         col.addView(sepiaRow());
         col.addView(backgroundImageRow());
-        col.addView(choiceRow(R.string.settings_dictionary_picker,
-                R.array.settings_dictionary_picker_modes,
-                ShellPrefs.foundDictionaries(this) ? 1 : 0,
-                v -> ShellPrefs.set(this, ShellPrefs.FOUND_DICTIONARIES, v == 1)));
-        col.addView(caption(getString(R.string.settings_dictionary_picker_hint), 0, SP_3));
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());

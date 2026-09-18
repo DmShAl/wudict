@@ -265,8 +265,17 @@ final class Shell {
             @Override
             public boolean onJsPrompt(WebView view, String url, String message,
                                       String defaultValue, android.webkit.JsPromptResult result) {
-                if (!"wudict:dictionary-picker".equals(message)
-                        || url == null || !url.startsWith(origin(a) + "/")) return false;
+                if (url == null || !url.startsWith(origin(a) + "/")) return false;
+                if ("wudict:dictionary-mode".equals(message)) {
+                    if (!"all".equals(defaultValue) && !"found".equals(defaultValue)) {
+                        result.cancel();
+                        return true;
+                    }
+                    ShellPrefs.set(a, ShellPrefs.FOUND_DICTIONARIES, "found".equals(defaultValue));
+                    result.confirm(defaultValue);
+                    return true;
+                }
+                if (!"wudict:dictionary-picker".equals(message)) return false;
                 DictionaryPicker.show(a, defaultValue, result);
                 return true;
             }

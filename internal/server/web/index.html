@@ -757,7 +757,9 @@ body.styling{padding-bottom:var(--styler-h)}
    made of buttons, and one native control among them would read as a different
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
-.facts .seg{display:inline-flex;align-items:center;gap:.4em}
+.facts .seg{display:inline-flex;align-items:center;justify-content:flex-start;gap:.4em}
+#dictionaryPickerMode{flex-basis:100%}
+#dictionaryPickerMode.hidden{display:none}
 .facts .seg>span{font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
 .facts .seg .act{position:relative;border-radius:0}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
@@ -1092,6 +1094,11 @@ body.styling{padding-bottom:var(--styler-h)}
     <span>Sort dictionaries</span>
     <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
     <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
+  </span>
+  <span class="seg hidden" id="dictionaryPickerMode" role="group" aria-label="Dictionary picker mode">
+    <span>Dictionary picker</span>
+    <button type="button" class="act" id="pickerAll" aria-pressed="true" title="Choose which dictionaries to search">All</button>
+    <button type="button" class="act" id="pickerFound" aria-pressed="false" title="Show dictionaries with results and jump to their articles">Found</button>
   </span>
 </div>
 <details id="folders">
@@ -1974,6 +1981,9 @@ $("mode").onchange=()=>{syncChips();if($("q").value.trim())doSearch()};
 // Entering result navigation must release the search scope left by the picker.
 // Update all restore sources too, so a reload or streamed list cannot revive it.
 window.wudictSetDictionaryMode=function(found){
+  $("dictionaryPickerMode").classList.remove("hidden");
+  $("pickerAll").setAttribute("aria-pressed",String(!found));
+  $("pickerFound").setAttribute("aria-pressed",String(!!found));
   const entering=found&&!window.wudictFoundDictionaryMode;
   window.wudictFoundDictionaryMode=found;
   if(!entering)return;
@@ -1989,6 +1999,12 @@ window.wudictSetDictionaryMode=function(found){
   syncChips();
   if(scoped&&$("q").value.trim())doSearch();
 };
+for(const [id,mode] of [["pickerAll","all"],["pickerFound","found"]]){
+  $(id).addEventListener("click",()=>{
+    const saved=window.prompt("wudict:dictionary-mode",mode);
+    if(saved===mode)window.wudictSetDictionaryMode(mode==="found");
+  });
+}
 syncChips(); // the markup ships empty chips; JS stays the single authority
 
 /* provenance: the collapsed line says where the dictionary came from (its
