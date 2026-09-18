@@ -525,7 +525,8 @@ body.styling{padding-bottom:var(--styler-h)}
    min-height:0 is not optional: a flex child's default min-height:auto refuses
    to shrink below its content, and the card would grow instead of scrolling. */
 .panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;
-  padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px))}
+  padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px));
+  -webkit-overflow-scrolling:touch}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
 .panel-card h2 .headacts{margin-left:auto;display:flex;gap:var(--sp-1)}
