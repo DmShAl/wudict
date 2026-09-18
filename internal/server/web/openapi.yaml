@@ -1443,7 +1443,7 @@ paths:
                     type: integer
                     description: The page actually served, 1-based, after clamping.
                   pages: { type: integer, description: 0 when the dictionary is empty. }
-                  size: { type: integer, description: Headwords per page, fixed by the server. }
+                  size: { type: integer, description: 'Headwords per page, fixed by the server.' }
                   words:
                     type: array
                     description: The headwords on this page. Homographs appear once.
