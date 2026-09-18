@@ -86,6 +86,7 @@ html[data-shell-image], html[data-shell-image] body { background:transparent !im
   --fg:#2b2a28; --fg-soft:#6d6a64; --fg-faint:#a5a19a;
   --accent:#e08600; --accent-soft:#fff3e0;
   --link:#5b7a99; --link-hover:#3f5e7d;
+  --pin:#6ba3d6; --pin-hover:#4a86bd;
   /* Deleting is the only irreversible thing this app does, so it gets a colour
      of its own rather than borrowing the error red - and it is a token,
      because it has to survive the theme swap below like everything else. */
@@ -115,6 +116,7 @@ html[data-theme="dark"]{
   --fg:#d8d5d0; --fg-soft:#96938d; --fg-faint:#5f5c57;
   --accent:#e69a33; --accent-soft:#3a2d18;
   --link:#8fb0cc; --link-hover:#b3cde3;
+  --pin:#8fc0ea; --pin-hover:#b3d6f5;
   --danger:#e8776f; --danger-soft:#3a1d1a; --danger-line:#7a3b36;
   --safe:#79c08f; --safe-soft:#1b2f22; --safe-line:#3d6349;
   --line:#33363b; --line-soft:#2a2c30;
@@ -128,6 +130,7 @@ html[data-theme="dark"]{
     --fg:#d8d5d0; --fg-soft:#96938d; --fg-faint:#5f5c57;
     --accent:#e69a33; --accent-soft:#3a2d18;
     --link:#8fb0cc; --link-hover:#b3cde3;
+	--pin:#8fc0ea; --pin-hover:#b3d6f5;
     --danger:#e8776f; --danger-soft:#3a1d1a; --danger-line:#7a3b36;
     --safe:#79c08f; --safe-soft:#1b2f22; --safe-line:#3d6349;
     --line:#33363b; --line-soft:#2a2c30;
@@ -263,9 +266,11 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
 .btn{font-size:15px;background:var(--bg-card);color:var(--fg-soft);
   border:1px solid var(--line);border-radius:8px;padding:.3em .55em;cursor:pointer;line-height:1.2}
 .btn:hover{color:var(--fg);border-color:var(--fg-faint)}
-#pinBtn{color:var(--link);border:none;background:none;padding:.3em .4em;font-size:16px;line-height:1;cursor:pointer}
-#pinBtn:hover{color:var(--link-hover)}
-.btn:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#pinBtn{color:var(--pin);border:none;background:none;padding:.3em .4em;font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center}
+#pinBtn:hover{color:var(--pin-hover)}
+#pinBtn svg{display:block;transition:transform .2s ease;width:16px;height:18px}
+#pinBtn[aria-pressed="true"] svg{transform:rotate(-45deg)}
+#pinBtn[aria-pressed="true"]{color:var(--accent)}
 
 /* ── results ───────────────────────────────────────────────────────── */
 /* Costs nothing until it has something to say. The old rule reserved
@@ -1020,7 +1025,7 @@ body.styling{padding-bottom:var(--styler-h)}
      search (an empty query never runs one) and it is a control the user has
      a motor habit for. .qbox is a real element at both widths; .pill is
      display:contents above 600px and could not position this. -->
-<button type="button" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false" style="padding:.3em .4em;font-size:16px;line-height:1;margin-right:.3em;border:none;background:none;cursor:pointer;">📌</button>
+<button type="button" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false" style="margin-right:.3em;"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M4.2 2.2h7.6a1 1 0 0 1 1 1v.4a1 1 0 0 1-1 1h-1.4v3.9l1.8 2.3a.7.7 0 0 1-.55 1.15H8.7v3.35a.7.7 0 0 1-1.4 0V11.95H4.35a.7.7 0 0 1-.55-1.15l1.8-2.3V4.6H4.2a1 1 0 0 1-1-1v-.4a1 1 0 0 1 1-1z"/></svg></button>
 <span class="qbox" id="qbox">
 <span class="qled" aria-hidden="true">
 <svg class="mag" viewBox="0 0 16 16" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M7.1 2.4a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm3.6 8.3l3 3"/></svg>
@@ -1380,8 +1385,11 @@ applyWide(localStorage.getItem("wudict_wide")==="1");
 let barPinned=false;
 function applyBarPinned(on){
   document.body.classList.toggle("barpinned",on);
-  $("pinBtn").textContent=on?"📍":"📌";
-  $("pinBtn").setAttribute("aria-pressed",on?"true":"false");
+  const b=$("pinBtn");
+  b.setAttribute("aria-pressed",on?"true":"false");
+  const label=on?"Unpin search bar":"Pin search bar";
+  b.title=label;
+  b.setAttribute("aria-label",label);
 }
 $("pinBtn").onclick=()=>{
   barPinned=!barPinned;
