@@ -183,6 +183,11 @@ body.wide .col{max-width:min(1280px,96vw)}
    instead of leaving a hole. Same .28s as the bar, so the two read as one
    piece of chrome moving rather than two things reacting to each other. */
 body.barhidden{--stick:0px}
+/* When pinned, the bar never hides and --stick stays at --barh. This is not
+   a toggle between hiding and not hiding; it is a mode switch that disables
+   the auto-hide behaviour entirely while keeping the bar fixed in place. */
+body.barpinned .bar{transform:none!important}
+body.barpinned{--stick:var(--barh)}
 /* geometry comes from .col; this rule only arranges what is inside it */
 .bar form{display:flex;align-items:center;gap:var(--sp-1);flex-wrap:wrap;
   justify-content:center}
@@ -1045,9 +1050,10 @@ body.styling{padding-bottom:var(--styler-h)}
      as you type. The button's only remaining ground was a magnifier next
      to a magnifier. -->
 <button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
-<button type="button" class="btn" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
-<button type="button" class="btn" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
-<button type="button" class="btn" id="panelBtn" title="Dictionaries" aria-label="Manage dictionaries">☰</button>
+<button type="button" class="btn tools" id="pinBtn" title="Pin search bar" aria-label="Pin search bar" aria-pressed="false">📌</button>
+<button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
+<button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
+<button type="button" class="btn tools" id="panelBtn" title="Dictionaries" aria-label="Manage dictionaries">☰</button>
 </form>
 </header>
 
@@ -1367,6 +1373,21 @@ $("wideBtn").onclick=()=>{
   localStorage.setItem("wudict_wide",on?"1":"");applyWide(on);
 };
 applyWide(localStorage.getItem("wudict_wide")==="1");
+
+/* pin bar toggle: when pinned, the search bar stays fixed and never hides */
+let barPinned=false;
+function applyBarPinned(on){
+  document.body.classList.toggle("barpinned",on);
+  $("pinBtn").style.color=on?"var(--accent)":"";
+  $("pinBtn").setAttribute("aria-pressed",on?"true":"false");
+}
+$("pinBtn").onclick=()=>{
+  barPinned=!barPinned;
+  localStorage.setItem("wudict_bar_pinned",barPinned?"1":"");
+  applyBarPinned(barPinned);
+};
+barPinned=localStorage.getItem("wudict_bar_pinned")==="1";
+applyBarPinned(barPinned);
 
 /* ── article text size ───────────────────────────────────────────────
    One number, two rendering paths, and only one of them needs any work.
@@ -4150,11 +4171,11 @@ addEventListener("scroll",()=>{
      press landed on whatever had moved into that spot. prevScroll is still
      tracked through the freeze so the user's next real gesture is measured
      from where they LANDED, not from where the jump began (which would spend
-     that gesture on a spurious hide). */
-  if(barFrozen){prevScroll=cur;return}
+     that gesture on a spurious hide). When pinned, the bar never hides. */
+  if(barFrozen||barPinned){prevScroll=cur;return}
   const hide=cur>80&&cur>prevScroll;
   $("bar").classList.toggle("hidden",hide);
-  document.body.classList.toggle("barhidden",hide);
+  document.body.classList.toggle("barhidden",hide&&!barPinned);
   prevScroll=cur;
 });
 
