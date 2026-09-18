@@ -61,7 +61,7 @@ final class Storage {
      */
     static void ensureAccess(Activity a) {
         if (AppDirs.hasContent(dictDirs(a))) return;
-        new AlertDialog.Builder(a)
+        new BackgroundDialogBuilder(a)
                 .setTitle(R.string.import_title)
                 .setMessage(R.string.import_message)
                 .setPositiveButton(R.string.import_choose, (d, w) -> pickFolder(a))
@@ -214,7 +214,7 @@ final class Storage {
             // A device with no documents provider at all. Nothing to fall back
             // to - say so rather than fail silently.
             Log.w(TAG, "no document picker on this device", e);
-            new AlertDialog.Builder(a)
+            new BackgroundDialogBuilder(a)
                     .setMessage(R.string.import_no_picker)
                     .setPositiveButton(android.R.string.ok, null)
                     .show();

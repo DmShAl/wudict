@@ -49,7 +49,7 @@ final class Storage {
     static void ensureAccess(Activity a) {
         if (Build.VERSION.SDK_INT >= 30) {
             if (!Environment.isExternalStorageManager()) {
-                new AlertDialog.Builder(a)
+                new BackgroundDialogBuilder(a)
                         .setTitle(R.string.storage_title)
                         .setMessage(R.string.storage_message)
                         .setPositiveButton(R.string.storage_grant, (dialog, which) ->

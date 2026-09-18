@@ -145,6 +145,11 @@ public class SettingsActivity extends Activity {
         col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
         col.addView(sepiaRow());
         col.addView(backgroundImageRow());
+        col.addView(choiceRow(R.string.settings_dictionary_picker,
+                R.array.settings_dictionary_picker_modes,
+                ShellPrefs.foundDictionaries(this) ? 1 : 0,
+                v -> ShellPrefs.set(this, ShellPrefs.FOUND_DICTIONARIES, v == 1)));
+        col.addView(caption(getString(R.string.settings_dictionary_picker_hint), 0, SP_3));
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
@@ -270,7 +275,7 @@ public class SettingsActivity extends Activity {
     }
 
     private void applySepiaWindow() {
-        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, ShellPrefs.sepia(this)
+        getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, ShellPrefs.sepia(this)
                 ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg)));
         for (Runnable update : backgroundButtonUpdates) update.run();
     }
@@ -352,7 +357,7 @@ public class SettingsActivity extends Activity {
                     return text;
                 }
             };
-            AlertDialog picker = new AlertDialog.Builder(this)
+            AlertDialog picker = new BackgroundDialogBuilder(this)
                     .setCustomTitle(heading)
                     .setSingleChoiceItems(adapter, names.indexOf(selected) + 1, (dialog, which) -> {
                         ShellPrefs.of(this).edit().putString("background_image",
@@ -363,7 +368,7 @@ public class SettingsActivity extends Activity {
                     })
                     .setPositiveButton(android.R.string.ok, null)
                     .show();
-            picker.getWindow().setBackgroundDrawable(WindowBackground.drawable(this, background));
+            picker.getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, background));
             picker.getListView().setBackgroundColor(Color.TRANSPARENT);
             picker.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(foreground);
             if (names.isEmpty()) toast(getString(R.string.settings_background_empty));
@@ -404,7 +409,7 @@ public class SettingsActivity extends Activity {
         e.setText(String.format("#%06X", 0xFFFFFF & ShellPrefs.edgeColorValue(this)));
         int pad = dp(SP_5);
         e.setPadding(pad, dp(SP_3), pad, dp(SP_3));
-        new AlertDialog.Builder(this)
+        new BackgroundDialogBuilder(this)
                 .setTitle(R.string.settings_edge_custom)
                 .setView(e)
                 .setNegativeButton(R.string.settings_cancel, null)
@@ -454,7 +459,7 @@ public class SettingsActivity extends Activity {
         box.addView(title);
         box.addView(value);
 
-        box.setOnClickListener(v -> new AlertDialog.Builder(this)
+        box.setOnClickListener(v -> new BackgroundDialogBuilder(this)
                 .setTitle(label)
                 .setSingleChoiceItems(options, sel[0], (d, w) -> {
                     d.dismiss(); // a single choice IS the answer; no OK to press
@@ -561,7 +566,7 @@ public class SettingsActivity extends Activity {
         b.setText(R.string.settings_restore);
         // Confirmed, because one tap clears several tuned fields at once.
         // Clearing restores inheritance - it writes nothing anywhere.
-        b.setOnClickListener(v -> new AlertDialog.Builder(this)
+        b.setOnClickListener(v -> new BackgroundDialogBuilder(this)
                 .setMessage(R.string.settings_restore_confirm)
                 .setNegativeButton(R.string.settings_cancel, null)
                 .setPositiveButton(R.string.settings_restore, (d, w) -> {

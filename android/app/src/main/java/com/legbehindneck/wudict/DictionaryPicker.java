@@ -18,6 +18,7 @@ final class DictionaryPicker {
         if (activity.isFinishing() || activity.isDestroyed()) { result.cancel(); return; }
         try {
             JSONObject data = new JSONObject(payload);
+            boolean found = data.optBoolean("found");
             JSONArray rows = data.getJSONArray("rows");
             String[] labels = new String[rows.length()];
             int[] indices = new int[rows.length()];
@@ -33,7 +34,8 @@ final class DictionaryPicker {
             int color = ShellPrefs.pageBg(activity);
             int textColor = ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF;
             ArrayAdapter<String> adapter = new ArrayAdapter<String>(activity,
-                    android.R.layout.simple_list_item_single_choice, labels) {
+                    found ? android.R.layout.simple_list_item_1
+                            : android.R.layout.simple_list_item_single_choice, labels) {
                 @Override public boolean areAllItemsEnabled() { return false; }
                 @Override public boolean isEnabled(int position) { return !disabled[position]; }
                 @Override public int getViewTypeCount() { return 2; }
@@ -56,22 +58,41 @@ final class DictionaryPicker {
             };
             // Every dismissal must release the pending JavaScript prompt exactly once.
             boolean[] answered = {false};
-            AlertDialog dialog = new AlertDialog.Builder(activity)
-                    .setSingleChoiceItems(adapter, checked, (d, which) -> {
+            AlertDialog.Builder builder = new BackgroundDialogBuilder(activity);
+            if (found) {
+                TextView title = new TextView(activity);
+                title.setText(R.string.found_dictionaries_title);
+                title.setTextColor(textColor);
+                title.setTextSize(20);
+                int pad = (int)(20 * activity.getResources().getDisplayMetrics().density);
+                title.setPadding(pad, pad, pad, pad / 2);
+                builder.setCustomTitle(title);
+            }
+            android.content.DialogInterface.OnClickListener select = (d, which) -> {
                         if (disabled[which]) return;
                         answered[0] = true;
                         result.confirm(Integer.toString(indices[which]));
                         d.dismiss();
-                    })
-                    .setNegativeButton(android.R.string.cancel, (d, which) -> {})
+                    };
+            if (rows.length() == 0) builder.setMessage(R.string.found_dictionaries_empty);
+            else if (found) builder.setAdapter(adapter, select);
+            else builder.setSingleChoiceItems(adapter, checked, select);
+            AlertDialog dialog = builder.setNegativeButton(android.R.string.cancel, (d, which) -> {})
                     .create();
             dialog.setOnDismissListener(d -> {
                 if (!answered[0]) { answered[0] = true; result.cancel(); }
             });
             dialog.setCanceledOnTouchOutside(true);
             dialog.show();
-            dialog.getWindow().setBackgroundDrawable(WindowBackground.drawable(activity, color));
-            dialog.getListView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            dialog.getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(activity, color));
+            if ("mode".equals(data.optString("kind"))) {
+                android.util.DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
+                int width = Math.min((int)(260 * metrics.density), (int)(metrics.widthPixels * .9f));
+                dialog.getWindow().setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT);
+            }
+            if (dialog.getListView() != null) dialog.getListView().setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            TextView message = dialog.findViewById(android.R.id.message);
+            if (message != null) message.setTextColor(textColor);
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(textColor);
         } catch (JSONException | IllegalArgumentException bad) {
             result.cancel();

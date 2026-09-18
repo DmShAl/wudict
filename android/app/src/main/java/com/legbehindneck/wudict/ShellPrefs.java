@@ -70,6 +70,11 @@ final class ShellPrefs {
     private static final String FILE = "shell";
 
     static final String SEPIA = "sepia";
+    static final String FOUND_DICTIONARIES = "found_dictionaries";
+
+    static boolean foundDictionaries(Context c) {
+        return of(c).getBoolean(FOUND_DICTIONARIES, false);
+    }
     private static final String SEPIA_COLOR = "sepia_color";
     private static final int DEFAULT_SEPIA_COLOR = 0xFFE8D4A8;
 

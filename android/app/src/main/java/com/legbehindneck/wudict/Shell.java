@@ -101,18 +101,25 @@ final class Shell {
         // Only a validated six-digit colour is interpolated into JavaScript.
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
                 + color + "'," + image + ")", null);
-        web.evaluateJavascript(DICTIONARY_PICKER_JS, null);
+        web.evaluateJavascript("(window.wudictSetDictionaryMode || function(found){"
+                + "window.wudictFoundDictionaryMode=found;})("
+                + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);
     }
 
     // Keep the real select as the source of truth, including streamed options,
     // groups, disabled entries and its existing change handler.
     static final String DICTIONARY_PICKER_JS = """
             (() => {
-              const select = document.getElementById('dict');
-              if (!select || select.dataset.shellPicker) return;
+              for (const id of ['dict', 'mode']) {
+              const select = document.getElementById(id);
+              if (!select || select.dataset.shellPicker) continue;
               select.dataset.shellPicker = '1';
               function open() {
                 if (select.disabled) return;
+                if (id === 'dict' && window.wudictFoundDictionaryMode && window.wudictFoundDictionaryPicker) {
+                  window.wudictFoundDictionaryPicker();
+                  return;
+                }
                 const options = Array.from(select.options), rows = [];
                 let group = null;
                 for (let index = 0; index < options.length; index++) {
@@ -126,7 +133,7 @@ final class Shell {
                     disabled: option.disabled || (parent.tagName === 'OPTGROUP' && parent.disabled)});
                 }
                 const answer = window.prompt('wudict:dictionary-picker',
-                  JSON.stringify({rows, selected: select.selectedIndex}));
+                  JSON.stringify({rows, selected: select.selectedIndex, kind:id}));
                 if (answer === null) return;
                 const index = Number(answer);
                 if (!Number.isInteger(index) || !options[index]) return;
@@ -149,6 +156,7 @@ final class Shell {
                   event.preventDefault(); open();
                 }
               });
+              }
             })();
             """;
 

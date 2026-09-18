@@ -1702,6 +1702,30 @@ $("out").addEventListener("click",e=>{if(e.target.id==="retryBtn")loadDicts()});
    aim at --barh (via scroll-margin-top) rather than the momentarily-zero
    --stick. */
 const lessMotion=matchMedia("(prefers-reduced-motion: reduce)");
+// Navigation over the rendered answer, not a new search scope. Inspect at open
+// time so streaming results, deferred loads and rescans cannot leave a stale list.
+window.wudictFoundDictionaryPicker=function(){
+  const sections=[],rows=[],seen=new Set();
+  for(const det of $("out").querySelectorAll("details.dict")){
+    const article=det.querySelector(":scope > dl > dd[data-dict]");
+    if(!article||seen.has(article.dataset.dict))continue;
+    seen.add(article.dataset.dict);
+    const summary=det.querySelector(":scope > summary");
+    const label=Array.from(summary.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE)
+      .map(n=>n.textContent).join("").trim();
+    rows.push({label:label||article.dataset.dict,index:sections.length,disabled:false});
+    sections.push(det);
+  }
+  const answer=window.prompt("wudict:dictionary-picker",JSON.stringify({rows,selected:-1,found:true}));
+  if(answer===null)return;
+  const index=Number(answer),det=sections[index];
+  if(!Number.isInteger(index)||!det||!det.isConnected)return;
+  det.open=true;
+  openedIdx=-1;
+  clearTimeout(barrier);barrier=null;
+  if(markedAnswer)navAttach(det);
+  requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
+};
 $("out").addEventListener("click",e=>{
   const sum=e.target.closest("details.dict:not(.noindex)>summary");
   if(!sum)return; // the no-index group is not an answer: opening it decides nothing
@@ -1946,6 +1970,24 @@ $("dict").onchange=e=>{const v=e.target.value;localStorage.setItem("wudict_dict"
    submit button, so picking a mode would have appeared to do nothing at all.
    Made symmetric with #dict — re-run if there is something to re-run. */
 $("mode").onchange=()=>{syncChips();if($("q").value.trim())doSearch()};
+// Entering result navigation must release the search scope left by the picker.
+// Update all restore sources too, so a reload or streamed list cannot revive it.
+window.wudictSetDictionaryMode=function(found){
+  const entering=found&&!window.wudictFoundDictionaryMode;
+  window.wudictFoundDictionaryMode=found;
+  if(!entering)return;
+  const select=$("dict"),url=new URL(location.href);
+  const scoped=(select.value&&select.value!=="all")||
+    (url.searchParams.has("dict")&&url.searchParams.get("dict")!=="all")||!!scopeOnce;
+  select.value="all";
+  try{localStorage.setItem("wudict_dict","all")}catch(_){}
+  scopeOnce=null;
+  url.searchParams.delete("dict");
+  url.searchParams.delete("from");
+  history.replaceState(history.state,"",url.pathname+url.search+url.hash);
+  syncChips();
+  if(scoped&&$("q").value.trim())doSearch();
+};
 syncChips(); // the markup ships empty chips; JS stays the single authority
 
 /* provenance: the collapsed line says where the dictionary came from (its

@@ -372,7 +372,7 @@ final class Intake {
         running = true;
         cancelled = false;
 
-        AlertDialog dialog = new AlertDialog.Builder(a)
+        AlertDialog dialog = new BackgroundDialogBuilder(a)
                 .setTitle(R.string.intake_title)
                 .setMessage(a.getString(R.string.intake_reading, nameOf(a.getContentResolver(), uris.get(0))))
                 .setCancelable(false)
@@ -447,7 +447,7 @@ final class Intake {
         running = true;
         cancelled = false;
 
-        AlertDialog dialog = new AlertDialog.Builder(a)
+        AlertDialog dialog = new BackgroundDialogBuilder(a)
                 .setTitle(R.string.intake_title)
                 .setMessage(a.getString(R.string.intake_connecting))
                 .setCancelable(false)
@@ -781,7 +781,7 @@ final class Intake {
                 latch.countDown(); // answer stays null: treated as a cancel
                 return;
             }
-            AlertDialog d = new AlertDialog.Builder(a)
+            AlertDialog d = new BackgroundDialogBuilder(a)
                     .setTitle(a.getString(R.string.intake_add_from, archive))
                     .setMultiChoiceItems(labels, checked, (dlg, which, isChecked) -> {
                         if (isChecked && !ok[which]) {
@@ -1166,7 +1166,7 @@ final class Intake {
 
     private static void say(Activity a, String message) {
         if (message == null || a.isFinishing() || a.isDestroyed()) return;
-        new AlertDialog.Builder(a)
+        new BackgroundDialogBuilder(a)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();

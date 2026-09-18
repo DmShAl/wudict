@@ -132,7 +132,7 @@ final class SafImporter {
     }
 
     private static void run(Activity a, Plan plan) {
-        AlertDialog dialog = new AlertDialog.Builder(a)
+        AlertDialog dialog = new BackgroundDialogBuilder(a)
                 .setTitle(R.string.import_title)
                 .setMessage(a.getString(R.string.import_scanning))
                 .setCancelable(false)
@@ -323,7 +323,7 @@ final class SafImporter {
             String msg = freed > 0
                     ? a.getString(R.string.import_done_offer_delete, count, where, size(freed))
                     : a.getString(R.string.import_done_offer_delete_nosize, count, where);
-            new AlertDialog.Builder(a)
+            new BackgroundDialogBuilder(a)
                     .setTitle(R.string.import_title)
                     .setMessage(msg)
                     .setPositiveButton(R.string.import_keep_files, null)
@@ -494,7 +494,7 @@ final class SafImporter {
 
     private static void toastDialog(Context c, String message) {
         if (message == null) return;
-        new AlertDialog.Builder(c)
+        new BackgroundDialogBuilder(c)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();

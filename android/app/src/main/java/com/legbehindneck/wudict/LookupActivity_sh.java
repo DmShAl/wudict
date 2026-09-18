@@ -114,12 +114,12 @@ public class LookupActivity_sh extends Activity {
             return;
         }
 		final int pageBg = ShellPrefs.pageBg(this);
-		getWindow().setBackgroundDrawable(WindowBackground.drawable(this, pageBg));
+		getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, pageBg));
         sizeWindow();
         setFinishOnTouchOutside(true);
 
         root = new FrameLayout(this);
-        root.setBackground(WindowBackground.drawable(this, pageBg));
+        root.setBackground(WindowBackground.dialogDrawable(this, pageBg));
         status = new TextView(this);
 		status.setTextColor(ShellPrefs.darkIcons(pageBg) ? 0xDE000000 : 0xFFFFFFFF);
         status.setText(getString(R.string.lookup_starting, query));
@@ -170,8 +170,8 @@ public class LookupActivity_sh extends Activity {
         super.onWindowFocusChanged(focused);
         if (!focused || root == null || web == null) return;
         int color = ShellPrefs.pageBg(this);
-        getWindow().setBackgroundDrawable(WindowBackground.drawable(this, color));
-        root.setBackground(WindowBackground.drawable(this, color));
+        getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, color));
+        root.setBackground(WindowBackground.dialogDrawable(this, color));
         status.setTextColor(ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF);
         Shell.applyBackground(web);
     }

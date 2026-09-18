@@ -61,6 +61,14 @@
 	-->
 	<string name="settings_screen_head">Screen</string>
     <string name="settings_sepia">Sepia</string>
+    <string name="settings_dictionary_picker">Dictionary picker</string>
+    <string-array name="settings_dictionary_picker_modes">
+        <item>All Dictionaries</item>
+        <item>Found Dictionaries</item>
+    </string-array>
+    <string name="settings_dictionary_picker_hint">All Dictionaries changes where you search. Found Dictionaries jumps to a dictionary in the current results.</string>
+    <string name="found_dictionaries_title">Found Dictionaries</string>
+    <string name="found_dictionaries_empty">No dictionary articles are displayed yet.</string>
     <string name="settings_background_image">Background Image</string>
     <string name="settings_background_none">None</string>
     <string name="settings_background_empty">Add a PNG, JPEG or WebP image in the CSS editor’s Files panel, then return here.</string>
