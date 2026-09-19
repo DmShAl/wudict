@@ -410,9 +410,16 @@ func Library() ([]LibEntry, error) {
 		}
 		dir := filepath.Join(root, de.Name())
 		textDB := TextDBPath(dir)
-		meta, err := ReadMeta(textDB)
-		if err != nil {
-			continue
+		// The receipt first - it is what it is for ("the fast source index")
+		// and needs no SQLite. Folders whose receipt predates a field this
+		// listing needs fall back to the meta table; the next ingest
+		// regenerates their receipt and the fallback goes away.
+		meta, ok := receiptMeta(dir)
+		if !ok {
+			meta, err = ReadMeta(textDB)
+			if err != nil {
+				continue
+			}
 		}
 		e := LibEntry{
 			Dir:      dir,
@@ -469,10 +476,6 @@ func WriteInfo(dir string) error {
 	if err != nil {
 		return err
 	}
-	level := "headwords only (exact · prefix · contains)"
-	if meta["ingest_level"] != string(LevelHeadwords) {
-		level = "full text (exact · prefix · contains · full-text)"
-	}
 	media := "not packed - resources come from the original files"
 	if fi, err := os.Stat(MediaDBPath(dir)); err == nil {
 		media = fmt.Sprintf("%s (%s)", MediaDBName, humanSize(fi.Size()))
@@ -503,7 +506,18 @@ func WriteInfo(dir string) error {
 	fmt.Fprintf(&b, "name = %s\n", dict.DisplayText(meta["name"])) // the receipt is read by people, so it shows the decoded title
 	fmt.Fprintf(&b, "format = %s\n", meta["format"])
 	fmt.Fprintf(&b, "entries = %s\n", meta["entry_count"])
+	// Machine-read as well as human-read: the library listing takes this file
+	// as its fast source, so the level is spelled both ways here.
+	level := "headwords only (exact · prefix · contains)"
+	contains := "0"
+	if meta["ingest_level"] != string(LevelHeadwords) {
+		level = "full text (exact · prefix · contains · full-text)"
+	}
+	if meta["has_trigram"] == "1" {
+		contains = "1"
+	}
 	fmt.Fprintf(&b, "index = %s\n", level)
+	fmt.Fprintf(&b, "contains = %s\n", contains)
 	fmt.Fprintf(&b, "media = %s\n", media)
 	if l := meta["index_lang"]; l != "" {
 		// Only ever what the source declared, so this line is a fact about the
@@ -543,6 +557,39 @@ func readInfo(path string) (map[string]string, error) {
 		out[strings.TrimSpace(k)] = strings.TrimSpace(v)
 	}
 	return out, nil
+}
+
+// receiptMeta reads a folder's info.txt receipt into the meta-keyed shape
+// ReadMeta returns, so a library listing needs no SQLite. The receipt is
+// regenerated from that table after every ingest, so the one state where it
+// can trail the database is the microseconds between the ingest's rename and
+// its WriteInfo - nothing a listing could notice. ok is false when the
+// receipt is missing or predates a field the listing needs (receipts written
+// before `contains` existed), and the caller falls back to ReadMeta.
+func receiptMeta(dir string) (map[string]string, bool) {
+	info, err := readInfo(InfoPath(dir))
+	if err != nil {
+		return nil, false
+	}
+	level := string(LevelText)
+	if strings.HasPrefix(info["index"], "headwords") {
+		level = string(LevelHeadwords)
+	}
+	out := map[string]string{
+		"name":         info["name"],
+		"format":       info["format"],
+		"entry_count":  info["entries"],
+		"source_path":  info["source"],
+		"ingest_level": level,
+		"has_trigram":  info["contains"],
+		"created":      info["imported"],
+	}
+	for _, v := range out {
+		if v == "" {
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 func humanSize(n int64) string {

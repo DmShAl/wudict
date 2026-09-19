@@ -1648,7 +1648,7 @@ func (n *nulWatcher) Read(p []byte) (int, error) {
 // with a "reveal" button, and it is the unit D20 made transferable - so an
 // override travels with the dictionary it repairs.
 func (s *Server) serveOverride(w http.ResponseWriter, r *http.Request, e *entry, name string) bool {
-	textDB, ok := preparedTextDB(e.Path)
+	textDB, ok := e.preparedDB()
 	if !ok {
 		return false // no library folder yet: nothing can have been put in one
 	}

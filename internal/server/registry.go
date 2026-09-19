@@ -1451,11 +1451,33 @@ func preparedFor(path string) (string, bool) {
 	return store.PreparedFor(path)
 }
 
+// preparedDB names the prepared database for this entry: the resolution its
+// open was checked against when there is one, else backingDB's stat-and-
+// receipt answer. Deliberately NOT preparedTextDB, whose source-changed check
+// is a SQLite open per call - and /res/ lands here for every resource on a
+// page. Where the two disagree (the source was edited after indexing) the
+// answer is still the folder the user would have put an override into:
+// staleness is open-time business, not path business.
+func (e *entry) preparedDB() (string, bool) {
+	if store.IsTextDB(e.Path) {
+		return e.Path, true
+	}
+	e.dMu.RLock()
+	backing := e.backing
+	e.dMu.RUnlock()
+	if backing != "" {
+		return backing, true
+	}
+	if p := backingDB(e.Path); p != "" {
+		return p, true
+	}
+	return "", false
+}
+
 // backingDB names the prepared database that exists on disk for a dictionary
 // path right now, or "" when there is none. It is the identity a cached open is
 // checked against, so it answers from stat() and the folder's info.txt claim
-// only.
-//
+// only.//
 // Deliberately not preparedFor: that one also asks whether the SOURCE has
 // changed since it was indexed, which reads the meta table out of every
 // candidate text.db - a SQLite open per dictionary, on a path a rescan walks
