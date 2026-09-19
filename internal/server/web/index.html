@@ -317,6 +317,17 @@ window.wudictShellBackground = function (color, image, imageName) {
 "use strict";
 const $=id=>document.getElementById(id);
 window.wuSearchHistory.setSearch(word=>searchFor(word));
+window.wuSearchHistory.setSuggest((q,onHit,signal)=>{
+  const mode=$("mode").value,sel=$("dict").value||"all";
+  if(mode==="fts")return;
+  const ids=sel==="all"?activeUserGroupIds():sel.startsWith("g:")?groupIds(sel):null;
+  if(ids&&!ids.length)return;
+  const dict=ids?ids.join(","):sel,n=ids?(ids.length===1?25:5):25;
+  return fetchStream("/api/search?q="+encodeURIComponent(q)+"&mode="+mode+
+    "&hl=0&dict="+encodeURIComponent(dict)+"&n="+n,msg=>{
+      if(msg.t==="hit")onHit(msg.results,mode);
+    },signal);
+});
 const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
 /* For text going into a double-quoted attribute. esc alone is not enough
    there: a path may legally contain a quote, and one unescaped `"` ends the
@@ -2608,7 +2619,6 @@ async function doSearch(ev){
   // an id the <select> does not have leaves .value empty, and a saved id or a
   // ?dict= from an older library can do exactly that.
   const mode=$("mode").value,dictSel=scope||$("dict").value||"all",seq=++searchSeq;
-  window.wuSearchHistory.beginQuery(q);
   // abort the previous in-flight search so the server stops streaming
   // results nobody will render (superseded typing / mode change).
   if(searchAC)searchAC.abort();
@@ -2728,7 +2738,6 @@ async function doSearch(ev){
         const box=boxes[msg.i];if(!box)return;
         // These are the same headwords the current search found in the selected
         // dictionaries and mode. Full-text hits are articles matched by body.
-        window.wuSearchHistory.addResults(q,msg.results,mode);
         if(!anyShown)clearStatusForResults();
         const res=renderSlot(box,msg,mode,q,perDict,boxes.length>1);
         if(res.shown)swap(); // including the grouped line: it is this generation's first paint
@@ -2842,14 +2851,9 @@ document.addEventListener("click",e=>{
   }).catch(()=>{more.textContent="more…"});
 });
 
-/* live search: debounce while typing */
-let debounce=null;
+/* Typing updates suggestions; committing the field updates articles. */
 $("q").addEventListener("input",()=>{
   window.wuSearchHistory.onInput($("q").value);
-  clearTimeout(debounce);
-  const v=$("q").value.trim();
-  if(v.length<2)return;
-  debounce=setTimeout(doSearch,300);
 });
 
 /* keyboard: "/" focuses search, and any printable key starts one ─────────
@@ -2939,7 +2943,6 @@ document.addEventListener("keydown",e=>{
 function searchFor(term,opts){
   const t=String(term||"").trim();
   if(!t)return;
-  clearTimeout(debounce);
   window.wuSearchHistory.record(t);
   window.wuSearchHistory.hide();
   $("q").value=t;                       // verbatim: no trimming, ever
@@ -3490,13 +3493,32 @@ $("frm").addEventListener("submit",e=>{
      mid-word would make the field unusable. Pointer devices keep focus, since
      nothing is covering anything and refining the term is the next thing a
      mouse user does. */
-  clearTimeout(debounce);
   if(!matchMedia("(hover:hover)").matches)$("q").blur();
   window.wuSearchHistory.record($("q").value);
   window.wuSearchHistory.hide();
   commitOnce=true; // the one moment the query is finished: this search may scroll
   return doSearch(e);
 });
+$("q").addEventListener("blur",()=>setTimeout(()=>{
+  if(window.wuSearchHistory.isPicking())return;
+  const q=$("q").value.trim();
+  if(q===lastQuery)return;
+  window.wuSearchHistory.hide();
+  if(q){
+    window.wuSearchHistory.record(q);
+    commitOnce=true;
+    doSearch();
+  }else{
+    if(searchAC)searchAC.abort();
+    searchSeq++;
+    lastQuery="";
+    $("out").replaceChildren();
+    navDetach();
+    setBusy(false);
+    setStatus("");
+    history.replaceState(null,"",location.pathname);
+  }
+},0));
 
 /* ── the custom-styles editor ────────────────────────────────────────
    Two boxes over one textarea. The split is not bureaucracy: `body{}`,

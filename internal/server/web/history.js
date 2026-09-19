@@ -28,7 +28,14 @@
     }
   } catch (_) {}
   saved = saved.slice(0, limit());
-  let draft = false, open = false, heads = [], search = () => {};
+  let draft = false, open = false, heads = [], picking = false, search = () => {}, suggest = () => {};
+  let suggestTimer = null, suggestAC = null, suggestSeq = 0;
+  function stopSuggest() {
+    clearTimeout(suggestTimer);
+    if (suggestAC) suggestAC.abort();
+    suggestAC = null;
+    suggestSeq++;
+  }
 
   function persist() {
     try { localStorage.setItem("wudict_search_history", JSON.stringify(saved)); } catch (_) {}
@@ -41,7 +48,7 @@
     saved = [word, ...saved.filter(x => key(x) !== key(word))].slice(0, max);
     persist();
   }
-  function hide() { open = false; $("searchHistory").hidden = true; }
+  function hide() { stopSuggest(); open = false; $("searchHistory").hidden = true; }
   function size() {
     const box = $("searchHistory");
     if (!matchMedia("(max-width:600px)").matches) { box.style.right = ""; return; }
@@ -64,7 +71,7 @@
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = word;
-      button.addEventListener("click", () => { hide(); search(word); });
+      button.addEventListener("click", () => { picking = false; hide(); search(word); });
       box.appendChild(button);
       if (box.childElementCount >= maxRows) break;
     }
@@ -73,12 +80,23 @@
   function show(filter = "") { open = true; render(filter); }
   function onInput(value) {
     draft = true;
+    refreshSuggestions(value);
+  }
+  function refreshSuggestions(value = $("q").value) {
+    stopSuggest();
     heads = [];
     show(value);
-  }
-  function beginQuery(q) {
-    heads = [];
-    render(q);
+    const q = value.trim();
+    if (q.length < 2 || $("mode").value === "fts") return;
+    const seq = suggestSeq;
+    suggestTimer = setTimeout(() => {
+      suggestAC = new AbortController();
+      Promise.resolve(suggest(q, (results, mode) => {
+        if (seq === suggestSeq) addResults(q, results, mode);
+      }, suggestAC.signal)).catch(err => {
+        if (err?.name !== "AbortError") console.warn("Suggestions:", err);
+      });
+    }, 300);
   }
   function addResults(q, results, mode) {
     if (mode === "fts" || !open || $("q").value.trim() !== q || !results?.length) return;
@@ -111,7 +129,8 @@
   });
   $("q").addEventListener("focus", () => show());
   $("q").addEventListener("pointerdown", () => show());
-  $("searchHistory").addEventListener("pointerdown", () => { draft = false; });
+  $("searchHistory").addEventListener("pointerdown", () => { draft = false; picking = true; });
+  $("searchHistory").addEventListener("pointercancel", () => { picking = false; });
   document.addEventListener("pointerdown", e => {
     if (!$("qbox").contains(e.target)) hide();
   });
@@ -132,5 +151,5 @@
   sizer.observe(document.querySelector("#frm>.pill"));
   sizer.observe($("qbox"));
 
-  window.wuSearchHistory = { setSearch(fn) { search = fn; }, record, hide, onInput, beginQuery, addResults };
+  window.wuSearchHistory = { setSearch(fn) { search = fn; }, setSuggest(fn) { suggest = fn; }, record, hide, onInput, refreshSuggestions, isPicking() { return picking; } };
 })();
