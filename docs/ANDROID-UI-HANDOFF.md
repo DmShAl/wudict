@@ -1,11 +1,10 @@
 # Android UI continuation
 
-**Android fork identity update (2026-09-19):** The build variant information
-below describes the earlier original/`_sh` scheme and is superseded by
-[ANDROID-FORK.md](ANDROID-FORK.md). This handoff's existing UI decisions remain
-relevant. The current working-tree edits to this handoff predate the fork task.
+This document covers UI behavior. For the current wuDict2 Android identity,
+server startup, build commands, and coexistence checks, see
+[ANDROID-FORK.md](ANDROID-FORK.md).
 
-Snapshot: 2026-09-19, local checkout `D:\Projects\Android\wudict`, branch `dev`, HEAD `bab59c8`, clean working tree at the last check. Recheck branch/status before continuing; this snapshot can age. The user requested direct work in this checkout, not a Codex worktree. Older stashes exist; inspect before applying any of them.
+Work directly in `D:\Projects\Android\wudict`, as the user requested. Recheck branch/status before editing; old stashes exist and must be inspected before use.
 
 ## Existing documentation
 
@@ -13,25 +12,17 @@ General architecture/conventions: `CLAUDE.md`, `docs/SPEC.md`. Android usage: `p
 
 ## Build and checks
 
-Run from repository root in Windows cmd:
-
-```bat
-build-android.cmd release
-build-android.cmd release sh
-build-android.cmd debug
-build-android.cmd debug sh
-```
-
-`original` is the optional explicit second argument for the ordinary build. The script builds the embedded Go server and then the ARM64 FOSS APK. HTML/CSS embedded in Go require this full rebuild; Gradle alone may package an old `libwudict.so`.
+Use the current Windows commands in [ANDROID-FORK.md](ANDROID-FORK.md). The
+script rebuilds the embedded Go server, including HTML/CSS; Gradle alone may
+package an older `libwudict.so`.
 
 - Prerequisites checked by the script: Go, Git, Java; SDK defaults to `%LOCALAPPDATA%\Android\Sdk`, NDK pinned in script to `30.0.16248370`. `adb` is optional for building.
 - Optional ignored `build-android.local.bat` provides local environment/signing. Without a keystore, release is unsigned. Do not read or print that file or private signing settings.
-- Gradle property: `-PappVariant=original` or `-PappVariant=sh`; tasks remain `assembleFossRelease` / `assembleFossDebug`.
-- Ordinary outputs: `android/app/build/outputs/apk/foss/<type>/`; sh outputs: `android/app/build-sh/outputs/apk/foss/<type>/`. Names: `wudict-android-arm64-foss[_sh][-debug|-unsigned].apk`; signed release has neither debug nor unsigned suffix. The script prints the exact path.
+- Gradle's FOSS and Play tasks remain available. For application IDs, components, and artifact names, use [ANDROID-FORK.md](ANDROID-FORK.md).
 - Routine check: `git diff --check`; `go build ./...`. Existing project-wide checks are in Makefile (`make help`, `make check`, `make test`). Android Java check from `android/`: `.\gradlew.bat :app:compileFossDebugJavaWithJavac --offline` (passed for the current Java changes). This does **not** rebuild embedded Go/HTML or verify an APK on a device.
 - Search UI checks on Windows: `node --check internal/server/web/history.js`; extract the inline `<script>` from `web/index.html` to a temporary `.js` file and run `node --check` on it; `go test ./internal/server -run 'TestScriptsAreContentAddressed|TestAssetCacheHeaders|TestIndexTracksTheUserStylesheet' -count=1`. The inline script check is syntax only. These commands and `go build ./...` passed at HEAD `bab59c8`.
 - The memory-limit corpus sweep is excluded from Windows builds because `syscall.Rusage.Maxrss` is unavailable there. Targeted server tests now run with ordinary `go test ./internal/server -run 'Test.*Group' -count=1`. The full server suite still has unrelated Windows failures, including Android path alias expectations and temporary ZIP files held open during cleanup.
-- Inline JavaScript syntax was checked with Node `vm.Script` after replacing the server's `{{BACKGROUND_PRESET}}` and `{{SEPIA_PRESET}}` placeholders with `{}`. This does not verify Android touch behavior, native dialog rendering, or streaming search on a phone. No APK was built or installed by the agent.
+- Inline JavaScript syntax was checked with Node `vm.Script` after replacing the server's `{{BACKGROUND_PRESET}}` and `{{SEPIA_PRESET}}` placeholders with `{}`. This does not verify Android touch behavior, native dialog rendering, or streaming search on a phone. APKs have since been built, but this UI behavior has not been verified on a phone.
 
 ## Where to work
 
@@ -44,7 +35,7 @@ Java paths below are relative to `android/app/src/main/java/com/legbehindneck/wu
 | Native backgrounds and built-in images | `WindowBackground.java`: `directory`, `images`, `bitmap`, `drawable`, `dialogDrawable`, `withMargins` |
 | WebView settings and native select bridge | `Shell.java`: `applyBackground`, `DICTIONARY_PICKER_JS`, `windows().onJsPrompt` |
 | Themed picker/list rendering | `DictionaryPicker.java`; shared dialog surface: `BackgroundDialogBuilder.java` |
-| Main and floating lookup windows | `MainActivity.java`, `LookupActivity.java`; `LookupActivity_sh.java` is a thin subclass selected by build |
+| Main and floating lookup windows | `MainActivity.java`, `LookupActivity.java`; the fork's exported wrapper is `android/app/src/main/java/com/dmshepeta/wudict2/LookupActivity.java` |
 | Search, panels, style editor | `internal/server/web/index.html`: `wudictShellBackground`, `articleTokens`, `wudictSetDictionaryMode`, `wudictFoundDictionaryPicker`, `doSearch`, `clearStatusForResults`, `STYLER_PRESETS`, `stylerFillPresets`, `stylerApplyPreset`; page styles in `web/app.css` |
 | Configuration page | `internal/server/web/setup.html` has its own background hook; shared base styling is `setup.css` |
 | Article iframe bridge | `internal/server/web/frame.js`; shadow articles inherit CSS variables, iframe articles receive resolved tokens through `frameCSS`/`pushFrameCSS` in index.html |
@@ -78,7 +69,7 @@ Typing in `q` changes only the dropdown suggestions. Articles update when a sugg
 
 ## Decisions to preserve
 
-- Ordinary release package `com.legbehindneck.wudict`, label `wuDict`, lookup component `LookupActivity`. Parallel release package `.sh`, label `wuDict_SH`, component `LookupActivity_sh`. Debug packages end in `.debug` and `.debug_sh`. GoldenDict distinguishes the Activity class suffix, so changing only applicationId is insufficient. Each variant registers only its selected lookup component. Gradle manifest placeholders also select labels and Settings shortcut resources.
+- Android fork package, label, lookup component, and server port are documented in [ANDROID-FORK.md](ANDROID-FORK.md). The separate exported lookup class matters to external readers that distinguish components by class name.
 - Settings label is **Background color** (formerly Sepia). Default `#f4ecd8`, unchecked by default. Field displays six hex digits without `#`; accepts either form and either case. Existing saved colors remain unchanged. CSS-facing `sepiaColorText` still includes `#`. Field width is measured to leave room for its label.
 - Background Image uses the same files as the CSS Files panel: `AppDirs.home(context)/.wudict/style/assets`. None disables the image. Built-ins `paper_01.jpg` and `paper_02.jpg` live in `android/app/src/main/assets/backgrounds/` and are copied when absent; never overwrite same-name user files. Backgrounds stretch independently to window width and height, not aspect-ratio cover. Respect edge margins in the main window.
 - `dialogDrawable` adds a light wash and rounded border over current background. Native Examples uses this same surface; width is 260dp capped at 90% screen, group headings 18sp bold, items indented 32dp. Dictionary lists retain their own width.
@@ -96,8 +87,8 @@ Typing in `q` changes only the dropdown suggestions. Articles update when a sugg
 
 ## Unverified assumptions
 
-- **Latest search-trigger change:** `bab59c8` passed Go build, JavaScript syntax checks, and targeted server tests, but no APK was built or used on a phone. Check that typing changes only suggestions, that Search/Enter, a list choice, and blur each update articles once, and that blur after clearing removes old articles. In particular, verify touch ordering when tapping a suggestion while `q` has focus, and mode/dictionary changes while editing. The code assumes `pointerdown` on a suggestion suppresses the blur search until its click chooses the word.
+- **Latest search-trigger change:** `bab59c8` passed Go build, JavaScript syntax checks, and targeted server tests; an APK has since been built but this behavior has not been used on a phone. Check that typing changes only suggestions, that Search/Enter, a list choice, and blur each update articles once, and that blur after clearing removes old articles. In particular, verify touch ordering when tapping a suggestion while `q` has focus, and mode/dictionary changes while editing. The code assumes `pointerdown` on a suggestion suppresses the blur search until its click chooses the word.
 - **Suggestion semantics:** the independent request uses `/api/search` with the current mode and dictionary/group, `hl=0`, and the same per-dictionary result limits as article search. Confirm headwords and ordering against real dictionaries, especially contains mode and empty groups; no device check has been done. Full-text intentionally has no live headword suggestions.
-- **Android touch and layout:** the agent has not built, installed, or exercised an APK containing the latest changes on a phone. Verify drag by ≡ (including auto-scroll at list edges), stable scroll after moving membership between the two Show All sections, the fixed editor size, checkbox colors, native group dropdown background, and both main and floating picker windows. Source checks and Java compilation do not establish these behaviors.
+- **Android touch and layout:** an APK has been built but not installed or exercised on a phone for these checks. Verify drag by ≡ (including auto-scroll at list edges), stable scroll after moving membership between the two Show All sections, the fixed editor size, checkbox colors, native group dropdown background, and both main and floating picker windows. Source checks and Java compilation do not establish these behaviors.
 - **Streaming picker:** verify that changing groups while Found is open updates the native list during a search, preserves All/Found mode, and handles empty groups without stale results or a whole-library query. Its prompt bridge is designed to unblock JavaScript immediately, but that timing has not been checked on device.
 - **Cancel/reopen regression:** the shared `DICTIONARY_PICKER_JS` now handles `dict`, `mode`, `stylerPreset`, and `groupSelect`. Prior user reports described a picker reopening after Cancel and tapping elsewhere. Reproduce with a fresh APK before changing gesture logic; the root cause was not confirmed. The separate WebView inertia issue was confirmed fixed by the user and need not be reopened.
