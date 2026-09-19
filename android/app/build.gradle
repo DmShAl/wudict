@@ -9,13 +9,9 @@ plugins {
     id 'com.android.application'
 }
 
-// Optional parallel installation, selected by build-android.cmd's second argument.
-def appVariant = providers.gradleProperty('appVariant').getOrElse('original')
-if (!(appVariant in ['original', 'sh'])) {
-    throw new GradleException('appVariant must be original or sh')
+if (providers.gradleProperty('appVariant').isPresent()) {
+    throw new GradleException('appVariant is retired; build wuDict2 with the normal foss/play Gradle tasks')
 }
-def parallelApp = appVariant == 'sh'
-if (parallelApp) layout.buildDirectory.set(layout.projectDirectory.dir('build-sh'))
 
 // Same stamp the Makefile puts into the Go binary: git describe, or "dev".
 // build-android.yml overrides versionName with the release TAG; versionCode is
@@ -52,13 +48,14 @@ def gitCount = {
 }
 
 android {
+    // Keep the upstream Java namespace so its Android changes merge cleanly.
     namespace = 'com.legbehindneck.wudict'
     compileSdk = 36
 
     // The AAB name only; the APK name is set below in androidComponents.
     // Play ingests a bundle by content, not by file name, so wudict-play-
     // release.aab is fine and needs no abi or flavour token.
-    base { archivesName = 'wudict' }
+    base { archivesName = 'wudict2' }
 
     signingConfigs {
         release {
@@ -73,10 +70,7 @@ android {
     }
 
     defaultConfig {
-        applicationId 'com.legbehindneck.wudict'
-        manifestPlaceholders = [shortcutsResource: parallelApp ? '@xml/shortcuts_sh' : '@xml/shortcuts',
-                                appLabel: parallelApp ? '@string/app_name_sh' : '@string/app_name',
-                                lookupActivity: parallelApp ? 'com.legbehindneck.wudict.LookupActivity_sh' : 'com.legbehindneck.wudict.LookupActivity']
+        applicationId 'com.dmshepeta.wudict2'
         // arm64-v8a only (D52): every arm64 device ships API 26+, and the
         // vector adaptive icon needs no PNG fallbacks at 26+.
         minSdk 26
@@ -114,7 +108,6 @@ android {
 
     buildTypes {
         release {
-            if (parallelApp) applicationIdSuffix = '.sh'
             minifyEnabled = false  // nothing to shrink: two classes, no libraries
             shrinkResources = false
             if (System.getenv("KEYSTORE") != null) {
@@ -122,7 +115,7 @@ android {
             }
         }
         debug {
-            applicationIdSuffix = parallelApp ? '.debug_sh' : '.debug'
+            applicationIdSuffix = '.debug'
         }
     }
 
@@ -141,10 +134,10 @@ android {
 // build-android.yml - which is why the workflow no longer copies the file to a
 // second name of its own. Two names for one artifact is the whole bug class.
 //
-//   wudict-android-arm64-foss.apk            signed release (the published one)
-//   wudict-android-arm64-foss-unsigned.apk   release built without a keystore
-//   wudict-android-arm64-foss-debug.apk      debug
-//   wudict-android-arm64-play-*.apk          the same, Play flavour
+//   wudict2-android-arm64-foss.apk            signed release
+//   wudict2-android-arm64-foss-unsigned.apk   release built without a keystore
+//   wudict2-android-arm64-foss-debug.apk      debug
+//   wudict2-android-arm64-play-*.apk          the same, Play flavour
 //
 // The flavour token is not editorial: it is `variant.flavorName` verbatim, so a
 // third flavour names itself and nobody has to decide what to call it.
@@ -166,7 +159,7 @@ androidComponents {
                 ? (apkSigned ? '' : '-unsigned')
                 : "-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${parallelApp ? '_sh' : ''}${suffix}.apk")
+            output.outputFileName.set("wudict2-android-${apkAbi}-${variant.flavorName}${suffix}.apk")
         }
     }
 }

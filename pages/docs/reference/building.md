@@ -122,7 +122,7 @@ the device.
 | `foss` | All-files access; reads *Internal storage ▸ Dictionaries* | `make apk`, `make apk-foss-release` |
 | `play` | no storage permission; files are imported into the app's own folder | `make apk-play-debug`, `make apk-play-release` |
 
-The released `wudict-android-arm64.apk` is the `foss` flavour, which is what
+The `wudict2-android-arm64-foss.apk` build is the `foss` flavour, which is what
 [the Android app](../apps/android.md) describes. `make apk-verify` asserts that
 the `play` build still declares no storage permission.
 

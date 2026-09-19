@@ -189,11 +189,11 @@ ANDROID_LIB  := android/app/src/main/jniLibs/arm64-v8a/libwudict.so
 # is passed on the Gradle command line, so local and CI cannot drift.
 ANDROID_ABI  := arm64
 APK_OUT      := android/app/build/outputs/apk
-APK_FOSS           := $(APK_OUT)/foss/release/$(BINARY)-android-$(ANDROID_ABI)-foss.apk
-APK_FOSS_DEBUG     := $(APK_OUT)/foss/debug/$(BINARY)-android-$(ANDROID_ABI)-foss-debug.apk
-APK_PLAY           := $(APK_OUT)/play/release/$(BINARY)-android-$(ANDROID_ABI)-play.apk
-APK_PLAY_DEBUG     := $(APK_OUT)/play/debug/$(BINARY)-android-$(ANDROID_ABI)-play-debug.apk
-AAB_PLAY           := android/app/build/outputs/bundle/playRelease/$(BINARY)-play-release.aab
+APK_FOSS           := $(APK_OUT)/foss/release/wudict2-android-$(ANDROID_ABI)-foss$(if $(KEYSTORE),,-unsigned).apk
+APK_FOSS_DEBUG     := $(APK_OUT)/foss/debug/wudict2-android-$(ANDROID_ABI)-foss-debug.apk
+APK_PLAY           := $(APK_OUT)/play/release/wudict2-android-$(ANDROID_ABI)-play$(if $(KEYSTORE),,-unsigned).apk
+APK_PLAY_DEBUG     := $(APK_OUT)/play/debug/wudict2-android-$(ANDROID_ABI)-play-debug.apk
+AAB_PLAY           := android/app/build/outputs/bundle/playRelease/wudict2-play-release.aab
 
 # Lets CI read a path out of here instead of restating it: make -s print-APK_FOSS
 # (a pattern rule, so no .PHONY - GNU make does not match patterns there.)
@@ -292,7 +292,7 @@ apk-play-release-install: apk-play-release ## build Play release and install via
 	adb install "$(APK_PLAY)"
 
 .PHONY: aab-play
-aab-play: android-go ## Build the Play release bundle (unsigned: Play App Signing owns the key)
+aab-play: android-go ## Build the Play release bundle (signing uses the configured upload key when present)
 	cd android && ./gradlew bundlePlayRelease
 	@echo "$(AAB_PLAY)"
 

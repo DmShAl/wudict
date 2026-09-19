@@ -2,7 +2,7 @@
 setlocal EnableExtensions DisableDelayedExpansion
 
 rem ============================================================
-rem wuDict Android ARM64 FOSS build: [debug|release] [original|sh]
+rem wuDict2 Android ARM64 FOSS build: [debug|release]
 rem ============================================================
 
 cd /d "%~dp0"
@@ -32,32 +32,19 @@ if /i "%BUILD_TYPE%"=="debug" (
         echo No KEYSTORE configured: building an unsigned release APK.
     )
 ) else (
-    echo Usage: build-android.cmd [debug^|release] [original^|sh]
+    echo Usage: build-android.cmd [debug^|release]
     exit /b 1
 )
 
-set "APP_VARIANT=%~2"
-if not defined APP_VARIANT set "APP_VARIANT=original"
-set "APP_APK_SUFFIX="
-set "APP_BUILD_DIR=build"
-if /i "%APP_VARIANT%"=="original" (
-    set "APP_VARIANT=original"
-) else if /i "%APP_VARIANT%"=="sh" (
-    set "APP_VARIANT=sh"
-    set "APP_APK_SUFFIX=_sh"
-    set "APP_BUILD_DIR=build-sh"
-) else (
-    echo Usage: build-android.cmd [debug^|release] [original^|sh]
-    exit /b 1
-)
-if not "%~3"=="" (
-    echo Usage: build-android.cmd [debug^|release] [original^|sh]
+if not "%~2"=="" (
+    echo ERROR: original/sh variants are retired. Use build-android.cmd %BUILD_TYPE% for wuDict2.
+    echo Usage: build-android.cmd [debug^|release]
     exit /b 1
 )
 
 echo.
 echo ============================================================
-echo wuDict Android ARM64 build
+echo wuDict2 Android ARM64 build
 echo ============================================================
 echo.
 
@@ -255,13 +242,13 @@ rem Build Android APK
 rem ------------------------------------------------------------
 
 echo ============================================================
-echo Building FOSS %BUILD_TYPE% APK ^(%APP_VARIANT%^)
+echo Building wuDict2 FOSS %BUILD_TYPE% APK
 echo ============================================================
 echo.
 
 pushd android
 
-call gradlew.bat %GRADLE_TASK% -PappVariant=%APP_VARIANT%
+call gradlew.bat %GRADLE_TASK%
 
 if errorlevel 1 (
     popd
@@ -278,7 +265,7 @@ rem ------------------------------------------------------------
 rem Expected APK
 rem ------------------------------------------------------------
 
-set "APK=android\app\%APP_BUILD_DIR%\outputs\apk\foss\%BUILD_TYPE%\wudict-android-arm64-foss%APP_APK_SUFFIX%%APK_SUFFIX%.apk"
+set "APK=android\app\build\outputs\apk\foss\%BUILD_TYPE%\wudict2-android-arm64-foss%APK_SUFFIX%.apk"
 
 if not exist "%APK%" (
     echo ERROR: Gradle finished but APK was not found:

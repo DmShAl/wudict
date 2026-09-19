@@ -14,7 +14,7 @@
      copy, so no two screens use one word for two different files. -->
 <resources>
      <string name="import_title">Import dictionaries</string>
-     <string name="import_message">Choose the folder holding your dictionaries. wuDict copies it
+     <string name="import_message">Choose the folder holding your dictionaries. wuDict2 copies it
           into its own storage, keeping the folder layout — an .mdx needs its .mdd beside it, a
           StarDict its .idx and .dict, a DSL its res folder. Afterwards it offers to delete the
           files it imported from, so your collection is not stored twice.</string>
@@ -29,10 +29,10 @@
      <string name="import_done">Imported %1$d files.</string>
      <!-- %2$s is the picked folder, in quotes, or import_source_fallback when
          the provider would not name it; %3$s is what deleting would free. -->
-     <string name="import_done_offer_delete">Imported %1$d files.\n\nwuDict now keeps its own copy,
+     <string name="import_done_offer_delete">Imported %1$d files.\n\nwuDict2 now keeps its own copy,
           so the files in %2$s on your device are no longer needed — deleting them frees %3$s. Your
           dictionaries work either way.</string>
-     <string name="import_done_offer_delete_nosize">Imported %1$d files.\n\nwuDict now keeps its own
+     <string name="import_done_offer_delete_nosize">Imported %1$d files.\n\nwuDict2 now keeps its own
           copy, so the files in %2$s on your device are no longer needed. Your dictionaries work
           either way.</string>
      <string name="import_source_fallback">the folder you picked</string>
