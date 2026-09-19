@@ -17,15 +17,19 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Environment;
 import android.os.Message;
+import android.provider.DocumentsContract;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.JsPromptResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 
@@ -102,7 +106,11 @@ final class Shell {
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
                 + color + "'," + image + "," + org.json.JSONObject.quote(image
                 ? ShellPrefs.of(c).getString("background_image", "") : "") + ")", null);
-        web.evaluateJavascript("(window.wudictSetDictionaryMode || function(found){"
+        // wudictNativeShell is how a page knows the shell answers its
+        // wudict: prompts - the setup page's folder button speaks only when
+        // it will be heard.
+        web.evaluateJavascript("window.wudictNativeShell=1;"
+                + "(window.wudictSetDictionaryMode || function(found){"
                 + "window.wudictFoundDictionaryMode=found;})("
                 + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);
     }
@@ -266,6 +274,33 @@ final class Shell {
     private static ValueCallback<Uri[]> pendingFiles;
 
     /**
+     * The setup page's folder button (wudict:folder-picker): the system's own
+     * folder dialog, answering with a REAL PATH the exec'd server can read -
+     * the one thing the web's showDirectoryPicker cannot name, and it does
+     * not exist in a WebView at all. Distinct from Storage.REQ_TREE,
+     * REQ_FILES and Intake.REQ_PICK: every result reaches all four handlers.
+     */
+    private static final int REQ_DIR = 0x5AF3;
+
+    // The prompt the page is blocked on, the same single-slot bargain as
+    // pendingFiles: one folder picker open at a time.
+    private static JsPromptResult pendingDir;
+
+    /**
+     * Answers the folder prompt, exactly once: the picked path, or a cancel
+     * when the user backed out or named something this shell cannot turn into
+     * a path. What is NOT legal is silence - an unanswered prompt leaves the
+     * page's JavaScript blocked forever.
+     */
+    private static void settleDir(String path) {
+        JsPromptResult cb = pendingDir;
+        pendingDir = null;
+        if (cb == null) return;
+        if (path != null) cb.confirm(path);
+        else cb.cancel();
+    }
+
+    /**
      * Answers the page's file input, exactly once, with whatever we have.
      *
      * <p>Null is a legitimate answer and means "cancelled". What is NOT legal is
@@ -279,12 +314,56 @@ final class Shell {
     }
 
     /**
-     * The picker's answer, forwarded by whichever activity hosts the WebView.
+     * The pickers' answers, forwarded by whichever activity hosts the WebView.
      * parseResult handles single, multiple (clipData) and cancel alike.
      */
     static void onActivityResult(Activity a, int requestCode, int resultCode, Intent data) {
-        if (requestCode != REQ_FILES) return;
-        settleFiles(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+        if (requestCode == REQ_FILES) {
+            settleFiles(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            return;
+        }
+        if (requestCode != REQ_DIR) return;
+        Uri tree = resultCode == Activity.RESULT_OK && data != null ? data.getData() : null;
+        settleDir(tree == null ? null : treePath(a, tree));
+    }
+
+    /**
+     * The folder a tree pick names, as a path on the filesystem, or null when
+     * there is no such thing - the ordinary answer for a provider that is not
+     * a plain volume (a cloud document, say). Only the externalstorage
+     * provider is translated, by the same rule Intake.realPath applies to
+     * files: the primary volume is Environment's directory, and any other
+     * volume id IS its mount name under /storage. Tested as a DIRECTORY and
+     * for readability, because a path the exec'd server cannot open would
+     * only move the failure somewhere the user cannot see it answered.
+     */
+    private static String treePath(Context c, Uri tree) {
+        if (!"content".equalsIgnoreCase(tree.getScheme())
+                || !"com.android.externalstorage.documents".equals(tree.getAuthority())) {
+            return null;
+        }
+        try {
+            String id = DocumentsContract.getTreeDocumentId(tree); // "primary:Download"
+            int cut = id.indexOf(':');
+            if (cut <= 0) return null;
+            String volume = id.substring(0, cut), rel = id.substring(cut + 1);
+            if ("primary".equalsIgnoreCase(volume)) {
+                String p = readableDir(new File(
+                        Environment.getExternalStorageDirectory(), rel).getPath());
+                if (p != null) return p;
+            }
+            // A microSD card, whose volume id IS its mount name.
+            return readableDir("/storage/" + volume + "/" + rel);
+        } catch (Exception e) {
+            Log.w(TAG, "cannot resolve " + tree, e);
+            return null;
+        }
+    }
+
+    private static String readableDir(String p) {
+        if (p == null) return null;
+        File f = new File(p);
+        return f.isDirectory() && f.canRead() ? f.getAbsolutePath() : null;
     }
 
     /** Answers window.open(): reads the URL the new window wants, then sends it out. */
@@ -301,6 +380,26 @@ final class Shell {
                     }
                     ShellPrefs.set(a, ShellPrefs.FOUND_DICTIONARIES, "found".equals(defaultValue));
                     result.confirm(defaultValue);
+                    return true;
+                }
+                // The setup page's 📁. The page asks through the prompt it is
+                // then blocked on; startActivityForResult answers it from
+                // onActivityResult, so returning true here is "the answer
+                // comes later", the same bargain DictionaryPicker makes.
+                if ("wudict:folder-picker".equals(message)) {
+                    // A second request supersedes the first; the abandoned
+                    // prompt still gets its answer.
+                    settleDir(null);
+                    pendingDir = result;
+                    Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    try {
+                        a.startActivityForResult(i, REQ_DIR);
+                    } catch (ActivityNotFoundException | SecurityException e) {
+                        Log.w(TAG, "no folder picker on this device", e);
+                        pendingDir = null;
+                        result.cancel();
+                    }
                     return true;
                 }
                 if (!"wudict:dictionary-picker".equals(message)) return false;

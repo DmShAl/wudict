@@ -79,24 +79,29 @@ html[data-shell-tone="dark"] {
 .frow .rm:hover{color:var(--err)}
 .frow .st{flex:none;font-size:12px;min-width:8.5em;text-align:right;color:var(--soft)}
 .frow .st.ok{color:var(--ok)}.frow .st.err{color:var(--err)}
-/* Narrow viewports: two lines per folder, never three. A path is long and
-   "✓ 1,284 found" is 8.5em wide, so one shared line leaves the field too
-   narrow to read a folder name in - but wrapping only the status strands the
-   ✕ on a line of its own, adjacent to neither the field above it nor the
-   count below, and which field it deletes becomes a guess. So the field takes
-   line one and its OWN meta line follows: count on the left, ✕ pinned right
-   where a thumb already is. The input's basis is stated here rather than
-   inherited from setup.css's `input{width:100%}`, because a wrap that depends
-   on a width declared in another stylesheet is how the stranded ✕ happened. */
+/* The narrow layout's forced line break; a plain zero box on wide screens. */
+.frow .brk{display:none}
+/* Narrow viewports: two lines per folder, never three. The 📁 belongs with
+   the field it fills - line one is the input and the folder button - and the
+   meta line follows: count on the left, ✕ pinned right, a whole line away
+   from the field so a thumb aiming at the text cannot delete a folder, and
+   so the two buttons never share a line to be mistaken for each other.
+   Line breaking weighs flex BASE sizes, so the input's basis is 0 and never
+   its content (and never the width:100% setup.css gives inputs): a long path
+   as the base would push 📁 onto a line of its own. The wrap itself is the
+   forced break, not a calculation over who happens to fit - the status span
+   must not decide where the line ends; that dependence is how the stranded ✕
+   happened. */
 @media (max-width:520px){
   .frow{flex-wrap:wrap;row-gap:.15em;margin-bottom:.7em}
-  .frow input{flex:1 1 100%}
-  .frow .pick{order:0;margin-right:.1em}
-  .frow .st{order:1;flex:1 1 0;min-width:0;text-align:left}
+  .frow .brk{display:block;flex:0 0 100%;height:0}
+  .frow input{flex:1 1 0}
+  .frow .pick{margin-right:.1em;font-size:18px;padding:.15em .35em}
+  .frow .st{flex:1 1 auto;min-width:0;text-align:left}
   /* 18px plus padding is a ~32px touch target: the minimum for a control that
      removes a dictionary root. margin-left:auto holds the right edge even
      before validation has written a status. */
-  .frow .rm{order:2;margin-left:auto;font-size:18px;padding:.15em .35em}
+  .frow .rm{margin-left:auto;font-size:18px;padding:.15em .35em}
 }
 #save~.btn{margin-left:.5em}
 label.keep{display:flex;gap:.5em;align-items:flex-start;font-size:13.5px;color:var(--soft);margin-top:.618em}
@@ -276,22 +281,39 @@ function addRow(value){
   const row=document.createElement("div");row.className="frow";
   row.innerHTML=`<input placeholder="/path/to/your/dictionaries" spellcheck="false">
     <button type="button" class="pick" title="Choose a folder">📁</button>
-    <span class="st"></span><button type="button" class="rm" title="Remove this folder">✕</button>`;
+    <span class="brk"></span><span class="st"></span><button type="button" class="rm" title="Remove this folder">✕</button>`;
   const input=row.querySelector("input");
   if(value)input.value=value;
-  // Directory picker: modern browsers only; silently absent where unsupported.
+  // Two ways to fill the field without typing. The Android shell answers a
+  // wudict: prompt with the picked folder's real path, out of the system's
+  // own folder dialog; desktop Chromium offers the File System Access API
+  // instead, which can name only the folder itself. Which of the two is
+  // available is decided on CLICK, not when the row is built: the shell's
+  // flag arrives with its page-finished injection, which can still be in
+  // flight when /api/config answers and the first row appears. A browser
+  // with neither channel hides the button on the first click - the field
+  // itself still works.
   const pick=row.querySelector(".pick");
-  if(typeof showDirectoryPicker==="function"){
-    pick.addEventListener("click",async ()=>{
-      try{ const h=await showDirectoryPicker();
-        // getFullPath() is the spec-correct way; fall back to name for older browsers.
-        var path="";
-        if(typeof h.getPath==="function"){try{path=await h.getPath();}catch(_){path=h.name||"";}}else if(typeof h.fullPath==="string"){path=h.fullPath;}else{path=h.name||"";}
-        input.value=path;
-        clearTimeout(timer);timer=setTimeout(validateAll,350);
-      }catch(_){}
-    });
-  }else pick.style.display="none";
+  const chosen=p=>{
+    if(!p)return;
+    input.value=p;
+    clearTimeout(timer);timer=setTimeout(validateAll,350);
+  };
+  pick.addEventListener("click",async ()=>{
+    if(window.wudictNativeShell){
+      let p=null;
+      try{p=window.prompt("wudict:folder-picker","")}catch(e){}
+      chosen(typeof p==="string"?p.trim():"");
+      return;
+    }
+    if(typeof showDirectoryPicker!=="function"){pick.style.display="none";return}
+    try{ const h=await showDirectoryPicker();
+      // getFullPath() is the spec-correct way; fall back to name for older browsers.
+      var path="";
+      if(typeof h.getPath==="function"){try{path=await h.getPath();}catch(_){path=h.name||"";}}else if(typeof h.fullPath==="string"){path=h.fullPath;}else{path=h.name||"";}
+      chosen(path);
+    }catch(_){}
+  });
   input.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(validateAll,350)});
   input.addEventListener("keydown",e=>{if(e.key==="Enter"&&lastOK)save()});
   row.querySelector(".rm").addEventListener("click",()=>{
