@@ -246,6 +246,10 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 		pub: Job{ID: jobID(), State: StateDownloading, Host: u.Hostname()},
 	}
 	m.cur = j
+	// Snapshot under the lock: the worker below starts writing pub fields
+	// (Source arrives with the first progress report) as soon as it runs, and
+	// the copy would otherwise race it.
+	pub := j.pub.copy()
 	m.mu.Unlock()
 
 	m.wg.Add(1)
@@ -254,7 +258,7 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 		defer cancel()
 		m.download(ctx, j, f, raw)
 	}()
-	return j.pub.copy(), nil
+	return pub, nil
 }
 
 // download is the fetching side, on its own goroutine: acquire, then sniff,
@@ -397,6 +401,9 @@ func (m *Manager) Confirm(dest string, pick []int, opts Options) (Job, error) {
 		defer cancel()
 		m.run(ctx, j, chosen, opts, extras)
 	}()
+	// Still under m.mu (it unlocks via defer, after the return is evaluated),
+	// and the worker writes pub only through m.mu - so this snapshot cannot
+	// race, unlike BeginURL's.
 	return j.pub.copy(), nil
 }
 

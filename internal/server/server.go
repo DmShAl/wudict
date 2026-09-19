@@ -1109,9 +1109,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// the reader clicked, and marking it inside the article would mark the
 	// word they are already looking at, on every line it appears (D102).
 	marks := marker(mode == search.FullText && boolParam(r.URL.Query().Get("hl")))
+	// Capped like the store's own maxLimit: the store clamps at its boundary,
+	// but a direct backend treats the limit as a stop sign only, and would
+	// materialize every match - article bodies included - before stopping.
 	n := 20
 	if v := r.URL.Query().Get("n"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			if p > 500 {
+				p = 500
+			}
 			n = p
 		}
 	}
@@ -1853,9 +1859,13 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		// phone-facing ingest, so it is exactly the work that must not be
 		// mistaken for idleness and throttled while the user waits on it.
 		defer HoldActiveProcs()()
+		// Released by defer, not inline: ensureBaseIndex runs third-party
+		// parsers, and a panic here - which the recover above answers with a
+		// 500 - would otherwise consume the lane's only slot and block every
+		// front ingest from then on.
 		acquire(frontLimit)
+		defer release(frontLimit)
 		err = e.ensureBaseIndex(progress)
-		release(frontLimit)
 	} else {
 		err = e.setFeatures(want, progress)
 	}
