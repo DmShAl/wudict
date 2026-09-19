@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wuDict double tap probe</title>
+<style>
+  body { font: 17px/1.5 system-ui, sans-serif; margin: 16px; max-width: 700px }
+  .article { padding: 12px; border: 1px solid #888; border-radius: 8px; margin: 12px 0 }
+  iframe.article { box-sizing: border-box; width: 100%; height: 160px }
+  #log { white-space: pre-wrap; overflow-wrap: anywhere; background: #eee;
+    padding: 10px; min-height: 8em; font: 13px/1.4 monospace }
+  button { font: inherit }
+</style>
+<h1>Double tap probe</h1>
+<p><a href="/">← Back to wuDict</a></p>
+<p>Double tap <b>ordinary words</b> in each box, then try a link, a long press,
+scrolling and pinch zoom. This page records events; it never starts a search.</p>
+<button id="clear">Clear log</button>
+<section class="article" id="plain">
+  <b>Ordinary DOM:</b> Tap the <em>café</em> and русский words.
+  Try 日本語 too. <a href="#plain-link">Linked <strong>word</strong></a>.
+</section>
+<div class="article" id="shadow"></div>
+<iframe class="article" id="frame" title="Sandboxed article"
+  sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+<h2>Events</h2>
+<div id="log" aria-live="polite"></div>
+<script>
+(() => {
+  const log = document.getElementById("log");
+  document.getElementById("clear").onclick = () => { log.textContent = ""; };
+  const add = line => {
+    log.textContent = line + "\n" + log.textContent.slice(0, 12000);
+  };
+  const article = '<b>Article:</b> Tap the <em>café</em> and русский words. ' +
+    'Try 日本語 too. <a href="#linked">Linked <strong>word</strong></a>.';
+  const root = document.getElementById("shadow").attachShadow({mode: "open"});
+  root.innerHTML = '<style>:host{display:block}</style>' + article;
+  const frame = document.getElementById("frame");
+  frame.srcdoc = '<!doctype html><html><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<body style="font:17px/1.5 system-ui,sans-serif">' + article +
+    '<script>(' + probe.toString() + ')(document,"iframe",window.parent)<\/script>' +
+    '</body></html>';
+
+  window.addEventListener("message", e => {
+    if (e.source === frame.contentWindow && e.data?.probe === true)
+      add(e.data.line);
+  });
+  probe(document, "plain", null, document.getElementById("plain"));
+  probe(root, "shadow", null);
+
+  function probe(scope, label, host, only) {
+    const out = line => host
+      ? host.postMessage({probe: true, line}, "*")
+      : add(line);
+    const pick = () => {
+      try {
+        const s = scope.getSelection?.() || scope.ownerDocument?.getSelection?.() ||
+          document.getSelection();
+        return JSON.stringify(String(s || ""));
+      } catch (e) { return "error: " + e.message; }
+    };
+    const wordAt = e => {
+      const doc = scope.ownerDocument || scope;
+      let node, offset;
+      try {
+        const pos = doc.caretPositionFromPoint?.(e.clientX, e.clientY,
+          scope.nodeType === 11 ? {shadowRoots: [scope]} : undefined);
+        if (pos) { node = pos.offsetNode; offset = pos.offset; }
+        else {
+          const range = doc.caretRangeFromPoint?.(e.clientX, e.clientY);
+          if (range) { node = range.startContainer; offset = range.startOffset; }
+        }
+        if (!node || node.nodeType !== 3) return "(no text position)";
+        const str = node.textContent;
+        if (!Intl.Segmenter) return "(Intl.Segmenter unavailable)";
+        const seg = new Intl.Segmenter(undefined, {granularity: "word"}).segment(str);
+        const at = seg.containing(Math.min(offset, Math.max(0, str.length - 1)));
+        return JSON.stringify(at?.isWordLike ? at.segment : "") +
+          " [text-node offset " + offset + "]";
+      } catch (err) { return "error: " + err.message; }
+    };
+    ["touchstart", "touchend", "pointerdown", "pointerup", "click", "dblclick",
+      "contextmenu"].forEach(type => scope.addEventListener(type, e => {
+      if (only && !only.contains(e.target)) return;
+      const path = e.composedPath();
+      const link = path.some(n => n.tagName === "A");
+      out(label + " " + type + " detail=" + (e.detail || 0) +
+        " pointer=" + (e.pointerType || "-") + " link=" + link +
+        " selection=" + pick() +
+        (type === "dblclick" || type === "pointerup" ? " wordAt=" + wordAt(e) : ""));
+    }, true));
+  }
+})();
+</script>
+</html>

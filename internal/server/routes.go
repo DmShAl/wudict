@@ -134,6 +134,11 @@ func (s *Server) routes() []route {
 
 		// ---- the app itself: pages and assets, not part of the API document.
 		{"GET", "/", s.handleIndex, "", false},
+		{"GET", "/double-tap-probe", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write(doubleTapProbe)
+		}, "", false},
 		// the setup page stays reachable after first run: it is where folders
 		// are edited, not just where they are first chosen
 		{"GET", "/setup", s.handleSetupPage, "", false},

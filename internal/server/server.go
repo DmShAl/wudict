@@ -68,6 +68,9 @@ var setupCSS []byte // palette and controls shared by setup.html and lemmas.html
 //go:embed web/frame.js
 var frameJS []byte // bridge script for sandboxed article iframes
 
+//go:embed web/double-tap-probe.html
+var doubleTapProbe []byte // temporary Android gesture diagnostic
+
 //go:embed web/favicon.svg
 var faviconSVG []byte // "Lookup" mark: magnifier over headword lines
 
