@@ -25,6 +25,20 @@ func TestScriptsAreContentAddressed(t *testing.T) {
 	if want := "/assets/frame.js?v=" + assetTag(frameJS); !strings.Contains(pageStr, want) {
 		t.Errorf("index.html does not request frame.js by content hash (%s)", want)
 	}
+	for _, asset := range []struct {
+		path string
+		body []byte
+	}{
+		{"/assets/app.css", appCSS},
+		{"/assets/history.css", historyCSS},
+		{"/assets/history.js", historyJS},
+		{"/assets/group-editor.css", groupEditorCSS},
+		{"/assets/group-editor.js", groupEditorJS},
+	} {
+		if want := asset.path + "?v=" + assetTag(asset.body); !strings.Contains(pageStr, want) {
+			t.Errorf("index.html does not request %s by content hash", asset.path)
+		}
+	}
 	if i := strings.Index(pageStr, "{{"); i >= 0 {
 		t.Errorf("unsubstituted placeholder in the served page: %q", pageStr[i:min(i+24, len(pageStr))])
 	}
@@ -47,7 +61,11 @@ func TestAssetCacheHeaders(t *testing.T) {
 	if got := get("/").Header().Get("Cache-Control"); got != "no-cache" {
 		t.Errorf(`GET / Cache-Control = %q, want "no-cache" - a stale page would ask for stale scripts`, got)
 	}
-	for _, p := range []string{"/assets/frame.js?v=abc123"} {
+	for _, p := range []string{
+		"/assets/frame.js?v=abc123", "/assets/app.css?v=abc123",
+		"/assets/history.css?v=abc123", "/assets/history.js?v=abc123",
+		"/assets/group-editor.css?v=abc123", "/assets/group-editor.js?v=abc123",
+	} {
 		rec := get(p)
 		if rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Errorf("GET %s: status %d, %d bytes", p, rec.Code, rec.Body.Len())

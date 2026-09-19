@@ -71,6 +71,21 @@ var frameJS []byte // bridge script for sandboxed article iframes
 //go:embed web/pick.js
 var pickJS []byte // shared word hit-testing for both article renderers
 
+//go:embed web/app.css
+var appCSS []byte // main page styles
+
+//go:embed web/history.css
+var historyCSS []byte // search history styles
+
+//go:embed web/history.js
+var historyJS []byte // search history and live suggestions
+
+//go:embed web/group-editor.css
+var groupEditorCSS []byte // dictionary group editor styles
+
+//go:embed web/group-editor.js
+var groupEditorJS []byte // dictionary group editor
+
 //go:embed web/double-tap-probe.html
 var doubleTapProbe []byte // temporary Android gesture diagnostic
 
@@ -377,6 +392,11 @@ func (s *Server) basePage() []byte {
 		}
 		page := strings.ReplaceAll(string(indexHTML), "{{VERSION}}", v)
 		page = strings.ReplaceAll(page, "{{FRAMEJS}}", assetTag(frameJS))
+		page = strings.ReplaceAll(page, "{{APPCSS}}", assetTag(appCSS))
+		page = strings.ReplaceAll(page, "{{HISTORYCSS}}", assetTag(historyCSS))
+		page = strings.ReplaceAll(page, "{{HISTORYJS}}", assetTag(historyJS))
+		page = strings.ReplaceAll(page, "{{GROUPCSS}}", assetTag(groupEditorCSS))
+		page = strings.ReplaceAll(page, "{{GROUPJS}}", assetTag(groupEditorJS))
 		// JSON escapes CSS safely for the inline script, including </script>.
 		background, _ := json.Marshal(map[string]string{"app": backgroundAppCSS, "article": backgroundArticleCSS})
 		page = strings.ReplaceAll(page, "{{BACKGROUND_PRESET}}", string(background))

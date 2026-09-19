@@ -155,6 +155,11 @@ func (s *Server) routes() []route {
 		// the binary's own embedded, immutably cached content.
 		{"GET", "/files/", s.handleUserFile, "", false},
 		{"GET", "/assets/frame.js", serveAsset("application/javascript; charset=utf-8", frameJS), "", false},
+		{"GET", "/assets/app.css", serveAsset("text/css; charset=utf-8", appCSS), "", false},
+		{"GET", "/assets/history.css", serveAsset("text/css; charset=utf-8", historyCSS), "", false},
+		{"GET", "/assets/history.js", serveAsset("application/javascript; charset=utf-8", historyJS), "", false},
+		{"GET", "/assets/group-editor.css", serveAsset("text/css; charset=utf-8", groupEditorCSS), "", false},
+		{"GET", "/assets/group-editor.js", serveAsset("application/javascript; charset=utf-8", groupEditorJS), "", false},
 		{"GET", "/assets/pick.js", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 			w.Header().Set("Cache-Control", "no-store")
