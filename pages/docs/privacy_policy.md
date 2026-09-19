@@ -1,18 +1,18 @@
 ---
 title: Privacy Policy
-description: wuDict collects nothing, sends nothing and has no account. This page states exactly what that means, and the one exception.
+description: wuDict2 collects nothing, sends nothing and has no account. This page states exactly what that means, and the one exception.
 ---
 
 # Privacy Policy
 
 **Effective 30 August 2026.**
 
-This policy covers the **wuDict** Android app (`com.legbehindneck.wudict`) and
+This policy covers the **wuDict2** Android app (`com.dmshepeta.wudict2`) and
 the `wudict` program it is built from, on every platform.
 
 ## The short version
 
-**wuDict collects no data about you, and sends none anywhere.**
+**wuDict2 collects no data about you, and sends none anywhere.**
 
 There is no account, no sign-in, no cloud, no analytics, no advertising, no
 crash reporting and no third-party SDK of any kind. The app has no server to
@@ -20,7 +20,7 @@ talk to. Your dictionaries, your searches and your settings never leave your
 device.
 
 This is a property of how the program is built rather than a promise about how
-we behave: wuDict runs a small web server *inside the app itself*, bound to
+we behave: wuDict2 runs a small web server *inside the app itself*, bound to
 `127.0.0.1`, and shows its pages in a WebView. The `INTERNET` permission you see
 in the Play listing exists so the app can reach that server on your own device.
 It is the only permission this build declares.
@@ -40,7 +40,7 @@ Nothing is encrypted or uploaded, because nothing leaves the device.
 
 The app declares `allowBackup="false"`, so none of it is copied into Google's
 Auto Backup either. **Uninstalling the app deletes all of it.** You can also
-clear it at any time from Android's *Settings ▸ Apps ▸ wuDict ▸ Storage ▸ Clear
+clear it at any time from Android's *Settings ▸ Apps ▸ wuDict2 ▸ Storage ▸ Clear
 storage*, which removes the whole library, the imported dictionaries and the
 settings in one step.
 
@@ -49,7 +49,7 @@ settings in one step.
 This build declares four permissions, none of which grants access to anything
 about you:
 
-- **`INTERNET`** — used solely to connect to the wuDict server running inside
+- **`INTERNET`** — used solely to connect to the wuDict2 server running inside
   the app on `127.0.0.1`.
 - **`FOREGROUND_SERVICE`** and **`FOREGROUND_SERVICE_DATA_SYNC`** — granted at
   install time, with no prompt. They let preparing a dictionary keep running
@@ -73,7 +73,7 @@ Advertising ID.
 Dictionary files are authored by third parties, and an article inside one can
 contain a link or a reference to something on the internet.
 
-- **Links.** Tapping an external link hands it to your browser. wuDict does
+- **Links.** Tapping an external link hands it to your browser. wuDict2 does
   not open it and does not follow it.
 - **Embedded remote resources.** If a dictionary's article references an image,
   font or script by an `http://` or `https://` address instead of bundling it,
@@ -98,7 +98,7 @@ If you install the FOSS build from GitHub instead, none of this applies.
 
 ## Children
 
-wuDict is a dictionary reader. It collects no data from anyone, of any age,
+wuDict2 is a dictionary reader. It collects no data from anyone, of any age,
 and contains no advertising and no in-app purchases.
 
 ## Your rights
@@ -111,7 +111,7 @@ under your control.
 
 ## Open source
 
-wuDict is free software under the GPL-3.0-or-later. The claims on this page
+wuDict2 is free software under the GPL-3.0-or-later. The claims on this page
 are checkable: the source is public, and so is the build.
 
 - Source: [github.com/wuweidict/wudict](https://github.com/wuweidict/wudict)

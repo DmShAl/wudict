@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -54,7 +52,7 @@ class ServerProcess {
     // The port is fixed per install rather than per launch (D52: UI prefs live
     // in localStorage, which is keyed by origin, so a random port would forget
     // them every time), but it is no longer a constant: a device where
-    // something else already holds 6888 can override it (D101).
+    // something else already holds the port can override it (D101).
     //
     // portCache exists for PowerSignal, which is entirely static and has no
     // Context to ask. Every path that can reach the server primes it first -
@@ -85,7 +83,7 @@ class ServerProcess {
 
     // ── the one child, and who is holding it ─────────────────────────────
     // One server per app process, shared across activity recreation: the child
-    // holds port 6888, so a second spawn would lose the port to it.
+    // holds this app's port, so a second spawn would lose the port to it.
     //
     // This used to be a `private static ServerProcess` inside MainActivity,
     // started in onCreate and read back as "non-null means ready". D67 made
@@ -193,7 +191,7 @@ class ServerProcess {
     private void run(Listener listener) {
         // A previous run's child can outlive the app process: Android kills
         // the app, but an exec'd child is reparented to init and keeps
-        // running - still holding 6888, still serving the same library. Only
+        // running - still holding this app's port, still serving the same library. Only
         // a clean finish reaches onDestroy and stop(). Spawning a second
         // server then means a bind failure and a misleading wait, when a
         // perfectly good one is already there, so adopt it instead.
@@ -202,7 +200,7 @@ class ServerProcess {
         // and PowerSignal are static and have no Context of their own, exactly
         // as with the port above.
         ShellPrefs.token(app);
-        if (adoptRunningServer(port)) {
+        if (adoptRunningServer(app, port)) {
             Log.i(TAG, "adopted a wudict server already listening on " + port);
             listener.onReady();
             cacheEffective(app, port); // after onReady: nothing waits on this
@@ -274,7 +272,7 @@ class ServerProcess {
         }
         logOutput(process.getInputStream());
 
-        if (awaitPort(process, port)) {
+        if (awaitPort(app, process, port)) {
             listener.onReady();
             cacheEffective(app, port); // after onReady: nothing waits on this
             return;
@@ -356,10 +354,10 @@ class ServerProcess {
 
     // adoptRunningServer reports whether a wudict server is already answering
     // on the port. Loopback is shared with every other app on the device, so
-    // an open socket is not proof: it is only adopted if /api/config answers
-    // like ours. process stays null, so stop() will not kill something this
-    // instance never started.
-    private static boolean adoptRunningServer(int port) {
+    // an open socket is not proof: /api/config must name this app's library.
+    // process stays null, so stop() will not kill something this instance
+    // never started.
+    private static boolean adoptRunningServer(Context app, int port) {
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL(
@@ -378,9 +376,11 @@ class ServerProcess {
                     new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
                 for (String line; (line = r.readLine()) != null; ) body.append(line);
             }
-            // configInfo's own field names (internal/server/folders.go)
-            return body.indexOf("\"libDir\"") >= 0 && body.indexOf("\"revealLabel\"") >= 0;
-        } catch (IOException | RuntimeException e) {
+            JSONObject config = new JSONObject(body.toString());
+            String libDir = config.optString("libDir", "");
+            return !libDir.isEmpty() && new File(libDir).getCanonicalFile()
+                    .equals(AppDirs.dbDir(app).getCanonicalFile());
+        } catch (IOException | org.json.JSONException | RuntimeException e) {
             return false; // nothing listening, or not us
         } finally {
             if (c != null) c.disconnect();
@@ -472,20 +472,18 @@ class ServerProcess {
     // since it is the run that creates the config and the library folders -
     // would otherwise hold the "Starting…" screen for the full minute before
     // reporting the wrong thing.
-    private static boolean awaitPort(Process child, int port) {
+    private static boolean awaitPort(Context app, Process child, int port) {
         long deadline = System.nanoTime() + 60_000_000_000L; // 60 s: first run writes its config
         while (System.nanoTime() < deadline) {
-            try (Socket s = new Socket()) {
-                s.connect(new InetSocketAddress(HOST, port), 500);
-                return true;
-            } catch (IOException refused) {
-                if (!child.isAlive()) return false; // it will never open now
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
+            // A second installation may already own this port. A socket alone
+            // does not establish that our child finished starting.
+            if (!child.isAlive()) return false;
+            if (adoptRunningServer(app, port) && child.isAlive()) return true;
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
             }
         }
         return false;

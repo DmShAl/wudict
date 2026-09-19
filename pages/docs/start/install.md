@@ -99,8 +99,9 @@ For macOS you can also download a macOS bundle, for Windows a traditional setup 
 
 === "Android"
 
-    Download **`wudict-android-arm64.apk`** and install it with your file
-    manager. Android asks you to allow *install unknown apps* once.
+    Build **`wudict2-android-arm64-foss.apk`** with
+    `build-android.cmd release` on Windows, then install the signed APK with
+    your file manager. Android asks you to allow *install unknown apps* once.
 
     The app then asks for storage access, and reads your dictionaries from
     *Internal storage ▸ Dictionaries*. It can also look up a word you selected

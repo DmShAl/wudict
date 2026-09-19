@@ -10,16 +10,8 @@ description: Install WuWeiDict on Android, point it at your Dictionaries folder,
 .md-typeset .badges img{height:80px;width:auto;max-width:none}
 </style>
 
-<div class="badges">
-
-<a href="https://github.com/wuweidict/wudict/releases/latest"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/master/get-it-on-github.png" alt="Get it on GitHub" height="80"></a> <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22:%22com.legbehindneck.wudict%22,%22url%22:%22https://github.com/wuweidict/wudict%22,%22author%22:%22wuweidict%22,%22name%22:%22wudict%22%7D"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a> <a href="https://play.google.com/store/apps/details?id=com.legbehindneck.wudict"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80"></a>
-
-<!--  <img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Get it on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/com.legbehindneck.wudict) [](https://play.google.com/store/apps/details?id=com.legbehindneck.wudict)
--->
-<!--
-[![F-Droid](https://img.shields.io/f-droid/v/com.legbehindneck.wudict?logo=FDROID)](https://f-droid.org/en/packages/com.legbehindneck.wudict/)
--->
-</div>
+wuDict2 is an Android fork of [WuWeiDict](https://github.com/wuweidict/wudict)
+with a separate application ID, `com.dmshepeta.wudict2`.
 
 Search your `.mdx` `.slob` `.bgl` `.dsl` `.ifo` `.zim` dictionaries on the phone.
 
@@ -32,8 +24,8 @@ sold since about 2017 should be able to run wudict.
 
 ## Install
 
-1.  Download **`wudict-android-arm64.apk`** from
-    [the releases page](https://github.com/wuweidict/wudict/releases).
+1.  Build **`wudict2-android-arm64-foss.apk`** (or the unsigned variant) with
+    `build-android.cmd release` on Windows. Sign an unsigned APK before installing.
 2.  Open the file in your file manager or in the download notification.
 3.  Android asks once to allow *install unknown apps* for that file manager.
     Allow it, then confirm the install.
@@ -81,9 +73,9 @@ dictionaries appear in the list.
 You do not have to switch apps to read a definition. Three ways in, all
 producing the same floating window over what you were reading:
 
--   **Select the word you want to look up** — the selection toolbar should have a <kbd>**wuDict**</kbd> entry, next
+-   **Select the word you want to look up** — the selection toolbar should have a <kbd>**wuDict2**</kbd> entry, next
     to *Copy* and *Translate*.
--   **Share the selection.** Use <kbd>**Share**</kbd> → <kbd>**wuDict**</kbd> when an app hides the
+-   **Share the selection.** Use <kbd>**Share**</kbd> → <kbd>**wuDict2**</kbd> when an app hides the
     toolbar, or when the passage spans several paragraphs.
 -   **Open a `wudict://lookup?q=word` link.** For automation apps, note apps
     and scripts.
@@ -100,7 +92,7 @@ am start -a android.intent.action.VIEW -d "wudict://lookup?q=phubbing"
 | What | Where |
 | --- | --- |
 | Your dictionaries | *Internal storage ▸ Dictionaries* |
-| Config file, prepared library | `Android/data/com.legbehindneck.wudict/files` |
+| Config file, prepared library | `Android/data/com.dmshepeta.wudict2/files` |
 
 The second folder is app-owned. It survives updates and is deleted when you
 uninstall the app; your *Dictionaries* folder stays intact.

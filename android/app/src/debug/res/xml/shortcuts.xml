@@ -16,6 +16,6 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:targetClass="com.legbehindneck.wudict.SettingsActivity"
-            android:targetPackage="com.legbehindneck.wudict.debug" />
+            android:targetPackage="com.dmshepeta.wudict2.debug" />
     </shortcut>
 </shortcuts>

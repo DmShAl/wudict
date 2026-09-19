@@ -146,7 +146,7 @@ jobs:
           # No renaming here any more. app/build.gradle names the APK
           # (androidComponents.onVariants) and the Makefile exports the path,
           # so the published asset, `make apk-foss-release` and dist/ all carry
-          # ONE name: wudict-android-arm64-foss.apk. The old copy step invented
+          # ONE name: wudict2-android-arm64-foss.apk. The old copy step invented
           # a second name (wudict-android-arm64.apk) that said nothing about
           # the flavour and existed nowhere else in the project.
           if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then

@@ -21,10 +21,12 @@ Runs natively on [android](https://wuweidict.github.io/wudict/apps/android/), [m
 | ZIM | `.zim`                              | Kiwix/Wikimedia offline archives; see https://library.kiwix.org
 | WuWeiDict | cache folder (`text.db`)            | wuDict's own SQLite-based format (see *Sharing*, below) |
 
-## wuDict for Android
-<div class="badges">
-<a href="https://github.com/wuweidict/wudict/releases/latest"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/master/get-it-on-github.png" alt="Get it on GitHub" height="80"></a> <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22:%22com.legbehindneck.wudict%22,%22url%22:%22https://github.com/wuweidict/wudict%22,%22author%22:%22wuweidict%22,%22name%22:%22wudict%22%7D"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a> <a href="https://play.google.com/store/apps/details?id=com.legbehindneck.wudict"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80"></a>
-</div>
+## wuDict2 for Android
+
+wuDict2 is this repository's Android fork of [WuWeiDict](https://github.com/wuweidict/wudict).
+It keeps the upstream GPL-3.0-or-later license and author notices. Its Android
+application ID is `com.dmshepeta.wudict2`, so it can be installed beside the
+upstream app. See [Android build instructions](pages/docs/reference/building.md).
 
 ## wuDict for Desktop
 

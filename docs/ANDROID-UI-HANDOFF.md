@@ -1,6 +1,11 @@
 # Android UI continuation
 
-Snapshot: 2026-09-19, branch `dictionary-groups`, HEAD `f32cc2f` at the last check. The group picker, group-specific order, and recent UI refinements were committed in `e2144f7`. The remaining `android/gradle.properties` change is the user's and was not edited by the agent; this handoff document may also be uncommitted. Check `git status` before any change. Older stashes exist, including one made to preserve `.gitignore` before switching branches; do not pop them blindly. The user requested direct work in this checkout, with no new worktree or patch-file transfer.
+**Android fork identity update (2026-09-19):** The build variant information
+below describes the earlier original/`_sh` scheme and is superseded by
+[ANDROID-FORK.md](ANDROID-FORK.md). This handoff's existing UI decisions remain
+relevant. The current working-tree edits to this handoff predate the fork task.
+
+Snapshot: 2026-09-19, local checkout `D:\Projects\Android\wudict`, branch `dev`, HEAD `bab59c8`, clean working tree at the last check. Recheck branch/status before continuing; this snapshot can age. The user requested direct work in this checkout, not a Codex worktree. Older stashes exist; inspect before applying any of them.
 
 ## Existing documentation
 
@@ -24,6 +29,7 @@ build-android.cmd debug sh
 - Gradle property: `-PappVariant=original` or `-PappVariant=sh`; tasks remain `assembleFossRelease` / `assembleFossDebug`.
 - Ordinary outputs: `android/app/build/outputs/apk/foss/<type>/`; sh outputs: `android/app/build-sh/outputs/apk/foss/<type>/`. Names: `wudict-android-arm64-foss[_sh][-debug|-unsigned].apk`; signed release has neither debug nor unsigned suffix. The script prints the exact path.
 - Routine check: `git diff --check`; `go build ./...`. Existing project-wide checks are in Makefile (`make help`, `make check`, `make test`). Android Java check from `android/`: `.\gradlew.bat :app:compileFossDebugJavaWithJavac --offline` (passed for the current Java changes). This does **not** rebuild embedded Go/HTML or verify an APK on a device.
+- Search UI checks on Windows: `node --check internal/server/web/history.js`; extract the inline `<script>` from `web/index.html` to a temporary `.js` file and run `node --check` on it; `go test ./internal/server -run 'TestScriptsAreContentAddressed|TestAssetCacheHeaders|TestIndexTracksTheUserStylesheet' -count=1`. The inline script check is syntax only. These commands and `go build ./...` passed at HEAD `bab59c8`.
 - The memory-limit corpus sweep is excluded from Windows builds because `syscall.Rusage.Maxrss` is unavailable there. Targeted server tests now run with ordinary `go test ./internal/server -run 'Test.*Group' -count=1`. The full server suite still has unrelated Windows failures, including Android path alias expectations and temporary ZIP files held open during cleanup.
 - Inline JavaScript syntax was checked with Node `vm.Script` after replacing the server's `{{BACKGROUND_PRESET}}` and `{{SEPIA_PRESET}}` placeholders with `{}`. This does not verify Android touch behavior, native dialog rendering, or streaming search on a phone. No APK was built or installed by the agent.
 
@@ -39,7 +45,7 @@ Java paths below are relative to `android/app/src/main/java/com/legbehindneck/wu
 | WebView settings and native select bridge | `Shell.java`: `applyBackground`, `DICTIONARY_PICKER_JS`, `windows().onJsPrompt` |
 | Themed picker/list rendering | `DictionaryPicker.java`; shared dialog surface: `BackgroundDialogBuilder.java` |
 | Main and floating lookup windows | `MainActivity.java`, `LookupActivity.java`; `LookupActivity_sh.java` is a thin subclass selected by build |
-| Search, panels, style editor | `internal/server/web/index.html`: `wudictShellBackground`, `articleTokens`, `wudictSetDictionaryMode`, `wudictFoundDictionaryPicker`, `doSearch`, `clearStatusForResults`, `STYLER_PRESETS`, `stylerFillPresets`, `stylerApplyPreset` |
+| Search, panels, style editor | `internal/server/web/index.html`: `wudictShellBackground`, `articleTokens`, `wudictSetDictionaryMode`, `wudictFoundDictionaryPicker`, `doSearch`, `clearStatusForResults`, `STYLER_PRESETS`, `stylerFillPresets`, `stylerApplyPreset`; page styles in `web/app.css` |
 | Configuration page | `internal/server/web/setup.html` has its own background hook; shared base styling is `setup.css` |
 | Article iframe bridge | `internal/server/web/frame.js`; shadow articles inherit CSS variables, iframe articles receive resolved tokens through `frameCSS`/`pushFrameCSS` in index.html |
 | Embedded example CSS | `internal/server/web/presets/background/`: `background_image_app.css`, `background_image_article.css`, `sepia_app.css`, `sepia_article.css` |
@@ -51,12 +57,24 @@ Java paths below are relative to `android/app/src/main/java/com/legbehindneck/wu
 | --- | --- |
 | Stored membership and independent order | `internal/server/prefs.go`: `DictPref.Groups`, `DictionaryGroup.Order` persistence in `state.json`, identity repair in `Prefs.heal`; `internal/server/groups.go`: `handleGroups`, `handleGroupMember`, `handleGroupOrder`; routes in `routes.go`, API description in `web/openapi.yaml`, coverage in `groups_test.go` |
 | Search scope and native picker data | `internal/server/web/index.html`: `orderedGroupDicts`, `activeUserGroupIds`, `doSearch`, `livePickerRows`, `livePickerPayload`, `wudictPickerGroupChanged`, `wudictPickerDictionarySelected` |
-| Group editor and touch reorder | `index.html`: `#groupEditor` CSS, `renderGroupRows`, `saveGroupOrder`, `groupDragTick`, pointer handlers on `#groupRows`; `#groupSelect` uses the native select bridge |
+| Group editor and touch reorder | `web/group-editor.css` and `web/group-editor.js`: `renderGroupRows`, `saveGroupOrder`, `groupDragTick`, pointer handlers on `#groupRows`; markup in `index.html`; `#groupSelect` uses the native select bridge |
 | Android dialog bridge | `Shell.java`: `DICTIONARY_PICKER_JS`, `windows().onJsPrompt`; `DictionaryPicker.java`: `showLive`, `updateLive`, `Live` and the older blocking picker for other selects |
 
 Membership and group order belong to Go/state.json. The automatic All Dictionaries group follows the global preference order; each user group stores its own order. The selected picker group is a device-local `wudict_picker_group` value, and only globally enabled members are searched. `GET /api/groups` returns visible members in group order; `PUT /api/groups/order` saves an order without changing membership or the global order. The editor's Show All for a user group shows members first in group order, then a divider and nonmembers in All Dictionaries order. Adding a member appends it to the group's end; removing one returns it to its global-order place. When Show All is off, drag handles reorder only that group. All Dictionaries instead shows drag handles for the global order, with Show All checked and disabled.
 
 The dictionary picker at the word field has a group dropdown above the existing All/Found list. Changing group reruns the current word, resets a single-dictionary selection, and clears old results; an empty group never falls through to a whole-library search. The live Android picker confirms its opening `window.prompt` immediately, then receives short update prompts while results stream. This avoids holding JavaScript blocked for the life of the dialog. Main and floating lookup windows both use the `Shell` bridge. Keep these flows in sync when editing picker behavior.
+
+### Search field, history, and article lookup
+
+| Concern | Entry points |
+| --- | --- |
+| Search request and article rendering | `web/index.html`: `doSearch`, `fetchStream`, `renderSlot`, `searchFor`, form submit and `q` blur handlers; mode and dictionary selectors also rerun searches |
+| History and suggestions | `web/history.js`: localStorage, deduplication, maximum history length, Clear state, dropdown rendering, suggestion debounce/abort; `web/history.css`: dropdown surface/position |
+| Suggestion request setup | `web/index.html`: `wuSearchHistory.setSuggest` builds `/api/search` using the current starts/exact/contains mode and selected dictionary/group; full-text suggestions are excluded |
+| Article word gestures | `web/index.html`: page-level `dblclick`; `web/frame.js`: iframe `dblclick` and touch handling; both lead to `searchFor` in the main page |
+| Asset embedding | `internal/server/server.go` embeds split CSS/JS; `routes.go` serves `/assets/*` with content-addressed versions; `assets_test.go` covers references and cache headers |
+
+Typing in `q` changes only the dropdown suggestions. Articles update when a suggestion is selected, Search/Enter is pressed, or the changed field loses focus; leaving an empty field clears old articles. `history.js` requests suggestions independently of `doSearch`, with a 300 ms delay, aborting stale requests. The dropdown combines saved history and streamed headwords without duplicates. The history limit defaults to 20 and is capped at 100; Clear is enabled only when saved history exists. The old DoubleTaptoTest control is hidden, while its diagnostic route remains available. The user explicitly confirmed that double-tap lookup works well; do not reopen that issue without a new symptom. The dropdown appearance was also confirmed before the last search-trigger change.
 
 ## Decisions to preserve
 
@@ -73,11 +91,13 @@ The dictionary picker at the word field has a group dropdown above the existing 
 
 ## Unfinished work
 
-- No further code change was requested after the Show All layout change. Continue from the user's next instruction rather than adding speculative controls (in particular, visible move-to-top arrows were discussed but not chosen).
-- Keep the user's `android/gradle.properties` change intact. Do not apply old stashes or the earlier dictionary-groups patch over the committed implementation.
+- No specific code change is pending. The user paused this work to start another task. Continue from the user's next instruction; do not add speculative controls (visible move-to-top arrows were discussed but not chosen).
+- Do not apply old stashes or an earlier dictionary-groups patch over the current implementation.
 
 ## Unverified assumptions
 
+- **Latest search-trigger change:** `bab59c8` passed Go build, JavaScript syntax checks, and targeted server tests, but no APK was built or used on a phone. Check that typing changes only suggestions, that Search/Enter, a list choice, and blur each update articles once, and that blur after clearing removes old articles. In particular, verify touch ordering when tapping a suggestion while `q` has focus, and mode/dictionary changes while editing. The code assumes `pointerdown` on a suggestion suppresses the blur search until its click chooses the word.
+- **Suggestion semantics:** the independent request uses `/api/search` with the current mode and dictionary/group, `hl=0`, and the same per-dictionary result limits as article search. Confirm headwords and ordering against real dictionaries, especially contains mode and empty groups; no device check has been done. Full-text intentionally has no live headword suggestions.
 - **Android touch and layout:** the agent has not built, installed, or exercised an APK containing the latest changes on a phone. Verify drag by ≡ (including auto-scroll at list edges), stable scroll after moving membership between the two Show All sections, the fixed editor size, checkbox colors, native group dropdown background, and both main and floating picker windows. Source checks and Java compilation do not establish these behaviors.
 - **Streaming picker:** verify that changing groups while Found is open updates the native list during a search, preserves All/Found mode, and handles empty groups without stale results or a whole-library query. Its prompt bridge is designed to unblock JavaScript immediately, but that timing has not been checked on device.
 - **Cancel/reopen regression:** the shared `DICTIONARY_PICKER_JS` now handles `dict`, `mode`, `stylerPreset`, and `groupSelect`. Prior user reports described a picker reopening after Cancel and tapping elsewhere. Reproduce with a fresh APK before changing gesture logic; the root cause was not confirmed. The separate WebView inertia issue was confirmed fixed by the user and need not be reopened.

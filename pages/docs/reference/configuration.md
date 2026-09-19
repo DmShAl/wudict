@@ -37,9 +37,9 @@ That file is written by the app, not by you.
 
 | What | macOS and Linux | Windows | Android |
 | --- | --- | --- | --- |
-| Config | `~/.wudict/wudict.toml` | `%USERPROFILE%\.wudict\wudict.toml` | `Android/data/com.legbehindneck.wudict/files/wudict.toml` |
-| Installed lemma data | `~/.wudict/lemmas` | `%USERPROFILE%\.wudict\lemmas` | `Android/data/com.legbehindneck.wudict/files/lemmas` |
-| Prepared library | `~/.wudict/db` | `%USERPROFILE%\.wudict\db` | `Android/data/com.legbehindneck.wudict/files/db` |
+| Config | `~/.wudict/wudict.toml` | `%USERPROFILE%\.wudict\wudict.toml` | `Android/data/com.dmshepeta.wudict2/files/wudict.toml` |
+| Installed lemma data | `~/.wudict/lemmas` | `%USERPROFILE%\.wudict\lemmas` | `Android/data/com.dmshepeta.wudict2/files/lemmas` |
+| Prepared library | `~/.wudict/db` | `%USERPROFILE%\.wudict\db` | `Android/data/com.dmshepeta.wudict2/files/db` |
 | State (order, switches) | `~/.wudict/state.json` | `%USERPROFILE%\.wudict\state.json` | as above |
 | Log, when there is no console | `~/Library/Logs/wudict.log` on macOS, `~/.wudict/wudict.log` on Linux | `%LOCALAPPDATA%\wudict\wudict.log` | Android's own log |
 
