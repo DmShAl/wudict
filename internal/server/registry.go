@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,13 @@ import (
 	"github.com/wuweidict/wudict/internal/resource"
 	"github.com/wuweidict/wudict/internal/store"
 )
+
+// errReindexing answers an open of a dictionary whose prepared database is
+// being replaced: on Windows an open during the rebuild would hold the old
+// text.db and fail the rename the rebuild ends in (registry_windows.go). The
+// slot reports the error until the rebuild's reopen() hands the new database
+// out; every other dictionary in the fan-out is unaffected.
+var errReindexing = errors.New("dictionary is being re-indexed")
 
 // upgraded serves queries from an ingested text.db while resolving
 // resources media.db → original source (D2 resolution order). The direct
@@ -365,6 +373,12 @@ type entry struct {
 	// abbrevTried marks this dictionary as already considered by the
 	// abbreviation upgrade sweep, so a rescan does not re-queue it.
 	abbrevTried atomic.Bool
+
+	// rebuilding bars opens for the length of an ingest that will rename over
+	// the prepared database (Windows only; set with the backend handback in
+	// registry_windows.go). Set false again by the defers in setFeatures,
+	// ensureBaseIndex and reabsorbAbbrev - whichever stage armed it.
+	rebuilding atomic.Bool
 }
 
 // noPackableMedia reports whether a prior full ingest found nothing to pack,
@@ -561,6 +575,9 @@ func (e *entry) indexing() bool { return e.demanded.Load() }
 // media.db) exists for it, wraps it into the upgraded view.
 func (e *entry) open() (dict.Dictionary, error) {
 	e.lastUse.Store(time.Now().UnixNano())
+	if e.rebuilding.Load() {
+		return nil, errReindexing
+	}
 	e.dMu.RLock()
 	d, err := e.d, e.err
 	e.dMu.RUnlock()
@@ -1573,6 +1590,9 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 	defer HoldActiveProcs()()
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	// releasePrepared (below, or inside rebuild) may bar opens for the length
+	// of this work; this stage owns the exit either way.
+	defer e.rebuilding.Store(false)
 
 	cur, err := e.open()
 	if err != nil {
@@ -1632,6 +1652,11 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 		return err
 	}
 
+	// Packing renames over media.db and unpacking removes it - both held open
+	// by the serving backend's store, on the same Windows terms as the text.db
+	// rename that rebuild released when it ran.
+	releasePrepared(e, textDB)
+
 	switch {
 	case want.Media && !have.Media:
 		if err := e.packMedia(cur, textDB, mediaDB, progress); err != nil {
@@ -1653,6 +1678,9 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 
 // rebuild writes a fresh index for the requested plan.
 func (e *entry) rebuild(name, textDB string, plan store.Plan, progress store.Progress) error {
+	// The ingest finishes in a rename over textDB, which the serving backend
+	// holds open - fatal only on Windows, a no-op elsewhere (registry_windows.go).
+	releasePrepared(e, textDB)
 	rd, err := dict.OpenReader(e.Path)
 	if err != nil {
 		return err
@@ -1849,6 +1877,7 @@ func (r *Registry) upgradeAbbrev() {
 func (e *entry) reabsorbAbbrev() error {
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	defer e.rebuilding.Store(false) // rebuild's releasePrepared may have armed it
 	if store.IsTextDB(e.Path) {
 		return nil
 	}
@@ -1877,6 +1906,7 @@ func (e *entry) reabsorbAbbrev() error {
 func (e *entry) ensureBaseIndex(progress store.Progress) error {
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	defer e.rebuilding.Store(false) // rebuild's releasePrepared may have armed it
 	if e.prepared() {
 		return nil // a text.db of its own, or already prepared at whatever level the user chose
 	}
