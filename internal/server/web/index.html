@@ -1316,6 +1316,22 @@ function orderedDicts(){
 }
 function orderedIds(){return orderedDicts().map(d=>d.id)}
 function enabledOrderedIds(){return orderedDicts().filter(d=>!disabled.has(d.id)).map(d=>d.id)}
+function userGroupOrderedDicts(){
+  if(pickerGroup==="all")return orderedDicts();
+  const group=userGroups.find(g=>g.id===pickerGroup);
+  if(!group)return [];
+  return orderedGroupDicts(group,orderedDicts());
+}
+function orderedGroupDicts(group,ordered){
+  const members=new Set(group.members);
+  const byID=new Map(ordered.map(d=>[d.id,d]));
+  const first=group.members.map(id=>byID.get(id)).filter(Boolean);
+  const seen=new Set(first.map(d=>d.id));
+  return first.concat(ordered.filter(d=>members.has(d.id)&&!seen.has(d.id)));
+}
+function activeUserGroupIds(){
+  return userGroupOrderedDicts().filter(d=>!disabled.has(d.id)).map(d=>d.id);
+}
 /* A group selection ("g:lang:en") stands for the dictionaries the server put
    in that group — in the user's own order, minus the ones they switched off.
    It is exactly what "All dictionaries" resolves to, narrowed: the same order
@@ -1780,6 +1796,76 @@ window.wudictFoundDictionaryPicker=function(){
   if(markedAnswer)navAttach(det);
   requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
 };
+let livePickerOpen=false,livePickerOpening=false,livePickerTimer=null,liveSearchBoxes=null,livePickerSearching=false;
+function livePickerRows(){
+  const ids=new Set(activeUserGroupIds());
+  if(window.wudictFoundDictionaryMode){
+    const rows=[],seen=new Set();
+    const roots=liveSearchBoxes||[$("out")];
+    for(const root of roots)for(const det of root.querySelectorAll("details.dict")){
+      if(!det.isConnected)continue;
+      const article=det.querySelector(":scope > dl > dd[data-dict]");
+      if(!article||!ids.has(article.dataset.dict)||seen.has(article.dataset.dict))continue;
+      seen.add(article.dataset.dict);
+      const summary=det.querySelector(":scope > summary");
+      const label=Array.from(summary.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE)
+        .map(n=>n.textContent).join("").trim();
+      rows.push({id:article.dataset.dict,label:label||article.dataset.dict});
+    }
+    return rows;
+  }
+  return userGroupOrderedDicts().map(d=>({id:d.id,label:dictLabel(d)}));
+}
+function livePickerPayload(kind){
+  return {kind,groups:userGroups.map(g=>({id:g.id,name:g.name})),group:pickerGroup,
+    found:!!window.wudictFoundDictionaryMode,selected:$("dict").value,
+    rows:livePickerRows(),empty:window.wudictFoundDictionaryMode
+      ?(livePickerSearching?"Searching…":"No results in this group")
+      :"No dictionaries in this group"};
+}
+function refreshLivePicker(){
+  if(!livePickerOpen)return;
+  clearTimeout(livePickerTimer);
+  livePickerTimer=setTimeout(()=>window.prompt("wudict:dictionary-picker",
+    JSON.stringify(livePickerPayload("liveDictUpdate"))),80);
+}
+window.wudictNativeDictionaryPicker=async function(){
+  if(livePickerOpen||livePickerOpening)return;
+  livePickerOpening=true;
+  try{
+    userGroups=await groupRequest("/api/groups","GET");
+    if(!userGroups.some(g=>g.id===pickerGroup))pickerGroup="all";
+    livePickerOpen=true;
+    if(window.prompt("wudict:dictionary-picker",JSON.stringify(livePickerPayload("liveDict")))===null)
+      livePickerOpen=false;
+  }catch(e){setStatus("⚠ could not load dictionary groups: "+esc(e.message))}
+  finally{livePickerOpening=false}
+};
+window.wudictPickerClosed=()=>{livePickerOpen=false;clearTimeout(livePickerTimer)};
+window.wudictPickerGroupChanged=id=>{
+  if(!userGroups.some(g=>g.id===id)||id===pickerGroup)return;
+  pickerGroup=id;localStorage.setItem("wudict_picker_group",id);
+  $("dict").value="all";localStorage.setItem("wudict_dict","all");
+  scopeOnce=null;syncChips();
+  const url=new URL(location.href);url.searchParams.delete("dict");url.searchParams.delete("from");
+  history.replaceState(history.state,"",url.pathname+url.search+url.hash);
+  $("out").replaceChildren();liveSearchBoxes=null;refreshLivePicker();
+  if($("q").value.trim())doSearch();
+};
+window.wudictPickerDictionarySelected=id=>{
+  if(window.wudictFoundDictionaryMode){
+    const det=(liveSearchBoxes||[$("out")]).flatMap(root=>[...root.querySelectorAll("details.dict")]).find(d=>
+      d.querySelector(":scope > dl > dd[data-dict]")?.dataset.dict===id);
+    if(!det)return;
+    det.open=true;openedIdx=-1;clearTimeout(barrier);barrier=null;
+    if(markedAnswer)navAttach(det);
+    requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
+  }else{
+    const select=$("dict"),option=[...select.options].find(o=>o.value===id);
+    if(!option)return;
+    select.value=id;select.dispatchEvent(new Event("change",{bubbles:true}));
+  }
+};
 $("out").addEventListener("click",e=>{
   const sum=e.target.closest("details.dict:not(.noindex)>summary");
   if(!sum)return; // the no-index group is not an answer: opening it decides nothing
@@ -1885,6 +1971,7 @@ function refreshDictUI(now){
   if([...sel.options].some(o=>o.value===prev))sel.value=prev;
   syncChips(); // the option list just changed under the chip
   renderPanel();
+  refreshLivePicker();
 }
 
 /* Consumes the /api/dicts NDJSON stream, so search unblocks on the FIRST
@@ -2033,6 +2120,7 @@ window.wudictSetDictionaryMode=function(found){
   $("pickerFound").setAttribute("aria-pressed",String(!!found));
   const entering=found&&!window.wudictFoundDictionaryMode;
   window.wudictFoundDictionaryMode=found;
+  refreshLivePicker();
   if(!entering)return;
   const select=$("dict"),url=new URL(location.href);
   const scoped=(select.value&&select.value!=="all")||
@@ -3439,6 +3527,7 @@ async function doSearch(ev){
   if(searchAC)searchAC.abort();
   searchAC=new AbortController();
   const signal=searchAC.signal;
+  livePickerSearching=true;
   lastQuery=q;
   // No "Searching…" text: the spinner alone says it, and saying it twice
   // cost a permanently reserved line above the results.
@@ -3449,7 +3538,7 @@ async function doSearch(ev){
   // A group resolves to a LIST of ids here and is sent as one, exactly like
   // "all": the server has no notion of a group, and giving it one would mean
   // versioning a taxonomy across two processes to save a join over 105 rows.
-  const ids=dictSel==="all"?enabledOrderedIds():dictSel.startsWith("g:")?groupIds(dictSel):null;
+  const ids=dictSel==="all"?activeUserGroupIds():dictSel.startsWith("g:")?groupIds(dictSel):null;
   if(ids){
     if(!ids.length){
       // "You disabled them all" is only knowable once the list is complete:
@@ -3458,10 +3547,14 @@ async function doSearch(ev){
       // settled, non-empty list, and until then this reads as what it is —
       // still loading — and re-runs itself when the rest lands (D30).
       const settled=(phase==="ready"||phase==="failed")&&dicts.length>0;
-      const lbl=dictSel==="all"?"":groupLabel(dictSel);
+      const lbl=dictSel==="all"?(pickerGroup==="all"?"":userGroups.find(g=>g.id===pickerGroup)?.name||""):groupLabel(dictSel);
+      const emptyGroup=dictSel==="all"&&pickerGroup!=="all"&&!userGroupOrderedDicts().length;
+      $("out").replaceChildren();liveSearchBoxes=null;refreshLivePicker();
+      livePickerSearching=false;
       setBusy(false); // nothing was ever sent; both branches below are statements
       setStatus(settled
-        ?(lbl?`⚠ Nothing enabled under “${esc(lbl)}” — enable some in the ☰ panel`
+        ?(emptyGroup?`“${esc(lbl)}” is empty — add dictionaries in Edit dictionary groups`
+          :lbl?`⚠ Nothing enabled under “${esc(lbl)}” — enable some in the ☰ panel`
              :"⚠ All dictionaries are disabled — enable some in the ☰ panel")
         :'<span class="spin"></span>'+esc(readyCount()));
       if(!settled)staleSearch=true;
@@ -3534,6 +3627,7 @@ async function doSearch(ev){
         markedAnswer=mode==="fts"&&hlOn; // only a marked answer has anything to walk
         stale=[...out.childNodes];
         boxes=(msg.slots||[]).map(()=>{const b=document.createElement("div");out.appendChild(b);return b});
+        liveSearchBoxes=boxes;
         openedIdx=null; // re-arm the latch: a new generation, a new decision
         resolved=boxes.map(()=>false);ready=boxes.map(()=>null);frontier=0;
         clearTimeout(barrier);barrier=null;
@@ -3542,6 +3636,7 @@ async function doSearch(ev){
         if(orderFirst&&!expandAll&&boxes.length>1)
           barrier=setTimeout(()=>{barrier=null;if(seq===searchSeq)settle()},OPEN_BARRIER_MS);
         clearStatusForResults();
+        refreshLivePicker();
       }else if(msg.t==="hit"){
         const box=boxes[msg.i];if(!box)return;
         if(!anyShown)clearStatusForResults();
@@ -3550,6 +3645,7 @@ async function doSearch(ev){
         if(res.noIndex){noIdx=noIndexRow(noIdx,out,res.noIndex);noIdxCount++}
         else if(res.shown)anyShown=true;
         if(res.results)anyResults=true;
+        refreshLivePicker();
         /* The latch (D73/M3). ONE section opens itself per generation and it
            is never taken back: a dictionary that finishes later fills its own
            position, above, and stays shut.
@@ -3597,6 +3693,7 @@ async function doSearch(ev){
           ?`Nothing found for “${esc(msg.from||q)}” — showing results for ${forms}`
           :`Some dictionaries do not list “${esc(msg.from||q)}” — also showing results for ${forms}`;
       }else if(msg.t==="end"){
+        refreshLivePicker();
         // Nothing further can resolve the frontier, so release the hold and
         // let the best answer in hand take the slot (D142). A no-op in every
         // ordinary search: the last hit's settle() has already decided.
@@ -3639,7 +3736,7 @@ async function doSearch(ev){
     // Only the newest search may stop the glyph. An aborted one has already
     // been superseded by a search that is still running, and clearing here
     // would blink the spinner off in the middle of the work that replaced it.
-    if(seq===searchSeq){setBusy(false);clearTimeout(barrier);barrier=null}
+    if(seq===searchSeq){livePickerSearching=false;refreshLivePicker();setBusy(false);clearTimeout(barrier);barrier=null}
   }
 }
 $("frm").addEventListener("submit",doSearch);
@@ -5092,10 +5189,10 @@ $("styler").addEventListener("keydown",e=>{
 // boot screen over. The config comes alongside rather than after, because the
 // cards need its home prefix to render paths as ~/… on the FIRST draw; run
 // concurrently it costs no extra latency, and it cannot reject.
-Promise.all([loadPrefs(),loadConfig(),loadUserCSS()]).then(loadDicts).then(applyURL);
 </script>
 <style>
 dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560px,94vw);height:fit-content;max-height:85vh;max-height:85dvh;padding:1em;border:1px solid var(--line);border-radius:12px;color:var(--fg);background-color:var(--bg);box-shadow:var(--shadow);overflow:auto}
+#groupEditor{height:min(650px,85vh);height:min(650px,85dvh)}
 dialog.group-dialog:not([open]){display:none}
 dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 .group-dialog::backdrop{background:rgba(0,0,0,.4)}
@@ -5104,10 +5201,20 @@ dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 .group-dialog select,.group-dialog input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:.6em}
 .group-dialog h2{display:flex;align-items:center;gap:1em;margin:0}
 .group-dialog h2 button{margin-left:auto}
-#groupRows{overflow:auto;min-height:0;overscroll-behavior:contain}
+#groupRows{flex:1;overflow:auto;min-height:0;overscroll-behavior:contain}
 .group-row{display:flex;align-items:center;gap:.7em;min-height:44px;padding:.5em 0;overflow-wrap:anywhere}
-.group-row input{flex:none;width:20px;height:20px;accent-color:var(--accent)}
+.group-grip{flex:none;width:32px;height:40px;border:0;background:none;color:var(--fg-soft);font:24px/1 sans-serif;cursor:grab;touch-action:none;user-select:none}
+.group-grip:active{cursor:grabbing}
+.group-row.dragging{opacity:.45}
+.group-row.drop-before{box-shadow:inset 0 3px var(--accent)}
+.group-row.drop-after{box-shadow:inset 0 -3px var(--accent)}
 .group-row.group-other-first{border-top:1px solid var(--line);margin-top:.5em;padding-top:1em}
+.group-dialog input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:0 5px 0 0;border:1.5px solid var(--fg);border-radius:4px;background-color:var(--paper-bg,var(--bg));position:relative;vertical-align:middle;cursor:pointer}
+.group-dialog input[type=checkbox]:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--fg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.group-dialog input[type=checkbox]:disabled{background-color:var(--fg-soft);border-color:var(--fg-soft);opacity:.8;cursor:default}
+.group-dialog input[type=checkbox]:disabled:checked::after{border-color:var(--bg)}
+.group-control-disabled{color:var(--fg-soft)}
+.group-dialog input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .group-error{color:var(--danger);margin:0;overflow-wrap:anywhere}
 #groupHint{color:var(--fg-soft);margin:0}
 #newGroupForm{display:flex;flex-direction:column;gap:.8em}
@@ -5129,7 +5236,13 @@ dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 </dialog>
 <script>
 // Group membership never writes disabled, prefOrder or the search selector.
-let userGroups=[], selectedGroup="all", groupSaving=false;
+let userGroups=[], selectedGroup="all", groupSaving=false, groupShowAllPreferred=false;
+let pickerGroup=localStorage.getItem("wudict_picker_group")||"all";
+async function loadPickerGroups(){
+  try{userGroups=await groupRequest("/api/groups","GET");
+    if(!userGroups.some(g=>g.id===pickerGroup))pickerGroup="all";
+  }catch(e){console.warn("could not load dictionary groups:",e);pickerGroup="all"}
+}
 async function groupRequest(path,method,body){
   const response=await fetch(path,{method,headers:{"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
   if(!response.ok)throw new Error((await response.text()).trim());
@@ -5140,39 +5253,146 @@ function renderGroupOptions(){
   for(const group of userGroups)select.add(new Option(group.name,group.id));
   select.add(new Option("New Group","new"));select.value=selectedGroup;
 }
+function groupHint(group,showAll,ordered){
+  const members=new Set(group.members);
+  const inside=ordered.filter(d=>members.has(d.id)).length;
+  const outside=ordered.length-inside;
+  return group.readonly?"Drag ≡ to reorder all dictionaries."
+    :!showAll?(inside?"Drag ≡ to reorder. Turn on Show All to edit membership.":"This group is empty. Turn on Show All to add dictionaries.")
+    :inside?"":outside?"Select dictionaries to add to this group.":"No dictionaries available. Add dictionaries to your collection first.";
+}
 function renderGroupRows(){
   const group=userGroups.find(g=>g.id===selectedGroup), rows=$("groupRows");rows.replaceChildren();
   if(!group)return;
+  const showAll=$("groupShowAll");
+  showAll.disabled=group.readonly;
+  showAll.checked=group.readonly||groupShowAllPreferred;
+  showAll.parentElement.classList.toggle("group-control-disabled",group.readonly);
   const ordered=orderedDicts(), members=new Set(group.readonly?ordered.map(d=>d.id):group.members);
-  const inside=ordered.filter(d=>members.has(d.id)), outside=$("groupShowAll").checked?ordered.filter(d=>!members.has(d.id)):[];
-  $("groupHint").textContent=group.readonly?"All dictionaries belong to this group automatically.":inside.length?"":!$("groupShowAll").checked?"This group is empty. Turn on Show All to add dictionaries.":outside.length?"Select dictionaries to add to this group.":"No dictionaries available. Add dictionaries to your collection first.";
-  for(const d of inside.concat(outside)){
-    const label=document.createElement("label");label.className="group-row";
-    if(inside.length&&d===outside[0])label.classList.add("group-other-first");
-    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.dataset.dict=d.id;checkbox.checked=members.has(d.id);checkbox.disabled=group.readonly||groupSaving;
+  const inside=group.readonly?ordered:orderedGroupDicts(group,ordered);
+  const outside=group.readonly?[]:ordered.filter(d=>!members.has(d.id));
+  const visible=showAll.checked?inside.concat(outside):inside;
+  $("groupHint").textContent=groupHint(group,showAll.checked,ordered);
+  for(const d of visible){
+    const label=document.createElement(!group.readonly&&showAll.checked?"label":"div");label.className="group-row";
+    if(showAll.checked&&inside.length&&d===outside[0])label.classList.add("group-other-first");
+    label.dataset.dict=d.id;
     const name=document.createElement("span");name.textContent=dictLabel(d);
+    if(group.readonly||!showAll.checked){
+      const grip=document.createElement("button");grip.type="button";grip.className="group-grip";
+      grip.textContent="≡";grip.setAttribute("aria-label","Drag to reorder "+dictLabel(d));
+      label.append(grip,name);rows.append(label);continue;
+    }
+    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.dataset.dict=d.id;checkbox.checked=members.has(d.id);checkbox.disabled=group.readonly||groupSaving;
     label.append(checkbox,name);rows.append(label);
     checkbox.addEventListener("change",async()=>{
-      const member=checkbox.checked;groupSaving=true;$("groupError").textContent="";
-      $("closeGroups").disabled=true;$("groupSelect").disabled=true;
+      const member=checkbox.checked,scrollTop=rows.scrollTop;groupSaving=true;$("groupError").textContent="";
+      $("closeGroups").disabled=true;$("groupSelect").disabled=true;showAll.disabled=true;
       rows.querySelectorAll("input").forEach(input=>input.disabled=true);
       try{
         await groupRequest("/api/groups/member","PUT",{group:group.id,dict:d.id,member});
         group.members=group.members.filter(id=>id!==d.id);if(member)group.members.push(d.id);
+        refreshLivePicker();if(group.id===pickerGroup&&$("q").value.trim())doSearch();
       }catch(error){$("groupError").textContent=error.message}
       finally{
-        groupSaving=false;$("closeGroups").disabled=false;$("groupSelect").disabled=false;renderGroupRows();
-        ([...rows.querySelectorAll("input")].find(input=>input.dataset.dict===d.id)||$("groupSelect")).focus();
+        groupSaving=false;$("closeGroups").disabled=false;$("groupSelect").disabled=false;showAll.disabled=group.readonly;
+        renderGroupRows();
+        rows.scrollTop=scrollTop;
       }
     });
   }
 }
+async function saveGroupOrder(ids,focusId){
+  if(groupSaving)return;
+  const group=userGroups.find(g=>g.id===selectedGroup);
+  if(!group||(!group.readonly&&$("groupShowAll").checked))return;
+  const rows=$("groupRows"),top=rows.scrollTop;
+  groupSaving=true;$("groupError").textContent="";
+  $("closeGroups").disabled=true;$("groupSelect").disabled=true;$("groupShowAll").disabled=true;
+  try{
+    if(group.readonly){
+      prefOrder=ids;savePrefs(true);refreshDictUI(true);
+    }else{
+      await groupRequest("/api/groups/order","PUT",{group:group.id,members:ids});
+      group.members=ids;
+    }
+    refreshLivePicker();
+    if(group.id===pickerGroup&&$("q").value.trim())doSearch();
+  }catch(error){$("groupError").textContent=error.message}
+  finally{
+    groupSaving=false;$("closeGroups").disabled=false;$("groupSelect").disabled=false;
+    renderGroupRows();rows.scrollTop=top;
+    if(focusId){const grip=[...rows.querySelectorAll(".group-row")].find(row=>row.dataset.dict===focusId)?.querySelector(".group-grip");grip?.focus({preventScroll:true})}
+  }
+}
+let groupDrag=null;
+function clearGroupDrop(){
+  $("groupRows").querySelectorAll(".dragging,.drop-before,.drop-after").forEach(row=>
+    row.classList.remove("dragging","drop-before","drop-after"));
+}
+function updateGroupDrop(){
+  if(!groupDrag)return;
+  const drag=groupDrag,rows=$("groupRows");
+  const row=document.elementFromPoint(drag.x,drag.y)?.closest(".group-row");
+  rows.querySelectorAll(".drop-before,.drop-after").forEach(el=>el.classList.remove("drop-before","drop-after"));
+  drag.target=null;
+  if(!row||!rows.contains(row)||row.dataset.dict===drag.id)return;
+  drag.target=row.dataset.dict;
+  drag.after=drag.y>row.getBoundingClientRect().top+row.getBoundingClientRect().height/2;
+  row.classList.add(drag.after?"drop-after":"drop-before");
+}
+function groupDragTick(){
+  if(!groupDrag)return;
+  const rows=$("groupRows"),rect=rows.getBoundingClientRect(),edge=44;
+  if(groupDrag.y<rect.top+edge)rows.scrollTop-=Math.min(28,Math.max(0,(rect.top+edge-groupDrag.y)/5));
+  else if(groupDrag.y>rect.bottom-edge)rows.scrollTop+=Math.min(28,Math.max(0,(groupDrag.y-rect.bottom+edge)/5));
+  updateGroupDrop();
+  groupDrag.raf=requestAnimationFrame(groupDragTick);
+}
+$("groupRows").addEventListener("pointerdown",event=>{
+  const grip=event.target.closest(".group-grip");
+  if(!grip||groupSaving||event.button!==0)return;
+  event.preventDefault();
+  const row=grip.closest(".group-row");
+  groupDrag={id:row.dataset.dict,x:event.clientX,y:event.clientY,pointerId:event.pointerId,target:null,after:false,raf:null};
+  row.classList.add("dragging");
+  grip.setPointerCapture(event.pointerId);
+  groupDrag.raf=requestAnimationFrame(groupDragTick);
+});
+$("groupRows").addEventListener("pointermove",event=>{
+  if(!groupDrag||event.pointerId!==groupDrag.pointerId)return;
+  event.preventDefault();groupDrag.x=event.clientX;groupDrag.y=event.clientY;updateGroupDrop();
+});
+function finishGroupDrag(event,cancel){
+  if(!groupDrag||event.pointerId!==groupDrag.pointerId)return;
+  groupDrag.x=event.clientX;groupDrag.y=event.clientY;updateGroupDrop();
+  const drag=groupDrag;groupDrag=null;cancelAnimationFrame(drag.raf);clearGroupDrop();
+  if(cancel||!drag.target)return;
+  const group=userGroups.find(g=>g.id===selectedGroup);if(!group)return;
+  const current=group.readonly?orderedIds():group.members.slice();
+  const ids=current.slice(),from=ids.indexOf(drag.id);if(from<0)return;
+  ids.splice(from,1);
+  let to=ids.indexOf(drag.target);if(to<0)return;
+  if(drag.after)to++;
+  ids.splice(to,0,drag.id);
+  if(ids.some((id,i)=>id!==current[i]))saveGroupOrder(ids,drag.id);
+}
+$("groupRows").addEventListener("pointerup",event=>finishGroupDrag(event,false));
+$("groupRows").addEventListener("pointercancel",event=>finishGroupDrag(event,true));
+$("groupRows").addEventListener("keydown",event=>{
+  if(!event.target.classList.contains("group-grip")||!(["ArrowUp","ArrowDown"].includes(event.key)))return;
+  const group=userGroups.find(g=>g.id===selectedGroup);if(!group||groupSaving)return;
+  const id=event.target.closest(".group-row").dataset.dict,ids=group.readonly?orderedIds():group.members.slice(),from=ids.indexOf(id);
+  const to=from+(event.key==="ArrowUp"?-1:1);
+  if(from<0||to<0||to>=ids.length)return;
+  event.preventDefault();ids.splice(from,1);ids.splice(to,0,id);saveGroupOrder(ids,id);
+});
 $("editGroups").addEventListener("click",async()=>{
   const button=$("editGroups");button.disabled=true;
   $("groupError").textContent="";$("groupHint").textContent="Loading…";$("groupRows").replaceChildren();
   $("groupSelect").disabled=true;$("groupEditor").showModal();
   try{
-    userGroups=await groupRequest("/api/groups","GET");
+    userGroups=await groupRequest("/api/groups","GET");refreshLivePicker();
     if(!userGroups.some(g=>g.id===selectedGroup))selectedGroup="all";
     renderGroupOptions();renderGroupRows();$("groupSelect").disabled=false;
   }catch(error){$("groupError").textContent=error.message;$("groupHint").textContent=""}
@@ -5181,7 +5401,7 @@ $("editGroups").addEventListener("click",async()=>{
 $("closeGroups").onclick=()=>$("groupEditor").close();
 $("groupEditor").addEventListener("close",()=>$("editGroups").focus());
 $("groupEditor").addEventListener("cancel",event=>{if(groupSaving)event.preventDefault()});
-$("groupShowAll").onchange=renderGroupRows;
+$("groupShowAll").onchange=()=>{groupShowAllPreferred=$("groupShowAll").checked;renderGroupRows()};
 $("groupSelect").onchange=()=>{
   if($("groupSelect").value==="new"){
     $("groupSelect").value=selectedGroup;$("groupName").value="";$("newGroupError").textContent="";
@@ -5195,11 +5415,12 @@ $("newGroupForm").onsubmit=async event=>{
   $("createGroup").disabled=true;$("cancelGroup").disabled=true;$("newGroupError").textContent="";
   try{
     const group=await groupRequest("/api/groups","POST",{name:$("groupName").value});
-    userGroups.push(group);selectedGroup=group.id;renderGroupOptions();renderGroupRows();$("newGroupDialog").close();
+    userGroups.push(group);selectedGroup=group.id;renderGroupOptions();renderGroupRows();refreshLivePicker();$("newGroupDialog").close();
   }catch(error){$("newGroupError").textContent=error.message}
   finally{$("createGroup").disabled=false;$("cancelGroup").disabled=false}
 };
 $("newGroupDialog").addEventListener("cancel",event=>{if($("createGroup").disabled)event.preventDefault()});
+Promise.all([loadPrefs(),loadConfig(),loadUserCSS(),loadPickerGroups()]).then(loadDicts).then(applyURL);
 </script>
 </body>
 </html>

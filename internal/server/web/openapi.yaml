@@ -997,7 +997,7 @@ paths:
       description: Private collection API. Members are current dictionary IDs, including globally disabled dictionaries. Unavailable dictionaries retain their stored membership for later rescans.
       responses:
         '200':
-          description: Array of groups with id, name, members (dictionary IDs), and readonly.
+          description: Array of groups with id, name, ordered members (dictionary IDs), and readonly.
     post:
       operationId: createDictionaryGroup
       summary: Create an empty user dictionary group
@@ -1044,6 +1044,35 @@ paths:
           description: Group or dictionary no longer exists.
         '500':
           description: State could not be saved; membership unchanged.
+
+  /api/groups/order:
+    put:
+      operationId: reorderDictionaryGroup
+      summary: Save the order of currently available members of one user group
+      description: Unavailable members remain in the group and keep their relative order after the submitted members. Does not change global dictionary order or membership.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [group, members]
+              properties:
+                group: { type: string }
+                members:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Group order saved.
+        '400':
+          description: Invalid order or attempt to reorder All Dictionaries.
+        '404':
+          description: Group no longer exists.
+        '409':
+          description: Membership changed; reload before reordering.
+        '500':
+          description: State could not be saved; order unchanged.
 
   /api/prefs:
     get:

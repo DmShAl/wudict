@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -342,9 +343,30 @@ func (p *Prefs) heal(r *Registry) []DictPref {
 		changed = true
 	}
 	if changed {
-		if err := p.Replace(out); err != nil {
+		remap := make(map[string]string)
+		for i, d := range stored {
+			if d.ID != out[i].ID {
+				remap[d.ID] = out[i].ID
+			}
+		}
+		p.mu.Lock()
+		oldDicts, oldGroups, oldExists := p.dicts, p.groups, p.exists
+		p.dicts, p.groups, p.exists = out, slices.Clone(p.groups), true
+		for i := range p.groups {
+			g := p.groups[i]
+			g.Order = slices.Clone(g.Order)
+			for j, id := range g.Order {
+				if replacement, ok := remap[id]; ok {
+					g.Order[j] = replacement
+				}
+			}
+			p.groups[i] = g
+		}
+		if err := p.saveLocked(); err != nil {
+			p.dicts, p.groups, p.exists = oldDicts, oldGroups, oldExists
 			logx.Warn("could not save %s: %v", p.path, err)
 		}
+		p.mu.Unlock()
 	}
 	return out
 }

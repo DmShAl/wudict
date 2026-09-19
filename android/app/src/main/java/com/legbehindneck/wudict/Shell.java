@@ -111,12 +111,16 @@ final class Shell {
     // groups, disabled entries and its existing change handler.
     static final String DICTIONARY_PICKER_JS = """
             (() => {
-              for (const id of ['dict', 'mode', 'stylerPreset']) {
+              for (const id of ['dict', 'mode', 'stylerPreset', 'groupSelect']) {
               const select = document.getElementById(id);
               if (!select || select.dataset.shellPicker) continue;
               select.dataset.shellPicker = '1';
               function open() {
                 if (select.disabled) return;
+                if (id === 'dict' && window.wudictNativeDictionaryPicker) {
+                  window.wudictNativeDictionaryPicker();
+                  return;
+                }
                 if (id === 'dict' && window.wudictFoundDictionaryMode && window.wudictFoundDictionaryPicker) {
                   window.wudictFoundDictionaryPicker();
                   return;
@@ -300,6 +304,18 @@ final class Shell {
                     return true;
                 }
                 if (!"wudict:dictionary-picker".equals(message)) return false;
+                String pickerKind = "";
+                try { pickerKind = new org.json.JSONObject(defaultValue).optString("kind"); }
+                catch (org.json.JSONException ignored) { }
+                if ("liveDict".equals(pickerKind)) {
+                    DictionaryPicker.showLive(a, view, defaultValue, result);
+                    return true;
+                }
+                if ("liveDictUpdate".equals(pickerKind)) {
+                    DictionaryPicker.updateLive(view, defaultValue);
+                    result.confirm("");
+                    return true;
+                }
                 DictionaryPicker.show(a, defaultValue, result);
                 return true;
             }
