@@ -1,0 +1,29 @@
+.search-history{position:absolute;top:calc(100% + 4px);left:0;right:0;
+  max-height:min(50vh,320px);overflow-y:auto;background:var(--bg-card);
+  border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+  z-index:110}
+/* The Android mode and dictionary pickers are native windows. With a shell
+   image they paint that image, then a 0x24 white tint (WindowBackground).
+   The HTML history list needs the same surface, not a white Canvas fallback
+   or the transparent page behind the WebView. */
+html[data-shell-sepia] .search-history{
+  background-color:var(--paper-bg);
+  background-image:linear-gradient(#ffffff24,#ffffff24);
+}
+html[data-shell-image] .search-history{
+  background-color:var(--paper-bg,var(--bg));
+  background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
+  background-size:100% 100%;
+}
+.search-history[hidden]{display:none}
+.search-history button{display:block;width:100%;padding:.55em .8em;border:0;
+  background:none;color:var(--fg);text-align:left;font:inherit;cursor:pointer}
+.search-history button:hover,.search-history button:focus-visible{
+  background:var(--line-soft);outline:none}
+.history-setting{display:inline-flex;align-items:center;gap:.4em;
+  color:var(--fg-soft);font-size:13px}
+.history-controls{display:inline-flex;align-items:center;gap:.45em}
+#clearHistory:disabled{opacity:.45;cursor:default}
+.history-setting input{width:4.5em;font:inherit;padding:.25em .35em;
+  color:var(--fg);background:var(--bg-card);border:1px solid var(--line);
+  border-radius:6px}

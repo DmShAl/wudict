@@ -1,0 +1,28 @@
+
+dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560px,94vw);height:fit-content;max-height:85vh;max-height:85dvh;padding:1em;border:1px solid var(--line);border-radius:12px;color:var(--fg);background-color:var(--bg);box-shadow:var(--shadow);overflow:auto}
+#groupEditor{height:min(650px,85vh);height:min(650px,85dvh)}
+dialog.group-dialog:not([open]){display:none}
+dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
+.group-dialog::backdrop{background:rgba(0,0,0,.4)}
+.group-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.8em}
+.group-toolbar select{flex:1;min-width:0;max-width:100%;width:12em}
+.group-dialog select,.group-dialog input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:.6em}
+.group-dialog h2{display:flex;align-items:center;gap:1em;margin:0}
+.group-dialog h2 button{margin-left:auto}
+#groupRows{flex:1;overflow:auto;min-height:0;overscroll-behavior:contain}
+.group-row{display:flex;align-items:center;gap:.7em;min-height:44px;padding:.5em 0;overflow-wrap:anywhere}
+.group-grip{flex:none;width:32px;height:40px;border:0;background:none;color:var(--fg-soft);font:24px/1 sans-serif;cursor:grab;touch-action:none;user-select:none}
+.group-grip:active{cursor:grabbing}
+.group-row.dragging{opacity:.45}
+.group-row.drop-before{box-shadow:inset 0 3px var(--accent)}
+.group-row.drop-after{box-shadow:inset 0 -3px var(--accent)}
+.group-row.group-other-first{border-top:1px solid var(--line);margin-top:.5em;padding-top:1em}
+.group-dialog input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:0 5px 0 0;border:1.5px solid var(--fg);border-radius:4px;background-color:var(--paper-bg,var(--bg));position:relative;vertical-align:middle;cursor:pointer}
+.group-dialog input[type=checkbox]:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--fg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.group-dialog input[type=checkbox]:disabled{background-color:var(--fg-soft);border-color:var(--fg-soft);opacity:.8;cursor:default}
+.group-dialog input[type=checkbox]:disabled:checked::after{border-color:var(--bg)}
+.group-control-disabled{color:var(--fg-soft)}
+.group-dialog input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.group-error{color:var(--danger);margin:0;overflow-wrap:anywhere}
+#groupHint{color:var(--fg-soft);margin:0}
+#newGroupForm{display:flex;flex-direction:column;gap:.8em}
