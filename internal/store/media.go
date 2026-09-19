@@ -51,6 +51,17 @@ func OpenMedia(path string) (*Media, error) {
 
 func (m *Media) Close() error { return m.db.Close() }
 
+// blobStreamMin is the size at which a packed resource stops being read
+// whole. Below it - stylesheets, icons, audio clips - one row read is the
+// cheapest possible answer. Above it - the videos and multi-megabyte PDFs
+// some dictionaries pack - reading whole meant every request, including every
+// Range probe a browser makes while playing, allocated the blob entire to
+// serve a few hundred KB of it.
+const blobStreamMin = 4 << 20
+
+// blobChunk is one substr fetch out of a streamed blob.
+const blobChunk = 1 << 20
+
 func (m *Media) Resource(name string) (io.ReadCloser, string, error) {
 	// Spellings tried in order, each one a way the SAME file can be named:
 	// exact, then case-insensitively (MDD names are indexed lower-cased while
@@ -65,25 +76,28 @@ func (m *Media) Resource(name string) (io.ReadCloser, string, error) {
 	// file it demonstrably contains, only for accented names, only on some
 	// machines. resource.Key does the same job for the container backends.
 	nfc, nfd := norm.NFC.String(name), norm.NFD.String(name)
-	type probe struct {
-		q, arg string
-	}
-	probes := []probe{
-		{"SELECT mime, data FROM resource WHERE name = ?", name},
-		{"SELECT mime, data FROM resource WHERE name = ? COLLATE NOCASE", name},
+	probes := []struct{ where, arg string }{
+		{"name = ?", name},
+		{"name = ? COLLATE NOCASE", name},
 	}
 	if nfc != name {
-		probes = append(probes, probe{"SELECT mime, data FROM resource WHERE name = ? COLLATE NOCASE", nfc})
+		probes = append(probes, struct{ where, arg string }{"name = ? COLLATE NOCASE", nfc})
 	}
 	if nfd != name && nfd != nfc {
-		probes = append(probes, probe{"SELECT mime, data FROM resource WHERE name = ? COLLATE NOCASE", nfd})
+		probes = append(probes, struct{ where, arg string }{"name = ? COLLATE NOCASE", nfd})
 	}
+	// The first pass asks only for the MIME and the LENGTH. length() reads the
+	// blob's size off the record header - no blob pages move - so the whole-
+	// read-or-stream decision below is made before a byte of content has been
+	// paid for, and a miss (probes after the first) costs no content either.
 	var mime string
-	var data []byte
+	var size int64
+	var where, arg string
 	err := sql.ErrNoRows
 	for _, p := range probes {
-		err = m.db.QueryRow(p.q, p.arg).Scan(&mime, &data)
+		err = m.db.QueryRow("SELECT mime, length(data) FROM resource WHERE "+p.where, p.arg).Scan(&mime, &size)
 		if err != sql.ErrNoRows {
+			where, arg = p.where, p.arg
 			break
 		}
 	}
@@ -93,18 +107,92 @@ func (m *Media) Resource(name string) (io.ReadCloser, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	// A *bytes.Reader, kept seekable. io.NopCloser hides Seek behind a plain
-	// io.Reader, and the resource handler tests for io.ReadSeeker to decide
-	// whether it can answer Range requests - so wrapping it that way made every
-	// packed video and PDF unseekable although the whole blob is already in
-	// memory (server.handleResource).
-	return readSeekNopCloser{bytes.NewReader(data)}, mime, nil
+	if size <= blobStreamMin {
+		var data []byte
+		if err := m.db.QueryRow("SELECT data FROM resource WHERE "+where, arg).Scan(&data); err != nil {
+			return nil, "", err
+		}
+		// A *bytes.Reader, kept seekable. io.NopCloser hides Seek behind a
+		// plain io.Reader, and the resource handler tests for io.ReadSeeker to
+		// decide whether it can answer Range requests (server.handleResource).
+		return readSeekNopCloser{bytes.NewReader(data)}, mime, nil
+	}
+	return nopCloser{&blobReader{db: m.db, where: where, arg: arg, size: size}}, mime, nil
 }
 
 // readSeekNopCloser is io.NopCloser that keeps the Seek method.
 type readSeekNopCloser struct{ *bytes.Reader }
 
 func (readSeekNopCloser) Close() error { return nil }
+
+// nopCloser keeps Seek visible through the io.ReadCloser Resource returns.
+type nopCloser struct{ io.ReadSeeker }
+
+func (nopCloser) Close() error { return nil }
+
+// blobReader is a ReadSeeker over one large resource.data blob, fetched
+// through substr in chunks. Streaming is only half the point; the other half
+// is the Seek: the resource handler answers Range requests from any
+// io.ReadSeeker (server.handleResource), so a browser's scrubber - or
+// Safari's opening range probe, without which it refuses to start a video -
+// reads exactly the bytes it asked for instead of pulling the whole blob
+// through Scan first. The db handle is the Media's own read-only pool, and
+// Close is a no-op because nothing here owns a connection.
+type blobReader struct {
+	db    *sql.DB
+	where string // the WHERE clause that resolved the name's spelling
+	arg   string
+	size  int64
+	pos   int64
+	buf   []byte
+	bufAt int64 // file position of buf[0]
+}
+
+func (b *blobReader) Read(p []byte) (int, error) {
+	if b.pos >= b.size {
+		return 0, io.EOF
+	}
+	if b.pos < b.bufAt || b.pos >= b.bufAt+int64(len(b.buf)) {
+		if err := b.fill(b.pos); err != nil {
+			return 0, err
+		}
+	}
+	n := copy(p, b.buf[b.pos-b.bufAt:])
+	b.pos += int64(n)
+	return n, nil
+}
+
+func (b *blobReader) fill(off int64) error {
+	n := int64(blobChunk)
+	if off+n > b.size {
+		n = b.size - off
+	}
+	// substr is 1-based; a range running past the blob returns what exists.
+	// Placeholder order follows the SQL: substr's start and length, then the
+	// WHERE argument.
+	if err := b.db.QueryRow("SELECT substr(data, ?, ?) FROM resource WHERE "+b.where,
+		off+1, n, b.arg).Scan(&b.buf); err != nil {
+		return err
+	}
+	b.bufAt = off
+	return nil
+}
+
+func (b *blobReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekCurrent:
+		offset += b.pos
+	case io.SeekEnd:
+		offset += b.size
+	}
+	if offset < 0 {
+		return 0, fmt.Errorf("seek before the start of the resource")
+	}
+	b.pos = offset
+	return b.pos, nil
+}
+
+func (b *blobReader) Close() error { return nil }
 
 // References are found with the shared HTML tokenizer (internal/htmlref), not
 // a pattern over the markup. The regex this replaced accepted quoted values
