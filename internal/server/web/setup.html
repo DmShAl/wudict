@@ -71,6 +71,9 @@ html[data-shell-tone="dark"] {
    /assets/setup.css, which lemmas.html shares. */
 .frow{display:flex;align-items:center;gap:.4em}
 .frow input{margin:.3em 0;min-width:0}
+.frow .pick{flex:none;background:none;border:0;font-size:16px;cursor:pointer;
+  padding:0 .2em;margin:0;line-height:1;color:var(--faint)}
+.frow .pick:hover{color:var(--accent)}
 .frow .rm{flex:none;background:none;border:0;color:var(--faint);font-size:16px;
   cursor:pointer;padding:0 .2em;margin:0;line-height:1}
 .frow .rm:hover{color:var(--err)}
@@ -88,6 +91,7 @@ html[data-shell-tone="dark"] {
 @media (max-width:520px){
   .frow{flex-wrap:wrap;row-gap:.15em;margin-bottom:.7em}
   .frow input{flex:1 1 100%}
+  .frow .pick{order:0;margin-right:.1em}
   .frow .st{order:1;flex:1 1 0;min-width:0;text-align:left}
   /* 18px plus padding is a ~32px touch target: the minimum for a control that
      removes a dictionary root. margin-left:auto holds the right edge even
@@ -271,9 +275,23 @@ async function loadLibrary(){
 function addRow(value){
   const row=document.createElement("div");row.className="frow";
   row.innerHTML=`<input placeholder="/path/to/your/dictionaries" spellcheck="false">
+    <button type="button" class="pick" title="Choose a folder">📁</button>
     <span class="st"></span><button type="button" class="rm" title="Remove this folder">✕</button>`;
   const input=row.querySelector("input");
   if(value)input.value=value;
+  // Directory picker: modern browsers only; silently absent where unsupported.
+  const pick=row.querySelector(".pick");
+  if(typeof showDirectoryPicker==="function"){
+    pick.addEventListener("click",async ()=>{
+      try{ const h=await showDirectoryPicker();
+        // getFullPath() is the spec-correct way; fall back to name for older browsers.
+        var path="";
+        if(typeof h.getPath==="function"){try{path=await h.getPath();}catch(_){path=h.name||"";}}else if(typeof h.fullPath==="string"){path=h.fullPath;}else{path=h.name||"";}
+        input.value=path;
+        clearTimeout(timer);timer=setTimeout(validateAll,350);
+      }catch(_){}
+    });
+  }else pick.style.display="none";
   input.addEventListener("input",()=>{clearTimeout(timer);timer=setTimeout(validateAll,350)});
   input.addEventListener("keydown",e=>{if(e.key==="Enter"&&lastOK)save()});
   row.querySelector(".rm").addEventListener("click",()=>{
