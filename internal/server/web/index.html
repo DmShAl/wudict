@@ -1231,6 +1231,7 @@ body.styling{padding-bottom:var(--styler-h)}
   <div id="stylerNote"></div>
 </div>
 
+<script src="/assets/pick.js"></script>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -3047,7 +3048,7 @@ function frameDoc(content,fid,dark,dictID,frag){
     'html.dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.92)}'+
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+
     ARTCSS+
-    '</style><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
+    '</style><script src="/assets/pick.js"><\/script><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
     '" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
     /* A stylesheet written for a full page sizes html and body from the
        VIEWPORT — LDOCE's ldoce.css opens with `html, body{height:100%}`. Here the
@@ -3089,6 +3090,8 @@ addEventListener("message",e=>{
   }else if(d.t==="ref"&&d.w){
     // d.xdict is set when the author pointed at ANOTHER dictionary by name.
     searchFor(d.w,{scope:d.xdict?dictIDByName(d.xdict):d.dict,frag:d.frag});
+  }else if(d.t==="pickword"&&d.w){
+    searchFor(d.w);
   }else if(d.t==="pick"&&d.w){
     lookupSelection(d.w);                      // user's selection: tidied, global
   }else if(d.t==="open"&&d.url){
@@ -4210,12 +4213,14 @@ async function toggleSub(link,word,dictID){
 
 document.addEventListener("dblclick",e=>{
   const path=e.composedPath();
+  if(path.some(el=>["A","BUTTON","INPUT","TEXTAREA","SELECT","AUDIO","VIDEO"].includes(el.tagName)||
+    el.isContentEditable))return;
   if(!path.some(el=>el.classList?.contains("article")))return;
   const root=path.find(el=>el instanceof ShadowRoot);
-  let sel="";
-  try{sel=(root&&root.getSelection?root.getSelection():document.getSelection()).toString().trim()}catch(_){ }
-  if(sel)lookupSelection(sel);
-});
+  if(!root)return;
+  const word=window.wuWordAt?.(e,root);
+  if(word)searchFor(word);
+},true);
 
 /* Audio, in the CAPTURE phase and owned outright — the click never reaches the
    article. Covers both spellings: an <a> pointing at a media file (a speaker

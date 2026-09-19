@@ -68,6 +68,9 @@ var setupCSS []byte // palette and controls shared by setup.html and lemmas.html
 //go:embed web/frame.js
 var frameJS []byte // bridge script for sandboxed article iframes
 
+//go:embed web/pick.js
+var pickJS []byte // shared word hit-testing for both article renderers
+
 //go:embed web/double-tap-probe.html
 var doubleTapProbe []byte // temporary Android gesture diagnostic
 

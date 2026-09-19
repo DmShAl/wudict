@@ -548,10 +548,12 @@
 	// "pick", not "ref": a double-clicked word is the user asking what
 	// something means, not following the author's reference. The app tidies it
 	// (trailing punctuation, footnote digits) and searches everywhere.
-	document.addEventListener("dblclick", function () {
-		var sel = String(document.getSelection() || "").trim();
-		if (sel) HOST.postMessage({ t: "pick", w: sel }, "*");
-	});
+	document.addEventListener("dblclick", function (e) {
+		var el = e.target;
+		if (el.closest && el.closest("a,button,input,textarea,select,audio,video,[contenteditable]")) return;
+		var word = window.wuWordAt && window.wuWordAt(e, document.body);
+		if (word) HOST.postMessage({ t: "pickword", w: word }, "*");
+	}, true);
 
 	// --- keys belong to the app, not to the article -----------------------
 	// This is a sandboxed iframe, so the moment the user clicks into an
