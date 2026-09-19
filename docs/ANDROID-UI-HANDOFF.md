@@ -1,6 +1,6 @@
 # Android UI continuation
 
-Snapshot: 2026-09-18, branch `dev`, HEAD at preparation `5ed9eb8` (`CSS editor polishing`). Before this documentation edit, tracked files were clean; only an empty, untracked `AGENTS.md` existed. Recheck status rather than assuming this snapshot still holds.
+Snapshot: 2026-09-19, branch `dictionary-groups`, HEAD `9a6055e`. The group picker, group-specific order, and recent UI refinements are **uncommitted**; check `git status` before any change. `android/gradle.properties` also has a user change that was not made or edited by the agent. Older stashes exist, including one made to preserve `.gitignore` before switching branches; do not pop them blindly. The user requested direct work in this checkout, with no new worktree or patch-file transfer.
 
 ## Existing documentation
 
@@ -23,9 +23,9 @@ build-android.cmd debug sh
 - Optional ignored `build-android.local.bat` provides local environment/signing: `KEYSTORE`, `KEY_ALIAS`, `STORE_PASSWORD`, `KEY_PASSWORD`. Without a keystore, release is unsigned. Never print secrets.
 - Gradle property: `-PappVariant=original` or `-PappVariant=sh`; tasks remain `assembleFossRelease` / `assembleFossDebug`.
 - Ordinary outputs: `android/app/build/outputs/apk/foss/<type>/`; sh outputs: `android/app/build-sh/outputs/apk/foss/<type>/`. Names: `wudict-android-arm64-foss[_sh][-debug|-unsigned].apk`; signed release has neither debug nor unsigned suffix. The script prints the exact path.
-- Routine check: `git diff --check`. Existing project-wide checks are in Makefile (`make help`, `make check`, `make test`). Targeted server tests: `go test ./internal/server -run 'Test.*(Asset|Frame)' -count=1` (PowerShell/Unix quoting shown).
-- Earlier agent runs could not execute SDK tools and hit access denied for `%LOCALAPPDATA%\go-build`; the user builds successfully in external cmd. These are environment limitations, not demonstrated source failures. Check current permissions once; do not repeatedly retry the same blocked build or claim an APK/device test passed.
-- Prior small JS checks used Node VM with DOM/prompt mocks. They verify event/state logic, not real Android touch/focus timing. No persistent regression suite was added for those mocks.
+- Routine check: `git diff --check`; `go build ./...`. Existing project-wide checks are in Makefile (`make help`, `make check`, `make test`). Android Java check from `android/`: `.\gradlew.bat :app:compileFossDebugJavaWithJavac --offline` (passed for the current Java changes). This does **not** rebuild embedded Go/HTML or verify an APK on a device.
+- On Windows, `go test ./internal/server -run 'Test.*Group' -count=1` currently fails at compile time in the existing `memlimit_test.go` (`syscall.Rusage.Maxrss` is unavailable). To run the targeted group tests without that file, from the repository root in PowerShell: `$files = Get-ChildItem internal/server -Filter '*.go' | Where-Object Name -notin @('memlimit_test.go','foreground_other.go','hidewindow_other.go') | ForEach-Object FullName; go test $files -run 'Test.*Group' -count=1`. This and `go build ./...` passed at handoff.
+- Inline JavaScript syntax was checked with Node `vm.Script` after replacing the server's `{{BACKGROUND_PRESET}}` and `{{SEPIA_PRESET}}` placeholders with `{}`. This does not verify Android touch behavior, native dialog rendering, or streaming search on a phone. No APK was built or installed by the agent.
 
 ## Where to work
 
@@ -44,6 +44,19 @@ Java paths below are relative to `android/app/src/main/java/com/legbehindneck/wu
 | Article iframe bridge | `internal/server/web/frame.js`; shadow articles inherit CSS variables, iframe articles receive resolved tokens through `frameCSS`/`pushFrameCSS` in index.html |
 | Embedded example CSS | `internal/server/web/presets/background/`: `background_image_app.css`, `background_image_article.css`, `sepia_app.css`, `sepia_article.css` |
 | Packaging examples into page | `internal/server/server.go`: go:embed strings, JSON-encoded `BACKGROUND_PRESET` / `SEPIA_PRESET` substitutions in `basePage` |
+
+### Dictionary groups: current work
+
+| Concern | Entry points |
+| --- | --- |
+| Stored membership and independent order | `internal/server/prefs.go`: `DictPref.Groups`, `DictionaryGroup.Order` persistence in `state.json`, identity repair in `Prefs.heal`; `internal/server/groups.go`: `handleGroups`, `handleGroupMember`, `handleGroupOrder`; routes in `routes.go`, API description in `web/openapi.yaml`, coverage in `groups_test.go` |
+| Search scope and native picker data | `internal/server/web/index.html`: `orderedGroupDicts`, `activeUserGroupIds`, `doSearch`, `livePickerRows`, `livePickerPayload`, `wudictPickerGroupChanged`, `wudictPickerDictionarySelected` |
+| Group editor and touch reorder | `index.html`: `#groupEditor` CSS, `renderGroupRows`, `saveGroupOrder`, `groupDragTick`, pointer handlers on `#groupRows`; `#groupSelect` uses the native select bridge |
+| Android dialog bridge | `Shell.java`: `DICTIONARY_PICKER_JS`, `windows().onJsPrompt`; `DictionaryPicker.java`: `showLive`, `updateLive`, `Live` and the older blocking picker for other selects |
+
+Membership and group order belong to Go/state.json. The automatic All Dictionaries group follows the global preference order; each user group stores its own order. The selected picker group is a device-local `wudict_picker_group` value, and only globally enabled members are searched. `GET /api/groups` returns visible members in group order; `PUT /api/groups/order` saves an order without changing membership or the global order. The editor's Show All for a user group shows members first in group order, then a divider and nonmembers in All Dictionaries order. Adding a member appends it to the group's end; removing one returns it to its global-order place. When Show All is off, drag handles reorder only that group. All Dictionaries instead shows drag handles for the global order, with Show All checked and disabled.
+
+The dictionary picker at the word field has a group dropdown above the existing All/Found list. Changing group reruns the current word, resets a single-dictionary selection, and clears old results; an empty group never falls through to a whole-library search. The live Android picker confirms its opening `window.prompt` immediately, then receives short update prompts while results stream. This avoids holding JavaScript blocked for the life of the dialog. Main and floating lookup windows both use the `Shell` bridge. Keep these flows in sync when editing picker behavior.
 
 ## Decisions to preserve
 
