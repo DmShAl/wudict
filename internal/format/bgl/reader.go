@@ -130,6 +130,12 @@ func isStreamEnd(err error) bool {
 	return err == io.EOF || err == gzip.ErrChecksum || err == io.ErrUnexpectedEOF
 }
 
+// maxBlockBytes caps one BGL block. Blocks are per-article deflated groups -
+// kilobytes to a few megabytes even with an embedded audio clip - so this is
+// orders of magnitude of headroom, and it is the only thing between a corrupt
+// length field and a 4 GB allocation (cf. gomdict's maxLZOBlock).
+const maxBlockBytes = 64 << 20
+
 // readBlockStream reads one block header + data. ok=false with err==nil marks
 // a clean end of stream (EOF or the type-4 end marker).
 func readBlockStream(br *bufio.Reader) (typ byte, data []byte, ok bool, err error) {
@@ -157,6 +163,13 @@ func readBlockStream(br *bufio.Reader) (typ byte, data []byte, ok bool, err erro
 	}
 	if length < 0 {
 		return 0, nil, false, nil
+	}
+	// maxBlockBytes caps one block. Blocks are per-article deflated groups -
+	// kilobytes to a few megabytes even with an embedded audio clip - so this
+	// is orders of magnitude of headroom, and it is the only thing between a
+	// corrupt length field and a 4 GB allocation (cf. gomdict's maxLZOBlock).
+	if length > maxBlockBytes {
+		return 0, nil, false, fmt.Errorf("bgl block of %d bytes exceeds the %d byte limit", length, maxBlockBytes)
 	}
 	if length > 0 {
 		data = make([]byte, length)
@@ -440,7 +453,10 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 	}
 	wl := uintBE(data[pos : pos+5])
 	pos += 5
-	if pos+wl > len(data) {
+	// A negative length exists only where int is 32-bit and the u40 the field
+	// declares wraps; on such a build pos+wl can wrap past the check below and
+	// slice out of range.
+	if wl < 0 || pos+wl > len(data) {
 		return e, false
 	}
 	e.word = data[pos : pos+wl]
@@ -460,7 +476,7 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 		if al == 0 {
 			break
 		}
-		if pos+al > len(data) {
+		if al < 0 || pos+al > len(data) {
 			return e, false
 		}
 		e.alts = append(e.alts, data[pos:pos+al])
@@ -472,7 +488,7 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 	}
 	dl := uintBE(data[pos : pos+4])
 	pos += 4
-	if pos+dl > len(data) {
+	if dl < 0 || pos+dl > len(data) {
 		return e, false
 	}
 	e.defi = data[pos : pos+dl]

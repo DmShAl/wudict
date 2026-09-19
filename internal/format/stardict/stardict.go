@@ -239,6 +239,12 @@ func readCompanion(base, ext string) ([]byte, error) {
 		filepath.Base(base+ext), compressedSuffixes[1])
 }
 
+// maxIndexBytes bounds one decompressed companion. An .idx of a real
+// dictionary runs to tens of MB, and it is loaded whole by design - but a gzip
+// bomb, a few KB that inflate to gigabytes, must cost one refused dictionary,
+// not the process.
+const maxIndexBytes = 256 << 20
+
 // readGzAll decompresses f whole, keeping what it got when the stream is
 // damaged at its TAIL. gzip verifies a CRC and a length that sit after the last
 // byte of data, so a file whose final bytes are malformed - the same class of
@@ -251,10 +257,19 @@ func readGzAll(f *os.File) ([]byte, error) {
 		return nil, err
 	}
 	defer gr.Close()
-	data, err := io.ReadAll(gr)
+	return readGzBounded(gr, maxIndexBytes)
+}
+
+// readGzBounded is readGzAll's body with the ceiling made a parameter, so a
+// test can exercise the bomb path without materializing 256 MiB.
+func readGzBounded(gr io.Reader, max int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(gr, int64(max)+1))
 	if err != nil && len(data) > 0 &&
 		(errors.Is(err, gzip.ErrChecksum) || errors.Is(err, io.ErrUnexpectedEOF)) {
 		return data, nil
+	}
+	if len(data) > max {
+		return nil, fmt.Errorf("decompressed index exceeds the %d byte limit", max)
 	}
 	return data, err
 }
@@ -592,7 +607,9 @@ func cutPart(data []byte, t byte, last bool) (part, rest []byte) {
 			return nil, nil
 		}
 		n := int(binary.BigEndian.Uint32(data))
-		if 4+n > len(data) {
+		// Negative only where int is 32-bit and the u32 wraps; on such a build
+		// 4+n compares below len(data) and the slice would panic.
+		if n < 0 || 4+n > len(data) {
 			n = len(data) - 4
 		}
 		return data[4 : 4+n], data[4+n:]

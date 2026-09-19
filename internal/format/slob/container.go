@@ -403,6 +403,13 @@ func (c *container) itemContentType(bin uint32, item uint16) (string, error) {
 			return "", err
 		}
 		n := binary.BigEndian.Uint32(hdr[:])
+		// The same span check the lookup path does (getItem): a bin header
+		// naming 4 GiB of content-type ids is a 4 GiB allocation in a media
+		// listing, and it cannot wait for an Open-time validation that never
+		// ran on this path.
+		if err := c.checkSpan(base+4, int64(n), "bin content-type ids"); err != nil {
+			return "", err
+		}
 		ctids = make([]byte, n)
 		if _, err := c.f.ReadAt(ctids, base+4); err != nil {
 			return "", err
@@ -460,6 +467,23 @@ func (c *container) binContent(bin uint32, zlenOff int64) ([]byte, error) {
 	return data, nil
 }
 
+// maxItemBytes caps one decompressed bin. Slob items are articles and media
+// clips - kilobytes to a few megabytes - and every codec below would otherwise
+// inflate whatever a corrupt container declares. The same ceiling zim's
+// clusters get.
+const maxItemBytes = 256 << 20
+
+func readAllBounded(r io.Reader, max int64) ([]byte, error) {
+	out, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > max {
+		return nil, fmt.Errorf("decompressed bin exceeds %d bytes", max)
+	}
+	return out, nil
+}
+
 func decompress(name string, data []byte) ([]byte, error) {
 	switch name {
 	case "":
@@ -470,15 +494,15 @@ func decompress(name string, data []byte) ([]byte, error) {
 			return nil, err
 		}
 		defer r.Close()
-		return io.ReadAll(r)
+		return readAllBounded(r, maxItemBytes)
 	case "bz2":
-		return io.ReadAll(bzip2.NewReader(bytes.NewReader(data)))
+		return readAllBounded(bzip2.NewReader(bytes.NewReader(data)), maxItemBytes)
 	case "lzma2":
 		r, err := lzma.Reader2Config{DictCap: 1 << 25}.NewReader2(bytes.NewReader(data))
 		if err != nil {
 			return nil, err
 		}
-		return io.ReadAll(r)
+		return readAllBounded(r, maxItemBytes)
 	default:
 		return nil, fmt.Errorf("unsupported compression %q", name)
 	}

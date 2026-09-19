@@ -140,30 +140,38 @@ func (d *dzReader) readRange(offset int64, size int) ([]byte, error) {
 		return nil, nil
 	}
 	// (offset,size) is a u32 pair straight out of the .idx. size is widened to
-	// int, which is negative on a 32-bit build for anything past 2 GiB, and
-	// offset*chunk arithmetic below assumes both are sane; a corrupt index must
-	// cost one article, not a slice-bounds panic in a fan-out worker.
+	// int, which is negative on a 32-bit build for anything past 2 GiB; a
+	// corrupt index must cost one article, not a slice-bounds panic in a
+	// fan-out worker - and must not send the chunk loop inflating every chunk
+	// to the end of the file into one buffer, which an oversized size did.
 	if offset < 0 || size < 0 {
 		return nil, fmt.Errorf("record range out of bounds (offset %d, %d bytes)", offset, size)
 	}
-	first := int(offset) / d.chunkLen
-	last := int(offset+int64(size)-1) / d.chunkLen
-	if first >= len(d.offsets) {
+	// The uncompressed extent is at most chunk count × chunk length (only the
+	// last chunk is short). A range reaching past that names bytes the file
+	// cannot contain; refusing it here is what keeps `last` inside the chunks
+	// the range actually covers.
+	if offset+int64(size) > int64(len(d.offsets))*int64(d.chunkLen) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	first := offset / int64(d.chunkLen)
+	last := (offset + int64(size) - 1) / int64(d.chunkLen)
+	if first >= int64(len(d.offsets)) {
 		return nil, io.ErrUnexpectedEOF
 	}
 	var buf bytes.Buffer
-	for i := first; i <= last && i < len(d.offsets); i++ {
-		chunk, err := d.chunk(i)
+	for i := first; i <= last; i++ {
+		chunk, err := d.chunk(int(i))
 		if err != nil {
 			return nil, err
 		}
 		buf.Write(chunk)
 	}
-	start := int(offset) - first*d.chunkLen
-	if start < 0 || start > buf.Len() || start+size > buf.Len() {
+	start := offset - first*int64(d.chunkLen)
+	if start+int64(size) > int64(buf.Len()) {
 		return nil, io.ErrUnexpectedEOF
 	}
-	return buf.Bytes()[start : start+size], nil
+	return buf.Bytes()[start : start+int64(size)], nil
 }
 
 // chunk inflates one chunk (dictzip chunks start at deflate full-flush
