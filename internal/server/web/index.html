@@ -242,7 +242,7 @@ window.wudictShellBackground = function (color, image, imageName) {
          summary above it. A brush, not a cog: the cog on the summary already
          means "folders and setup", and one glyph cannot mean two things
          without meaning neither. -->
-    <button type="button" class="act" id="stylerLink" title="Your own CSS for the app and for dictionary articles"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.6 1.9l2.5 2.5-7 7-3.2.7.7-3.2z"/><path d="M9.9 3.6l2.5 2.5"/></svg>Custom styles…</button>
+    <button type="button" class="act" id="stylerLink" title="Background and custom styles"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.6 1.9l2.5 2.5-7 7-3.2.7.7-3.2z"/><path d="M9.9 3.6l2.5 2.5"/></svg>Appearance…</button>
     <!-- Last, and the only one in the row that opens something instead of
          doing something — the ▸ says so, and .act.disc is what gives it the
          row's chrome without taking that distinction away. It belongs here and
@@ -286,7 +286,30 @@ window.wudictShellBackground = function (color, image, imageName) {
 
 <!-- Hidden until asked for, and outside #panel deliberately: opening it
      CLOSES the panel, because the article it restyles is behind both. -->
-<div id="styler" role="dialog" aria-label="Custom styles" aria-modal="false">
+<div id="styler" role="dialog" aria-label="Appearance" aria-modal="false">
+  <!-- The sheet's own head, so the closer is in the top-right corner whatever
+       the sections below are doing: with the native window-background block
+       visible the toolbar row sits mid-sheet, and a ✕ wedged between Save and
+       the tabs is not where anyone looks for it. It also gives the sheet the
+       name its opening button promises. -->
+  <div id="stylerHead">
+    <strong>Appearance</strong>
+    <span class="grow"></span>
+    <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
+  </div>
+  <div id="appearanceBackground" hidden>
+    <strong>Window background</strong>
+    <div class="appearance-row"><label for="appearanceColorOn">Color</label><input id="appearanceColorOn" type="checkbox"><div id="appearanceColorBox"><input id="appearanceColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Background color, six hexadecimal digits"><div id="appearanceColorMenu" class="color-history" hidden></div></div></div>
+    <!-- The strip IS the image picker: a tap on a thumbnail applies it, and
+         the "+" tile opens the device picker directly - no second panel, no
+         second Add button. The images are the same files the Files tab
+         manages, because they are one store with two consumers: the shell
+         paints the chosen one before the page loads, and every one of them is
+         addressable from CSS as /files/<name>. -->
+    <div class="appearance-row"><span class="appearance-label">Image</span><div id="appearanceStripWrap"><div id="appearanceStrip" role="group" aria-label="Background image"></div><button type="button" class="stripArrow" id="appearanceStripL" aria-label="Scroll background thumbnails left" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.6 2L3 8l1.6 6"/></svg></button><button type="button" class="stripArrow" id="appearanceStripR" aria-label="Scroll background thumbnails right" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.4 2L13 8l-1.6 6"/></svg></button></div></div>
+    <small>Color remains behind the image. None removes the image.</small>
+  </div>
+  <div class="appearance-heading">Custom CSS</div>
   <div class="row">
     <button type="button" class="tab" id="tabApp" role="tab" aria-selected="true" aria-controls="stylerCSS">App</button>
     <button type="button" class="tab" id="tabArticle" role="tab" aria-selected="false" aria-controls="stylerCSS">Article</button>
@@ -303,7 +326,6 @@ window.wudictShellBackground = function (color, image, imageName) {
     <!-- Only on the Files tab, and it stands where Save stands, because it is
          the same thing there: the one button that writes. -->
     <button type="button" class="btn" id="stylerAdd" hidden title="Upload a file the stylesheets can reference">Add…</button>
-    <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
   </div>
   <textarea id="stylerCSS" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Custom CSS"></textarea>
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
@@ -3562,6 +3584,10 @@ const ART_THROUGH=
 :host > *, :root > body > * { background:none !important }`;
 
 const BOXNAME={app:"App",article:"Article"};
+/* The wallpapers the Android shell unpacks into the files folder when they
+   are absent. Deleting one from here would only make the next start copy it
+   back, so the manager offers no Delete for them - the row says so instead. */
+const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg"];
 
 const STYLER_PRESETS=[
   {n:"Background",g:"Colour",append:true,...{{BACKGROUND_PRESET}}},
@@ -3759,7 +3785,14 @@ let stylerTab="app",
     // the first render the box mirrors nothing: committing an empty textarea
     // as the app sheet is how a freshly loaded app.css was erased the moment
     // the editor opened.
-    stylerBox="";
+    stylerBox="",
+    // The last state the shell reported. The Files tab reads it to warn when
+    // a delete takes out the image the Background strip has selected.
+    appearanceState=null,
+    // True between a tap on the strip's "+" tile and the upload it starts.
+    // The one <input type=file> serves both that tile and the Files tab, and
+    // only a pick made for the strip may promote its image to the background.
+    stylerPickForBackground=false;
 
 /* The app half of the preview, and it has to OWN the app layer, not merely
    sit on top of it. Winning on order is enough to ADD a rule and nowhere near
@@ -3954,7 +3987,8 @@ function stylerFilesRender(msg){
     const n=document.createElement("div");n.className="n";
     n.title="Click to copy "+f.url;
     const b=document.createElement("b");b.textContent=f.name;
-    const sub=document.createElement("s");sub.textContent=f.url+" · "+mb(f.size);
+    const sub=document.createElement("s");sub.textContent=f.url+" · "+mb(f.size)
+      +(BUILTIN_BACKGROUNDS.includes(f.name)?" · built in, restored at startup":"");
     n.appendChild(b);n.appendChild(sub);
     n.onclick=()=>stylerCopy(f.url);
     row.appendChild(n);
@@ -3963,10 +3997,14 @@ function stylerFilesRender(msg){
     ins.title=stylerFileTitle(f);
     ins.onclick=()=>stylerFileInsert(f);
     row.appendChild(ins);
-    const del=document.createElement("button");
-    del.type="button";del.className="btn";del.textContent="Delete";
-    del.onclick=()=>stylerFileDelete(f);
-    row.appendChild(del);
+    // No Delete for the built-in wallpapers: the shell recopies them when
+    // they are absent, so the button could only promise what it cannot do.
+    if(!BUILTIN_BACKGROUNDS.includes(f.name)){
+      const del=document.createElement("button");
+      del.type="button";del.className="btn";del.textContent="Delete";
+      del.onclick=()=>stylerFileDelete(f);
+      row.appendChild(del);
+    }
     box.appendChild(row);
   }
   stylerSync();
@@ -4084,15 +4122,22 @@ function stylerFileInsert(f){
    see their CSS from here and "is anything using this?" is the only question
    that makes deleting a file a decision rather than a guess. */
 async function stylerFileDelete(f){
+  // The built-in wallpapers render no Delete button; this is the belt under
+  // that, because the shell would only recopy the file at the next start.
+  if(BUILTIN_BACKGROUNDS.includes(f.name))return;
   const used=["app","article"].filter(b=>stylerText[b].includes(f.name)).map(b=>BOXNAME[b]);
+  const chosen=!$("appearanceBackground").hidden&&!!appearanceState
+    &&appearanceState.image===f.name;
   if(!confirm("Delete "+f.name+"?"+(used.length
     ? "\n\nYour "+used.join(" and ")+" CSS refers to it and will stop finding it."
-    : "")))return;
+    : "")+(chosen?"\n\nThis is the selected background image; it will be set to None.":"")))return;
   stylerNote("Deleting…");
   try{
     const r=await fetch("/api/files?name="+encodeURIComponent(f.name),{method:"DELETE"});
     if(!r.ok)throw new Error("HTTP "+r.status);
     stylerFilesTake(await r.json());
+    if(chosen)appearanceSet("image","");
+    else appearanceRead();
     stylerNote("Deleted "+f.name);setTimeout(stylerNote,1600);
   }catch(e){
     stylerNote("Could not delete "+f.name+": "+e.message);
@@ -4121,9 +4166,13 @@ function stylerFileName(raw){
    reader's own disk, and a loop that carried on past a full folder would
    report a count nobody can map back onto what is now there. */
 async function stylerUpload(list){
+  // Consumed up front, so every exit below - refusal, oversize, failed
+  // upload - leaves the flag down and the Files tab never inherits it.
+  const forBackground=stylerPickForBackground;
+  stylerPickForBackground=false;
   if(!list.length)return;
   const cap=(stylerFileLimits&&stylerFileLimits.file)||(8<<20);
-  let done=0;
+  let done=0,lastImage="";
   for(const file of list){
     const name=stylerFileName(file.name);
     if(file.size>cap){
@@ -4146,12 +4195,29 @@ async function stylerUpload(list){
       }
       stylerFilesTake(await r.json());
       done++;
+      if(/^image\//.test(file.type||""))lastImage=name;
     }catch(e){
       stylerNote("Could not upload "+name+": "+e.message);
       return;
     }
   }
-  if(done){stylerNote(done===1?"Added":"Added "+done+" files");setTimeout(stylerNote,1600)}
+  if(!done)return;
+  // A pick made from the strip's "+" tile ends in the strip: the last image
+  // of the batch becomes the background, and the state the bridge returns
+  // re-renders it ringed. A refusal (a file that claimed to be an image but
+  // will not decode) keeps the strip's own error note, so nothing overwrites
+  // it here. Every other path just refreshes the strip and says what landed.
+  if(forBackground&&lastImage){
+    if(await appearanceImageChosen(lastImage)){
+      stylerNote(done===1?"Added — set as the background image"
+        :"Added "+done+" files — last image set as the background");
+      setTimeout(stylerNote,1600);
+    }
+  }else{
+    appearanceRead();
+    stylerNote(done===1?"Added":"Added "+done+" files");
+    setTimeout(stylerNote,1600);
+  }
 }
 /* One menu for both tabs, refreshed when the host background changes. Grouped, because a reader arrives
    wanting a RESULT — sepia, a wider column — and not knowing which of our two
@@ -4193,9 +4259,144 @@ function stylerApplyPreset(p){
     had.length?"already in "+had.join(" and "):""].filter(Boolean).join("; "));
   setTimeout(stylerNote,2600);
 }
+function appearanceRequest(request){
+  if(!window.wudictNativeShell)return null;
+  try{
+    const answer=window.prompt("wudict:appearance",JSON.stringify(request));
+    return answer===null?null:JSON.parse(answer);
+  }catch(e){console.warn("appearance bridge:",e);return null}
+}
+function appearanceRender(state){
+  if(!state)return;
+  appearanceState=state;
+  $("appearanceBackground").hidden=false;
+  document.documentElement.setAttribute("data-native-appearance","");
+  $("appearanceColorOn").checked=!!state.colorEnabled;
+  $("appearanceColor").value=String(state.color||"").replace(/^#/,"").toUpperCase();
+  // Tiles, left to right: None, every image in the store, then "+". A
+  // thumbnail names itself in aria-label because the <img> inside is
+  // deliberately anonymous. A selected name that is no longer in the store
+  // still gets a tile - dashed, named, and tapping it clears the stale
+  // setting rather than leaving a pref that points at nothing.
+  const strip=$("appearanceStrip");
+  strip.replaceChildren();
+  const tile=(cls,label,title,pressed,onclick)=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="tile"+(cls?" "+cls:"");b.title=title;
+    if(label!==null)b.textContent=label;
+    b.setAttribute("aria-pressed",pressed?"true":"false");
+    b.onclick=onclick;
+    strip.appendChild(b);
+    return b;
+  };
+  tile("none","None","No background image",!state.image,()=>appearanceSet("image",""));
+  const names=Array.isArray(state.images)?state.images:[];
+  for(const name of names){
+    const b=tile("",null,name,name===state.image,()=>appearanceImageChosen(name));
+    b.setAttribute("aria-label",name);
+    const img=document.createElement("img");
+    img.src="/files/"+name;img.alt="";img.loading="lazy";img.decoding="async";
+    b.appendChild(img);
+  }
+  if(state.image&&!names.includes(state.image))
+    tile("missing",state.image,"This image is missing — tap to clear the setting",
+      false,()=>appearanceSet("image",""));
+  const addB=tile("add",null,"Add an image from the device",false,()=>{
+    stylerPickForBackground=true;
+    // Synchronously, inside the tap: the file chooser needs the user
+    // activation, and nothing here waits for the network first.
+    $("stylerUpload").click();
+  });
+  addB.setAttribute("aria-label","Add an image from the device");
+  // A span rather than bare text: the glyph outgrows the tile's 12px basis,
+  // and a bare text node has no font-size of its own to grow with.
+  const plus=document.createElement("span");
+  plus.textContent="＋";plus.setAttribute("aria-hidden","true");
+  addB.appendChild(plus);
+  appearanceStripHints();
+}
+/* Which carousel arrows the strip shows, and which edge fades with them. An
+   arrow stands on an edge exactly while that edge still hides thumbnails;
+   both vanish when the row fits, and the matching mask goes with each arrow
+   so a fully-scrolled row keeps its last thumbnail whole. Tile sizes are
+   fixed em boxes, so the geometry is final the moment the tiles are
+   appended; only scrolling and viewport changes move it after that. */
+function appearanceStripHints(){
+  const strip=$("appearanceStrip");
+  const max=strip.scrollWidth-strip.clientWidth;
+  const left=strip.scrollLeft>1, right=max>1&&strip.scrollLeft<max-1;
+  $("appearanceStripL").hidden=!left;
+  $("appearanceStripR").hidden=!right;
+  strip.classList.toggle("fade-l",left);
+  strip.classList.toggle("fade-r",right);
+}
+function appearanceRead(){appearanceRender(appearanceRequest({action:"get"}))}
+/* One door for "this image is now the background": set it, then let the
+   color field follow the picture - the dominant tone of a paper texture is a
+   better match than whatever the previous image liked. The arithmetic is
+   instant (a 24x24 sample, one counting pass); decoding dominates, and the
+   browser has usually done that for the thumbnail already. The sequence
+   guard only orders rapid taps, so an older image's color can never land
+   after a newer one's. The color is applied and remembered like a typed one;
+   the on/off checkbox is deliberately left as it is. */
+let appearanceColorAutoSeq=0;
+async function appearanceImageChosen(name){
+  if(!appearanceSet("image",name))return null;
+  const seq=++appearanceColorAutoSeq;
+  const hex=await appearanceDominantColor(name);
+  if(hex&&seq===appearanceColorAutoSeq){
+    $("appearanceColor").value=hex;
+    appearanceColorApply(hex);
+  }
+  return name;
+}
+function appearanceDominantColor(name){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>resolve(appearanceDominantFromImg(img));
+    img.onerror=()=>resolve(null);
+    img.src="/files/"+name;
+  });
+}
+/* The dominant color as the largest bucket of a 4-bit-per-channel histogram,
+   averaged inside the bucket: coarse enough that a texture's scattered
+   pixels gather in one place, fine enough to keep its tone. Fully
+   transparent pixels are skipped, so a PNG badge does not vote with its
+   margins. Any failure - a decode the canvas cannot read, a size of zero -
+   is "no suggestion", never an error in the field. */
+function appearanceDominantFromImg(img){
+  try{
+    const n=24,c=document.createElement("canvas");
+    c.width=n;c.height=n;
+    const g=c.getContext("2d");
+    g.drawImage(img,0,0,n,n);
+    const d=g.getImageData(0,0,n,n).data;
+    const sums={};
+    for(let i=0;i<d.length;i+=4){
+      if(d[i+3]<128)continue;
+      const k=(d[i]>>4)<<8|(d[i+1]>>4)<<4|(d[i+2]>>4);
+      const s=sums[k]||(sums[k]=[0,0,0,0]);
+      s[0]+=d[i];s[1]+=d[i+1];s[2]+=d[i+2];s[3]++;
+    }
+    let best=null;
+    for(const k in sums)if(!best||sums[k][3]>best[3])best=sums[k];
+    if(!best||!best[3])return null;
+    const h=v=>Math.round(v/best[3]).toString(16).padStart(2,"0").toUpperCase();
+    return h(best[0])+h(best[1])+h(best[2]);
+  }catch(_){return null}
+}
+function appearanceSet(field,value){
+  const state=appearanceRequest({action:"set",field,value});
+  // The state is also the answer: null means the shell refused the value,
+  // and the caller may have a message of its own to trade for ours.
+  if(!state){stylerNote("Could not save the background setting.");appearanceRead();return null}
+  appearanceRender(state);
+  return state;
+}
 async function stylerOpen(){
   hidePanel();
   $("styler").classList.add("show");
+  appearanceRead();
   stylerFillPresets();
   document.body.classList.add("styling");
   if(!stylerLoaded){
@@ -4258,6 +4459,74 @@ async function stylerSave(){
   }
 }
 $("stylerLink").onclick=stylerOpen;
+$("appearanceColorOn").onchange=e=>appearanceSet("colorEnabled",e.target.checked);
+/* The color field remembers what it has been given: the last ten accepted
+   colors, most recent first, offered as swatches in a dropdown that opens
+   with the field - the search-history window is the model, including its
+   shell-aware surface. The list lives in localStorage, because it is a
+   page-side convenience; the shell keeps the applied color itself. */
+const COLOR_RE=/^#?[0-9a-f]{6}$/i;
+function colorHistoryRead(){
+  try{
+    const v=JSON.parse(localStorage.getItem("wudict_color_history")||"[]");
+    return Array.isArray(v)
+      ? v.filter(x=>COLOR_RE.test(x)).map(x=>String(x).replace(/^#/,"").toUpperCase())
+      : [];
+  }catch(_){return[]}
+}
+function colorHistoryRemember(hex){
+  const rest=colorHistoryRead().filter(x=>x!==hex);
+  try{localStorage.setItem("wudict_color_history",
+    JSON.stringify([hex,...rest].slice(0,10)))}catch(_){}
+}
+function appearanceColorApply(value){
+  if(!COLOR_RE.test(value)){
+    stylerNote("Use six hexadecimal digits, like F4ECD8.");appearanceRead();return;
+  }
+  const hex=value.replace(/^#/,"").toUpperCase();
+  // Only an accepted color is remembered: a value the shell refused would
+  // come back in the list and fail again on every pick.
+  if(appearanceSet("color",hex))colorHistoryRemember(hex);
+  else appearanceRead();
+}
+function appearanceColorRender(){
+  const menu=$("appearanceColorMenu");
+  const colors=colorHistoryRead();
+  if(!colors.length)return;
+  menu.replaceChildren();
+  for(const hex of colors){
+    const b=document.createElement("button");
+    b.type="button";b.title="Use "+hex;
+    const sw=document.createElement("span");
+    sw.className="sw";sw.style.background="#"+hex;sw.setAttribute("aria-hidden","true");
+    b.appendChild(sw);
+    b.appendChild(document.createTextNode(hex));
+    b.onclick=()=>{
+      $("appearanceColor").value=hex;
+      appearanceColorApply(hex);
+      appearanceColorHide();
+    };
+    menu.appendChild(b);
+  }
+}
+function appearanceColorShow(){
+  appearanceColorRender();
+  // Nothing remembered yet: the native field is the whole control, and a
+  // menu with one "empty" row would only have to be dismissed.
+  if($("appearanceColorMenu").children.length)$("appearanceColorMenu").hidden=false;
+}
+function appearanceColorHide(){$("appearanceColorMenu").hidden=true}
+$("appearanceColor").addEventListener("focus",appearanceColorShow);
+$("appearanceColor").addEventListener("pointerdown",appearanceColorShow);
+$("appearanceColor").addEventListener("keydown",e=>{
+  // Escape closes the menu first; letting it bubble would close the whole
+  // sheet out from under a reader who only meant to dismiss the list.
+  if(e.key==="Escape"){e.stopPropagation();appearanceColorHide()}
+});
+document.addEventListener("pointerdown",e=>{
+  if(!$("appearanceColorBox").contains(e.target))appearanceColorHide();
+});
+$("appearanceColor").onchange=e=>appearanceColorApply(e.target.value.trim());
 $("stylerClose").onclick=stylerCloseSheet;
 $("stylerSave").onclick=stylerSave;
 $("tabApp").onclick=()=>stylerShowTab("app");
@@ -4271,6 +4540,18 @@ $("stylerUpload").addEventListener("change",e=>{
   e.target.value="";
   stylerUpload(list);
 });
+// A picker dismissed without a pick fires no change, so this is what keeps
+// the "+" tile's flag from leaking into the next upload made elsewhere.
+$("stylerUpload").addEventListener("cancel",()=>{stylerPickForBackground=false});
+// The strip's arrows follow every scroll and viewport change; renders call
+// appearanceStripHints themselves. A tap moves most of a view, smooth, and
+// the scroll events carry the arrow state the rest of the way.
+$("appearanceStrip").addEventListener("scroll",appearanceStripHints,{passive:true});
+window.addEventListener("resize",appearanceStripHints);
+$("appearanceStripL").onclick=()=>{const s=$("appearanceStrip");
+  s.scrollBy({left:-s.clientWidth*.8,behavior:"smooth"})};
+$("appearanceStripR").onclick=()=>{const s=$("appearanceStrip");
+  s.scrollBy({left:s.clientWidth*.8,behavior:"smooth"})};
 $("stylerCSS").addEventListener("input",()=>{
   stylerCommit();stylerSync();
   clearTimeout(stylerTimer);

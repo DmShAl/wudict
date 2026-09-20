@@ -132,3 +132,125 @@ cross-compiled for linux/arm64. No device (Android phone) has run the
 folder-picker UI, the rename fix under a real rebuild, or streamed media
 over the Range path. The Android-side checklist lives in
 `docs/ANDROID-UI-HANDOFF.md`.
+
+## Appearance implementation (2026-09-20)
+
+Uncommitted on `fix/review-hardening`. The former native Settings controls for
+Background color and Background Image now live above App/Article/Files in the
+web Appearance sheet. `wudict:appearance` reads/writes the *same* `ShellPrefs`
+keys, and the native shell still paints both windows before HTML loads. The
+image picker reads `WindowBackground.images` from the same Files store;
+browser-only use hides these native controls.
+
+Same-day rework after user review, still uncommitted. The sheet gained a real
+head row (`#stylerHead`: "Appearance" + the ✕, top-right in both the native and
+browser layouts — the ✕ used to sit in the mid-sheet toolbar row). The
+Background Image dropdown + Add… pair is gone: `appearanceRender` now builds a
+thumbnail strip (`#appearanceStrip`) — a None tile, one tile per image
+(`/files/<name>`, `object-fit:cover`, lazy), a dashed tile for a selected-but-
+missing name (tapping it clears the stale pref), and a ＋ tile that opens the
+system file chooser synchronously (user activation is never spent on a pane
+switch) and, via `stylerPickForBackground`, promotes the last uploaded image to
+the background; the input's `cancel` event clears the flag. The Files tab stays
+the manager for CSS-referenced files; deleting a chosen background image from
+there still resets the pref (via `appearanceState`). The custom-CSS textarea
+now uses the app typeface at 13px like the Background rows (was monospace
+12.5px), and both section headings share one weight.
+
+Verified in a desktop browser against a throwaway server (temp config, one
+minimal .dsl, two uploaded PNGs): sheet opens from the panel, Background hidden
+without the shell, strip renders with the right selection ring, thumbnail/None/
+missing taps round-trip the bridge state, ✕ and Escape close, Files tab intact.
+Java compilation, `go build ./...` clean. No APK was built, installed, or
+tested on a phone. On device still to check: strip layout with real wallpaper
+sizes and large system fonts, immediate repaint of both windows after a tile
+tap, cold-start background without white flash.
+
+Second user-review round, same day, NOT build- or browser-verified (user asked
+for neither; they will check on the phone). Section headings are separated by
+hairlines (under `#stylerHead` and under the window-background block), and the
+Background heading is now "Window background" — the android:windowBackground
+term, not "Windows background". The ＋ tile is smaller than a thumbnail and
+dashed; its box is sized off an absolute 12px base because em sizes on it
+would resolve against the inherited 16px sheet font and grow it right back.
+Scroll affordance: `appearanceStripHints` toggles `fade-l`/`fade-r` mask
+gradients on the strip by scroll position (scroll + resize listeners; renders
+re-run it). `BUILTIN_BACKGROUNDS` (paper_01.jpg, paper_02.jpg) render no
+Delete button in Files and carry a "built in, restored at startup" note — the
+shell recopies them when absent, so Delete could only promise what it cannot
+do; `stylerFileDelete` also refuses them. The Files tab keeps its Add…: the
+store holds fonts and stylesheets the strip never offers, and in a desktop
+browser the Background section does not exist at all, so Add… is the only
+upload door there.
+
+Third user-review round, same day, NOT build- or browser-verified (user asked
+for neither; they will check on the phone). The Background-color checkbox now
+wears the groups editor's square (20px, --fg border, drawn check, --paper-bg
+under it) instead of the platform box. The strip's edge fades are gone:
+`#appearanceStripWrap` carries two carousel chevrons (`#appearanceStripL/R`),
+shown exactly while that side still hides thumbnails (appearanceStripHints
+toggles `hidden`; scroll + resize listeners; renders re-run it), and a tap
+scrolls ~80% of the view smoothly. Note `.stripArrow[hidden]{display:none}` is
+load-bearing — the class's display:flex outvotes the UA hidden rule otherwise.
+The ＋ tile is back to the thumbnails' exact 4.1em box (dashed border is the
+only distinction); its glyph is a span at 1.9em because bare text would
+inherit the 12px basis and look lost. Shell.java's WebChromeClient now answers
+`onJsConfirm` and `onJsAlert` on the shared `BackgroundDialogBuilder` surface
+(so the Files list's "Delete X?" sits on the same wallpaper and palette as the
+pickers; every exit answers the JsResult once, a bad window token cancels).
+
+Fourth user-review round, same day, NOT build- or browser-verified (user asked
+for neither; they will check on the phone). The thumbnails now dissolve BEFORE
+the arrows instead of under them: `fade-l`/`fade-r` masks are back (one
+gradient per combination — stacked mask layers composite source-over and a
+second layer would un-fade the first edge), tuned to reach full transparency
+at 2.8em from the edge, which is exactly where the 2.5em+.3em arrow circle
+ends; both fade and arrow ride on the same condition in appearanceStripHints.
+Mask lengths resolve against the strip's inherited 16px — the same base the
+arrow is drawn against. The chevrons were redrawn (1.8 stroke, 1.25em box).
+The color field gained a recent-colors dropdown: the last ten accepted colors
+in localStorage (`wudict_color_history`, web-side convenience — the shell
+still owns the applied color), swatch rows in `#appearanceColorMenu`, opening
+on focus/pointerdown, Escape stops at the menu, outside tap closes; only
+colors the shell accepted are remembered. The dropdown wears the search-history
+surface verbatim (bg-card, or paper tint + wallpaper under `data-shell-*`).
+The 35% row cap on the color input moved to `#appearanceColorBox` (a
+percentage on the input would now resolve against the box and cap nothing).
+
+Open question answered, not implemented: deriving a matching background color
+from the chosen image (average of a downscaled copy, or a dominant-bucket
+histogram for textures like the paper wallpapers) — feasible both web-side
+(canvas on /files/<name>, same-origin) and in WindowBackground, which already
+holds a downsampled bitmap. Waiting for the user to pick a shape (a "from
+image" affordance vs auto-suggest on selection) before building it.
+
+Fifth user-review round, same day, NOT build- or browser-verified (user asked
+for neither; they will check on the phone). The auto-suggest question was
+settled: choosing a background image - a thumbnail tap or the ＋-tile upload -
+now also computes the image's dominant color and fills, applies and remembers
+it in the color field (`appearanceImageChosen` → `appearanceDominantColor`:
+24×24 canvas sample, 4-bit-per-channel histogram, largest bucket averaged,
+transparent pixels skipped; a sequence guard orders rapid taps; the on/off
+checkbox is left alone; any failure yields "no suggestion"). The arithmetic
+is instant; only the decode costs, and the browser has usually done it for
+the thumbnail. The row labels shrank to "Color" / "Image" and the label
+column to 4.2em, so the strip gains the width. The arrows are bare chevrons
+now (no circle) with a hand-computed ~150° tip — apex (13,8), tips at
+±75° from the axis, path M11.4 2 L13 8 l-1.6 6 and its mirror — colored
+var(--fg) with a drop-shadow halo in var(--bg), hover/focus accent; the
+mask's transparent stop moved to 2.9em to match the new 2.6em+.3em hit area.
+
+Sixth user-review round, same day, NOT build- or browser-verified (user asked
+for neither; they will check on the phone). The toolbar row now shares one
+chrome — `#styler .tab`, `#styler .btn` and `#stylerPreset` in one rule
+(12.5px, same padding/height/palette/radius); the preset `<select>` gets
+`appearance:none` because on Android the platform select face was the loudest
+of the mismatches; the narrow media query shrinks all three to 11.5px
+together. Files-pane mini-buttons keep their compact 12px (later rule, same
+specificity). The strip's fade mask was tightened to end at 2.3em from the
+edge — just before the drawn chevron's outer tips (2.35em), not before the
+2.9em hit box — so a thumbnail stays visible until it is a whisker from the
+arrow and fades only across its last 1.4em. Same-day tweak to that tweak:
+the fade was still ending at the hit box's boundary, so the mask now runs to
+1.8em — a whisker short of the box's center (1.6em, where the chevron's apex
+sits) — and the picture holds until it is essentially under the arrow.

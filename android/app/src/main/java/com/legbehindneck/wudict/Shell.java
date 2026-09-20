@@ -23,6 +23,7 @@ import android.provider.DocumentsContract;
 import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.JsPromptResult;
+import android.webkit.JsResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -110,6 +111,8 @@ final class Shell {
         // wudict: prompts - the setup page's folder button speaks only when
         // it will be heard.
         web.evaluateJavascript("window.wudictNativeShell=1;"
+                + "if(typeof appearanceRead==='function' && document.getElementById('styler')"
+                + " && document.getElementById('styler').classList.contains('show')) appearanceRead();"
                 + "(window.wudictSetDictionaryMode || function(found){"
                 + "window.wudictFoundDictionaryMode=found;})("
                 + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);
@@ -382,6 +385,39 @@ final class Shell {
                     result.confirm(defaultValue);
                     return true;
                 }
+                if ("wudict:appearance".equals(message)) {
+                    try {
+                        org.json.JSONObject request = new org.json.JSONObject(defaultValue);
+                        String action = request.optString("action", "get");
+                        if ("set".equals(action)) {
+                            String field = request.getString("field");
+                            if ("colorEnabled".equals(field)) {
+                                ShellPrefs.of(a).edit().putBoolean(ShellPrefs.SEPIA,
+                                        request.getBoolean("value")).apply();
+                            } else if ("color".equals(field)) {
+                                ShellPrefs.setSepiaColor(a, request.getString("value"));
+                            } else if ("image".equals(field)) {
+                                String name = request.getString("value");
+                                if (!name.isEmpty() && !WindowBackground.images(a).contains(name))
+                                    throw new IllegalArgumentException("Image unavailable");
+                                ShellPrefs.of(a).edit().putString("background_image", name).apply();
+                            } else throw new IllegalArgumentException("Unknown field");
+                            if (a instanceof MainActivity) ((MainActivity) a).refreshAppearance();
+                            else if (a instanceof LookupActivity) ((LookupActivity) a).refreshAppearance();
+                        } else if (!"get".equals(action)) throw new IllegalArgumentException("Unknown action");
+                        org.json.JSONObject reply = new org.json.JSONObject();
+                        reply.put("colorEnabled", ShellPrefs.sepia(a));
+                        reply.put("color", ShellPrefs.sepiaColorText(a));
+                        reply.put("image", ShellPrefs.of(a).getString("background_image", ""));
+                        org.json.JSONArray images = new org.json.JSONArray();
+                        for (String name : WindowBackground.images(a)) images.put(name);
+                        reply.put("images", images);
+                        result.confirm(reply.toString());
+                    } catch (org.json.JSONException | IllegalArgumentException bad) {
+                        result.cancel();
+                    }
+                    return true;
+                }
                 // The setup page's 📁. The page asks through the prompt it is
                 // then blocked on; startActivityForResult answers it from
                 // onActivityResult, so returning true here is "the answer
@@ -457,6 +493,46 @@ final class Shell {
                 }
                 // True either way: the callback is ours now, and it has already
                 // been answered on the failure path.
+                return true;
+            }
+
+            // The page's confirm() and alert() get the shared themed surface,
+            // not the platform default: the Files list's "Delete X?" must sit
+            // on the same wallpaper and palette as the pickers it appears
+            // beside, or it reads as having left the app. An unanswered
+            // JsResult holds the page's JavaScript, so every exit - buttons,
+            // back, a window that could not be shown - answers it exactly once.
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message,
+                                       JsResult result) {
+                try {
+                    new BackgroundDialogBuilder(a)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok,
+                                    (d, w) -> result.confirm())
+                            .setNegativeButton(android.R.string.cancel,
+                                    (d, w) -> result.cancel())
+                            .setOnCancelListener(d -> result.cancel())
+                            .show();
+                } catch (RuntimeException badWindow) {
+                    result.cancel();
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message,
+                                     JsResult result) {
+                try {
+                    new BackgroundDialogBuilder(a)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok,
+                                    (d, w) -> result.confirm())
+                            .setOnCancelListener(d -> result.cancel())
+                            .show();
+                } catch (RuntimeException badWindow) {
+                    result.cancel();
+                }
                 return true;
             }
         };

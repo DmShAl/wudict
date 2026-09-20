@@ -362,14 +362,138 @@ html{--styler-h:min(45vh,420px)}
   padding-bottom:calc(var(--sp-2) + var(--wd-inset-bottom,0px))}
 #styler.show{display:flex}
 body.styling{padding-bottom:var(--styler-h)}
+/* The three headings are kept apart by hairlines rather than by spacing
+   alone: the sheet is tall, sections scroll past each other, and a line under
+   the sheet head and under the window-background block costs two pixels and
+   reads as structure instead of drift. */
+#stylerHead{flex:none;display:flex;align-items:center;gap:.4em;
+  border-bottom:1px solid var(--line);padding-bottom:.4em;margin-bottom:.45em}
+#stylerHead strong{font-size:13px;font-weight:600;color:var(--fg)}
+#appearanceBackground{flex:none;border-bottom:1px solid var(--line);
+  padding-bottom:.55em;margin-bottom:.45em}
+#appearanceBackground[hidden]{display:none}
+/* Both section headings cut from one cloth: same size, tone and weight, so
+   neither reads as more important than the other. */
+#appearanceBackground strong,.appearance-heading{font-size:13px;font-weight:600;
+  color:var(--fg-soft)}
+.appearance-heading{margin-bottom:.25em}
+.appearance-row{display:flex;align-items:center;gap:.5em;min-height:2.5em}
+/* One narrow label column for both rows - "Color" and "Image" say enough
+   under the section heading, and every em here is strip width. */
+.appearance-row label,.appearance-row .appearance-label{flex:0 0 4.2em;font-size:13px}
+.appearance-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
+  font:inherit;font-size:13px;
+  background:var(--bg-card);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:.25em}
+/* The color box wraps the input AND its dropdown, so the 35% row cap moved
+   here: a percentage on the input would resolve against the box and stop
+   capping anything. */
+#appearanceColorBox{position:relative;display:inline-flex;max-width:35%}
+/* The Background-color checkbox wears the groups editor's square - one
+   checkbox shape across the panels: 20px, a --fg border, and the check drawn
+   rather than left to the platform, whose default box reads as foreign next
+   to it. --paper-bg first because behind the shell wallpaper a native white
+   box would glow. */
+.appearance-row input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;
+  width:20px;height:20px;margin:0;border:1.5px solid var(--fg);border-radius:4px;
+  background-color:var(--paper-bg,var(--bg));position:relative;cursor:pointer}
+.appearance-row input[type=checkbox]:checked::after{content:"";position:absolute;
+  left:5px;top:1px;width:5px;height:10px;border:solid var(--fg);
+  border-width:0 2px 2px 0;transform:rotate(45deg)}
+.appearance-row input[type=checkbox]:focus-visible{outline:2px solid var(--accent);
+  outline-offset:2px}
+/* The recent-colors dropdown wears the search-history surface exactly - same
+   card, and under the shell the same paper tint and wallpaper - because it
+   floats over the same page; history.css has the original of this recipe. */
+.color-history{position:absolute;top:calc(100% + 4px);left:0;z-index:20;
+  min-width:10em;max-height:min(50vh,320px);overflow-y:auto;
+  background:var(--bg-card);border:1px solid var(--line);border-radius:8px;
+  box-shadow:var(--shadow)}
+html[data-shell-sepia] .color-history{
+  background-color:var(--paper-bg);
+  background-image:linear-gradient(#ffffff24,#ffffff24)}
+html[data-shell-image] .color-history{
+  background-color:var(--paper-bg,var(--bg));
+  background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
+  background-size:100% 100%}
+.color-history[hidden]{display:none}
+.color-history button{display:flex;align-items:center;gap:.6em;width:100%;
+  padding:.45em .7em;border:0;background:none;color:var(--fg);
+  text-align:left;font:inherit;font-size:13px;cursor:pointer}
+.color-history button:hover,.color-history button:focus-visible{
+  background:var(--line-soft);outline:none}
+.color-history .sw{flex:none;width:1.7em;height:1.7em;border-radius:4px;
+  border:1px solid var(--line)}
+#appearanceBackground small{display:block;font-size:11px;color:var(--fg-faint)}
+/* The picker is the pictures themselves: a scrollable row of thumbnails, the
+   selected one ringed in the accent, None at the left and a dashed "+" at
+   the right. Squares crop with object-fit because the shell stretches the
+   image to the whole window anyway - the thumbnail is for RECOGNISING, not
+   for previewing the crop. Lazy loading keeps a folder of large wallpapers
+   from decoding itself whole. */
+#appearanceStripWrap{position:relative;flex:1;min-width:0}
+#appearanceStrip{width:100%;display:flex;align-items:center;gap:.45em;
+  overflow-x:auto;padding:.15em 0}
+/* Carousel arrows, the usual kind: an arrow stands on an edge exactly while
+   that edge still hides thumbnails, and both go away when the row fits. A
+   phone draws no scrollbar, so these are the whole "there is more this way".
+   [hidden] is stated because the display:flex below would outvote the UA's
+   display:none and leave a ghost arrow parked on the strip. */
+/* The arrow is a bare chevron with a blunt ~150° tip, not a button: the mask
+   has already cleared the thumbnails out of its corner, so there is nothing
+   for a circle to sit on. Theme foreground plus a soft halo in the
+   background color keeps it readable over any wallpaper and in either
+   theme. */
+.stripArrow{position:absolute;top:50%;transform:translateY(-50%);z-index:1;
+  width:2.6em;height:2.6em;padding:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:none;border:0;color:var(--fg);
+  filter:drop-shadow(0 0 2px var(--bg))}
+.stripArrow[hidden]{display:none}
+.stripArrow svg{width:1.5em;height:1.5em;display:block}
+.stripArrow:hover,.stripArrow:focus-visible{color:var(--accent)}
+.stripArrow:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#appearanceStripL{left:.3em}
+#appearanceStripR{right:.3em}
+/* The thumbnails hold until they are essentially under the chevron: the hit
+   box spans the last 2.9em and its center sits 1.6em from the edge - the
+   apex of the drawn arrow is right about there - so the mask runs to 1.8em,
+   a whisker short of that center, and spends its whole fade on the last
+   1.4em before it. The tips (2.35em) therefore cross the tail of the fade,
+   not solid picture. The fades ride on the same condition as the arrows
+   (appearanceStripHints), or a fully-scrolled row would have its last
+   visible thumbnail cut by a mask with nothing hidden to hint at. The three
+   combinations are one gradient each: stacked mask layers composite
+   source-over, and a second layer's opaque middle would un-fade the first
+   edge. Mask lengths resolve against the strip's inherited 16px, which is
+   also what the arrow box is drawn against - the two stay in step. */
+#appearanceStrip.fade-r{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 3.2em),transparent calc(100% - 1.8em));
+  mask-image:linear-gradient(90deg,#000 calc(100% - 3.2em),transparent calc(100% - 1.8em))}
+#appearanceStrip.fade-l{-webkit-mask-image:linear-gradient(90deg,transparent 1.8em,#000 3.2em);
+  mask-image:linear-gradient(90deg,transparent 1.8em,#000 3.2em)}
+#appearanceStrip.fade-l.fade-r{-webkit-mask-image:linear-gradient(90deg,transparent 1.8em,#000 3.2em,#000 calc(100% - 3.2em),transparent calc(100% - 1.8em));
+  mask-image:linear-gradient(90deg,transparent 1.8em,#000 3.2em,#000 calc(100% - 3.2em),transparent calc(100% - 1.8em))}
+#appearanceStrip .tile{flex:0 0 auto;width:4.1em;height:4.1em;border-radius:7px;
+  border:2px solid var(--line);background:var(--bg-card);color:var(--fg-soft);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  padding:0;cursor:pointer;font:inherit;font-size:12px;line-height:1.1}
+#appearanceStrip .tile img{width:100%;height:100%;object-fit:cover;display:block}
+#appearanceStrip .tile[aria-pressed="true"]{border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent)}
+#appearanceStrip .tile:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* The "+" tile keeps the thumbnails' exact box - same 4.1em square, so the
+   row reads as one grid - and says "not a picture" with the dashed border
+   alone. Its glyph is a span so it can outgrow the tile's 12px basis: bare
+   text would inherit the basis and look lost in the box. */
+#appearanceStrip .tile.add{border-style:dashed;color:var(--fg-soft)}
+#appearanceStrip .tile.add span{font-size:1.9em;line-height:1}
+#appearanceStrip .tile.add:hover{color:var(--fg)}
+#appearanceStrip .tile.missing{font-size:10px;padding:0 .25em;overflow-wrap:anywhere;
+  border-style:dashed;color:var(--fg-faint)}
+html[data-native-appearance]{--styler-h:min(65vh,560px)}
 /* One row, at every width. nowrap is load-bearing and not a preference:
    flex decides WRAPPING from an item's hypothetical size and only then
    shrinks what is on the line, so a <select> sized by its longest option
-   jumps to a second row before it is ever asked to give width back - which
-   is how ✕ ended up alone under Save. With nowrap the menu is asked first,
-   and it is the only item that can answer: basis 0 means it takes free space
-   rather than claiming its content width, and the cap keeps it from sprawling
-   on a desktop. */
+   jumps to a second row before it is ever asked to give width back. */
 #styler .row{display:flex;align-items:center;gap:.4em;flex-wrap:nowrap}
 #styler .grow{flex:1 1 auto;min-width:0}
 /* ...and nowrap alone only converts a second row into an overflow: the row
@@ -377,10 +501,9 @@ body.styling{padding-bottom:var(--styler-h)}
    here was rigid except the menu, which had a 3.5em floor and - the real trap
    - a flex-basis of 0, and shrink weight is the shrink factor times the BASE
    size, so a basis of 0 absorbs nothing however large its factor. Past that
-   floor the line simply ran off the screen, and the item at the end of it is
-   the one that closes the sheet.
-   So: ✕ and its neighbours stay rigid, because a button labelled "S..." is
-   not a button; the menu gives up its width first, from a real basis, down to
+   floor the line simply ran off the screen, taking the last button with it.
+   So: Clear and Save stay rigid, because a button labelled "S..." is not a
+   button; the menu gives up its width first, from a real basis, down to
    a floor you can still see and tap; only then do the tabs ellipsize. Flex
    shrinks every eligible item AT ONCE and in proportion, so "only then" has
    to be bought: at an equal factor the tabs gave up their last half-pixel to
@@ -395,12 +518,20 @@ body.styling{padding-bottom:var(--styler-h)}
 #styler .tab{flex:0 .01 auto;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
 #stylerPreset{flex:5 20 9em;min-width:2.6em;max-width:14em}
-/* Two tabs over one textarea: the split is the whole teaching device, so the
-   selected one is stated in colour AND in aria-selected, not by position. */
-#styler .tab{font:inherit;font-size:12px;line-height:1.2;padding:.34em .7em;
-  color:var(--fg-soft);background:var(--bg-card);border:1px solid var(--line);
-  border-radius:8px;cursor:pointer}
-#styler .tab:hover{color:var(--fg);border-color:var(--fg-faint)}
+/* One chrome for the whole toolbar row: tabs, buttons and the preset menu
+   share type, height, palette and radius, so the row reads as one strip of
+   controls. Left to their own defaults they split in two - and on Android
+   the preset <select> wears the platform's own select face on top, which is
+   the loudest of the mismatches; appearance:none strips it. Distinctions
+   stay only where they teach: the selected tab's accent, the hover border. */
+#styler .tab,#styler .btn,#stylerPreset{
+  font:inherit;font-size:12.5px;line-height:1.2;padding:.34em .55em;
+  color:var(--fg-soft);background:var(--bg-card);
+  border:1px solid var(--line);border-radius:8px;cursor:pointer}
+#stylerPreset{appearance:none;-webkit-appearance:none}
+#styler .tab{padding:.34em .7em}
+#styler .tab:hover,#styler .btn:hover,#stylerPreset:hover{color:var(--fg);
+  border-color:var(--fg-faint)}
 #styler .tab[aria-selected="true"]{color:var(--fg);border-color:var(--accent);
   background:var(--styler-active-bg,color-mix(in srgb,var(--accent) 18%,var(--bg)))}
 /* One glyph, two questions. Faint: this box holds something - readable while
@@ -411,10 +542,11 @@ body.styling{padding-bottom:var(--styler-h)}
 #styler .tab[data-has="1"]::after{content:"•";margin-left:.35em;color:var(--fg-faint)}
 #styler .tab[data-dirty="1"]::after{content:"•";margin-left:.35em;color:var(--accent)}
 #styler .tab:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#styler .btn{font-size:13px}
+/* The editor speaks the sheet's own typeface, the way the Background rows
+   above it do: it is prose to be tweaked on a phone, not a terminal session,
+   and a second family here read as a different program. */
 #stylerCSS{flex:1 1 auto;min-height:0;width:100%;margin-top:.5em;resize:none;
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  font-size:12.5px;line-height:1.5;tab-size:2;padding:.5em .6em;
+  font:inherit;font-size:13px;line-height:1.5;tab-size:2;padding:.5em .6em;
   color:var(--fg);background:var(--bg-card);
   border:1px solid var(--line);border-radius:8px}
 #stylerCSS:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
@@ -922,6 +1054,5 @@ body.styling{padding-bottom:var(--styler-h)}
      what keeps it from ever having to use it. */
   #styler{padding-left:var(--sp-1);padding-right:var(--sp-1)}
   #styler .row{gap:.25em}
-  #styler .tab{font-size:11.5px;padding:.32em .5em}
-  #styler .btn{font-size:12.5px;padding:.28em .45em}
+  #styler .tab,#styler .btn,#stylerPreset{font-size:11.5px;padding:.32em .5em}
 }

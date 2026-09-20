@@ -176,6 +176,14 @@ public class LookupActivity extends Activity {
         Shell.applyBackground(web);
     }
 
+    void refreshAppearance() {
+        int color = ShellPrefs.pageBg(this);
+        getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, color));
+        root.setBackground(WindowBackground.dialogDrawable(this, color));
+        status.setTextColor(ShellPrefs.darkIcons(color) ? 0xDE000000 : 0xFFFFFFFF);
+        Shell.applyBackground(web);
+    }
+
     /** The selection, wherever this launch put it. */
     private static CharSequence text(Intent i) {
         if (i == null) return null;

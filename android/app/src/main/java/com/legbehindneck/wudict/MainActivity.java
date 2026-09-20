@@ -251,6 +251,11 @@ public class MainActivity extends Activity {
         }
     }
 
+    void refreshAppearance() {
+        applyEdges();
+        Shell.applyBackground(web);
+    }
+
     @SuppressWarnings("deprecation")
     private static void legacyBarAppearance(View decor, boolean night) {
         int flags = decor.getSystemUiVisibility();

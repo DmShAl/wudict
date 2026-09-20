@@ -23,8 +23,8 @@
 // device facts wearing a config key's name. Dictionary order, default search
 // mode, theme: still not here, and a row that would read identically on a
 // desktop still does not belong.
-// The fork additionally exposes an optional Sepia background here: the shell
-// must know it before the WebView exists, then pass it to the page at startup.
+// The shell still owns the background for first paint; its controls are in
+// the web Appearance sheet, which writes the same preferences through Shell.
 //
 // Nothing here writes wudict.toml. An override is stored in SharedPreferences
 // and delivered on the child's exec line, which is a HIGHER config layer than
@@ -92,7 +92,6 @@ public class SettingsActivity extends Activity {
     private final TextView[] hints = new TextView[keys.length];
 
     private TextView staleText;
-    private EditText sepiaField;
     private final java.util.List<Runnable> backgroundButtonUpdates = new java.util.ArrayList<>();
     private Button applyNow;
     private volatile boolean gone;
@@ -143,8 +142,6 @@ public class SettingsActivity extends Activity {
         col.addView(choiceRow(R.string.settings_bars, R.array.settings_bars_modes,
                 ShellPrefs.bars(this), v -> ShellPrefs.setBars(this, v)));
         col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
-        col.addView(sepiaRow());
-        col.addView(backgroundImageRow());
 
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
@@ -203,7 +200,6 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        commitSepia();
         // Leaving with a half-typed number in a field must not lose it, and
         // must not store a value the server would refuse either: commit()
         // either stores a valid number or puts the field back.
@@ -219,62 +215,6 @@ public class SettingsActivity extends Activity {
     }
 
     // ── rows ─────────────────────────────────────────────────────────────
-
-    private View sepiaRow() {
-        LinearLayout line = new LinearLayout(this);
-        line.setGravity(Gravity.CENTER_VERTICAL);
-        CheckBox box = new CheckBox(this);
-        box.setText(R.string.settings_sepia);
-        box.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
-        box.setMinHeight(dp(ROW_MIN));
-        box.setChecked(ShellPrefs.sepia(this));
-        line.addView(box, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        sepiaField = new EditText(this);
-        sepiaField.setSingleLine(true);
-        sepiaField.setInputType(InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        sepiaField.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
-        sepiaField.setMinHeight(dp(ROW_MIN));
-        sepiaField.setContentDescription(getString(R.string.settings_sepia_color));
-        sepiaField.setText(ShellPrefs.sepiaColorText(this).substring(1));
-        sepiaField.setOnFocusChangeListener((v, focused) -> {
-            if (!focused) commitSepia();
-        });
-        sepiaField.setOnEditorActionListener((v, id, event) -> {
-            commitSepia();
-            return false;
-        });
-        // Reserve only enough width for a hex colour, including larger system fonts.
-        float digitWidth = 0;
-        for (char digit : "0123456789abcdefABCDEF".toCharArray()) {
-            digitWidth = Math.max(digitWidth, sepiaField.getPaint().measureText(String.valueOf(digit)));
-        }
-        int colorWidth = (int) Math.ceil(sepiaField.getPaint().measureText("#") + 6 * digitWidth)
-                + sepiaField.getCompoundPaddingLeft() + sepiaField.getCompoundPaddingRight() + dp(8);
-        line.addView(sepiaField, new LinearLayout.LayoutParams(colorWidth,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-        box.setOnCheckedChangeListener((v, on) -> {
-            commitSepia();
-            ShellPrefs.set(this, ShellPrefs.SEPIA, on);
-            applySepiaWindow();
-        });
-        return line;
-    }
-
-    private void commitSepia() {
-        if (sepiaField == null) return;
-        try {
-            ShellPrefs.setSepiaColor(this, sepiaField.getText().toString().trim());
-            sepiaField.setError(null);
-        } catch (IllegalArgumentException bad) {
-            sepiaField.setError(getString(R.string.settings_sepia_color_bad));
-        }
-        // Invalid or unfinished input never replaces the last valid colour.
-        sepiaField.setText(ShellPrefs.sepiaColorText(this).substring(1));
-        applySepiaWindow();
-    }
 
     private void applySepiaWindow() {
         getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, ShellPrefs.sepia(this)
@@ -312,70 +252,6 @@ public class SettingsActivity extends Activity {
         };
         backgroundButtonUpdates.add(update);
         update.run();
-    }
-
-    private View backgroundImageRow() {
-        LinearLayout choose = new LinearLayout(this);
-        choose.setOrientation(LinearLayout.VERTICAL);
-        choose.setMinimumHeight(dp(ROW_MIN));
-        choose.setPadding(0, dp(SP_2), 0, dp(SP_2));
-        choose.setClickable(true);
-        choose.setFocusable(true);
-        TypedValue bg = new TypedValue();
-        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, bg, true)) {
-            choose.setBackgroundResource(bg.resourceId);
-        }
-        TextView title = new TextView(this);
-        title.setText(R.string.settings_background_image);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
-        TextView value = caption("", 0, 0);
-        value.setAlpha(1f);
-        choose.addView(title);
-        choose.addView(value);
-        Runnable update = () -> {
-            String name = ShellPrefs.of(this).getString("background_image", "");
-            value.setText(name.isEmpty() ? getString(R.string.settings_background_none) : name);
-        };
-        update.run();
-        choose.setOnClickListener(v -> {
-            java.util.List<String> names = WindowBackground.images(this);
-            String[] labels = new String[names.size() + 1];
-            labels[0] = getString(R.string.settings_background_none);
-            for (int i = 0; i < names.size(); i++) labels[i + 1] = names.get(i);
-            String selected = ShellPrefs.of(this).getString("background_image", "");
-            int background = ShellPrefs.sepia(this)
-                    ? ShellPrefs.sepiaColor(this) : getColor(R.color.window_bg);
-            int foreground = ShellPrefs.darkIcons(background) ? 0xDE000000 : 0xFFFFFFFF;
-            TextView heading = new TextView(this);
-            heading.setText(R.string.settings_background_image);
-            heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_HEAD);
-            heading.setTextColor(foreground);
-            heading.setPadding(dp(SP_5), dp(SP_5), dp(SP_5), dp(SP_3));
-            android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<String>(
-                    this, android.R.layout.simple_list_item_single_choice, labels) {
-                @Override public View getView(int position, View recycled, ViewGroup parent) {
-                    TextView text = (TextView) super.getView(position, recycled, parent);
-                    text.setTextColor(foreground);
-                    return text;
-                }
-            };
-            AlertDialog picker = new BackgroundDialogBuilder(this)
-                    .setCustomTitle(heading)
-                    .setSingleChoiceItems(adapter, names.indexOf(selected) + 1, (dialog, which) -> {
-                        ShellPrefs.of(this).edit().putString("background_image",
-                                which == 0 ? "" : names.get(which - 1)).apply();
-                        update.run();
-                        applySepiaWindow();
-                        dialog.dismiss();
-                    })
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show();
-            picker.getWindow().setBackgroundDrawable(WindowBackground.dialogDrawable(this, background));
-            picker.getListView().setBackgroundColor(Color.TRANSPARENT);
-            picker.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(foreground);
-            if (names.isEmpty()) toast(getString(R.string.settings_background_empty));
-        });
-        return choose;
     }
 
     private CheckBox row(String key, int label) {
