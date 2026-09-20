@@ -189,7 +189,7 @@ Blank (the default) lets any installed  extension reach the read-only dictionary
 Set it to allow only specific extensions:
 
 ```toml
-BROWSER_EXTENSIONS = ["chrome-extension://abcdefghijklmnopabcdefghijklmnop"]
+BROWSER_EXTENSIONS = ["chrome-extension://bknaaoffefipfnpefmkbipcdemljbhjh"]
 ```
 
 (Firefox generates a fresh `moz-extension://` id for every installation, so
@@ -405,6 +405,8 @@ for the cgo flavour with internal speex decoder and optimized sqlite3, and
 `.github/workflows/build-purego.yml` for purego builds.
 Supported OS's: macOS (arm64/amd64), Linux (amd64/arm64/armv7/armv6) and Windows
 (amd64/arm64).
+
+More details: https://wudict.legbehindneck.com/reference/building/
 
 ### Building the macOS bundle from source
 

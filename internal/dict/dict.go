@@ -155,6 +155,48 @@ type FullTextPlanner interface {
 	FullTextMatch(match string, limit int) ([]Result, error)
 }
 
+// Letter is one chip of the browse strip: a run of headwords sharing an
+// initial, and where that run begins in browse order.
+//
+// Offset is a position in the SAME sequence Browser.Page pages through, so a
+// chip becomes a page by integer division and nothing has to agree about page
+// size across the wire.
+type Letter struct {
+	Letter string `json:"l"` // what the chip shows: an uppercase initial, "0-9", "#"
+	Offset int    `json:"o"` // browse offset of the first headword under it
+	Count  int    `json:"n"` // how many headwords it holds
+}
+
+// Browser is implemented by backends that can present the whole dictionary as
+// an ordered, addressable list - reading it page by page instead of querying
+// it.
+//
+// Only the prepared backend implements it, and that is the contract rather
+// than an omission: all three answers are reads of one index (idx_entry_w),
+// which is what makes a jump to "M" in a 2.9 M-entry dictionary a seek instead
+// of a scan. A direct format backend would have to sort its entire headword
+// list in memory to answer any of them - precisely the cost preparation
+// exists to remove - so browsing is offered where the index is, and the
+// dictionary panel is where an index is asked for.
+//
+// Browse order is the index's order (case-insensitive by headword), NOT the
+// source file's entry order: a paper dictionary's pages are alphabetical, and
+// `wudict keys` - which reads the source sequentially - is the other tool.
+type Browser interface {
+	// Page returns up to n headwords starting at offset, in browse order.
+	// An offset past the end returns nil, never an error.
+	Page(offset, n int) ([]string, error)
+
+	// Locate returns the browse offset of the first headword at or after
+	// word, i.e. where the reader lands when they jump to it. A word past
+	// the last headword resolves to the end.
+	Locate(word string) (int, error)
+
+	// Alphabet returns every initial present, in browse order. Cheap to call
+	// repeatedly: the backend computes it once per open.
+	Alphabet() ([]Letter, error)
+}
+
 // Entry is one dictionary article as produced by a format Reader during
 // an ingest scan. When LinkTo is non-empty the entry is a pure redirect
 // (e.g. MDX @@@LINK): Body is ignored and Headwords become aliases of the

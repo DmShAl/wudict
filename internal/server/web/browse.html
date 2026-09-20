@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browse</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<!--
+ Copyright (C) 2026 glowinthedark
+
+ SPDX-License-Identifier: GPL-3.0-or-later
+
+ The reading view: a dictionary as a list of its own words, turned a page at a
+ time, the way one is read on paper. index.html answers queries; this page
+ answers none - it has no search, no modes, no article bodies and no registry.
+ That is why it is a separate page rather than a mode of the app: everything
+ the app carries to make an answer possible is dead weight here, and the one
+ thing this needs (a stable address for a PLACE in the list) the app has no
+ spelling for.
+
+ Its whole state is the URL - ?dict=<id>&p=<n> - so the page the reader is on
+ is bookmarkable, shareable and walkable with Back, and the same three
+ properties come from the same fact rather than from three mechanisms.
+
+ It is deliberately not a client of setup.css: that stylesheet centres a single
+ card in the viewport, which is the opposite of a full-bleed list.
+-->
+<style>
+:root{
+  --bg:#fbfaf8; --bar:rgba(251,250,248,.94); --fg:#2b2a28; --soft:#6d6a64;
+  --faint:#a5a19a; --accent:#e08600; --line:#e8e4dd; --line-soft:#f1eee8;
+  --link:#5b7a99; --focus:#7aa7d1;
+}
+/* Same three-way spelling the app uses: the OS preference, unless the reader
+   pinned a theme in the app (wudict_theme, read once at boot). */
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#191a1c; --bar:rgba(25,26,28,.94); --fg:#d8d5d0; --soft:#96938d;
+  --faint:#5f5c57; --accent:#e69a33; --line:#33363b; --line-soft:#2a2c30;
+  --link:#8fb0cc; --focus:#7aa7d1;
+}}
+:root[data-theme=dark]{
+  --bg:#191a1c; --bar:rgba(25,26,28,.94); --fg:#d8d5d0; --soft:#96938d;
+  --faint:#5f5c57; --accent:#e69a33; --line:#33363b; --line-soft:#2a2c30;
+  --link:#8fb0cc; --focus:#7aa7d1;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,
+  "Segoe UI",Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+
+header{position:sticky;top:0;z-index:5;background:var(--bar);
+  backdrop-filter:saturate(1.6) blur(8px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.5rem .9rem .45rem}
+.back{display:inline-flex;color:var(--soft);padding:.25rem;border-radius:7px;text-decoration:none}
+.back:hover{color:var(--accent);background:var(--line-soft)}
+.back svg{width:18px;height:18px}
+/* The title block takes the row on a wide screen and yields it on a narrow
+   one: flex-wrap does the whole responsive job, with no media query to keep
+   in step with the column count below. */
+.title{flex:1 1 13rem;min-width:0}
+.title b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The running head, exactly as a printed page carries it: the first and last
+   word ON THIS PAGE. It is the one thing that tells a reader where they are
+   without counting. */
+.title span{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#jump{flex:0 1 12rem;min-width:7rem;font:inherit;font-size:13px;color:var(--fg);background:var(--bg);
+  border:1px solid var(--line);border-radius:99px;padding:.3rem .8rem;outline:none;-webkit-appearance:none}
+#jump:focus{border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 22%,transparent)}
+.nav{display:flex;align-items:center;gap:.35rem;font-size:12.5px;color:var(--soft);white-space:nowrap}
+.nav button{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--soft);
+  border-radius:8px;min-width:2.1rem;height:1.95rem;padding:0 .55rem;cursor:pointer}
+.nav button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.nav button:disabled{opacity:.3;cursor:default}
+.nav b{font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+
+/* One row, scrolled sideways rather than wrapped: wrapping a Cyrillic+Latin
+   alphabet is four rows of chrome above every page, on the screen that can
+   least afford it. The active chip is scrolled into view, so the strip is
+   never scrolled to a place the reader is not. */
+.strip{display:flex;gap:.1rem;overflow-x:auto;padding:0 .9rem .4rem;scrollbar-width:thin;
+  overscroll-behavior-x:contain}
+.strip button{font:inherit;font-size:12.5px;line-height:1;background:none;border:0;color:var(--soft);
+  cursor:pointer;padding:.36rem .5rem;border-radius:7px;flex:0 0 auto;min-width:1.85rem;text-align:center}
+.strip button:hover{background:var(--line-soft);color:var(--fg)}
+.strip button[aria-current=true]{background:var(--accent);color:#fff}
+
+/* The whole responsive story, in one declaration: column-width is a request,
+   not a count, so the browser fits as many 14rem columns as the viewport
+   holds and drops to one when it holds one. Nothing to recompute on resize. */
+.words{columns:14rem;column-gap:2.2rem;column-rule:1px solid var(--line-soft);
+  max-width:1700px;margin:0 auto;padding:.9rem 1rem 2rem}
+.words a{display:block;color:var(--link);text-decoration:none;padding:.16rem .3rem;
+  border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;break-inside:avoid}
+.words a:hover{background:var(--line-soft);color:var(--fg)}
+.words a:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+
+footer{display:flex;justify-content:center;padding:0 1rem 2.2rem}
+footer .nav button{height:2.3rem;padding:0 1rem}
+
+.msg{max-width:34rem;margin:4rem auto;padding:1.4rem 1.6rem;background:var(--bg);
+  border:1px solid var(--line);border-radius:12px}
+.msg b{display:block;font-size:16px;margin-bottom:.3rem}
+.msg p{margin:.3rem 0;color:var(--soft);font-size:14px}
+.msg a{color:var(--accent)}
+.picks{display:flex;flex-direction:column;gap:.1rem;margin-top:.8rem}
+.picks a{color:var(--link);text-decoration:none;padding:.3rem .4rem;border-radius:6px}
+.picks a:hover{background:var(--line-soft);color:var(--fg)}
+.picks span{color:var(--faint);font-size:12px;margin-left:.4rem}
+</style>
+
+<header id="top" hidden>
+  <div class="bar">
+    <a class="back" href="/" title="Back to search" aria-label="Back to search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2 14 14"/></svg></a>
+    <div class="title"><b id="name"></b><span id="sub"></span></div>
+    <input id="jump" type="search" placeholder="Jump to…" spellcheck="false" autocomplete="off"
+           autocapitalize="off" enterkeyhint="go" aria-label="Jump to a word">
+    <div class="nav">
+      <button type="button" data-go="prev" title="Previous page (←)">‹</button>
+      <b data-pos></b>
+      <button type="button" data-go="next" title="Next page (→)">›</button>
+    </div>
+  </div>
+  <nav class="strip" id="strip" aria-label="Jump to a letter"></nav>
+</header>
+
+<main>
+  <div class="msg" id="msg" hidden></div>
+  <div class="words" id="list"></div>
+</main>
+<footer id="foot" hidden>
+  <div class="nav">
+    <button type="button" data-go="first" title="First page (Home)">«</button>
+    <button type="button" data-go="prev" title="Previous page (←)">‹ Previous</button>
+    <b data-pos></b>
+    <button type="button" data-go="next" title="Next page (→)">Next ›</button>
+    <button type="button" data-go="last" title="Last page (End)">»</button>
+  </div>
+</footer>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num=n=>n.toLocaleString();
+/* Some dictionaries store their headwords still escaped - a Chinese
+   encyclopaedia lists `&#x3B1;-松油烯` and `&alpha;粒子散射实验` - and a list
+   that prints the escape is showing the reader the file, not the word.
+   Decoded for DISPLAY ONLY: the entry is keyed by the raw string, so that is
+   what the link carries and what the server is asked for.
+
+   An inert DOMParser document, never innerHTML on this page: nothing is
+   fetched and nothing runs. A headword containing a real `<` is left alone
+   rather than parsed as markup and truncated. Two passes at most, which is
+   one layer of double-escaping and not a loop over hostile input - the same
+   bound, and the same reason, as dict.DisplayText. */
+const P=new DOMParser();
+function unesc(s){
+  if(s.indexOf("&")<0||s.indexOf("<")>=0)return s;
+  for(let i=0;i<2;i++){
+    let d;
+    try{d=P.parseFromString(s,"text/html").documentElement.textContent}catch(e){return s}
+    if(d===s||!d)break;
+    s=d;
+  }
+  return s;
+}
+/* The reader's pinned theme, if they pinned one in the app. Read, never
+   written: this page has no theme control, because a page they arrived at
+   from the app should not be a second place to set one. */
+try{const t=localStorage.getItem("wudict_theme");
+  if(t&&t!=="auto")document.documentElement.setAttribute("data-theme",t)}catch(e){}
+
+let dictId="",state=null,last={p:1},poll=0,stripFor="";
+
+function card(html){$("msg").innerHTML=html;$("msg").hidden=false;
+  $("top").hidden=true;$("foot").hidden=true;$("list").innerHTML=""}
+
+/* One request per page turn, and the answer carries everything the chrome
+   needs (name, total, strip) so there is never a second round trip to
+   sequence against the first. */
+async function show(opts,record){
+  clearTimeout(poll);
+  last=opts;
+  const u=new URLSearchParams({dict:dictId});
+  if(opts.at)u.set("at",opts.at);else u.set("p",String(opts.p||1));
+  let r;
+  try{r=await fetch("/api/browse?"+u.toString())}
+  catch(e){return card("<b>No answer</b><p>The app stopped responding. Reload this page once it is running again.</p>")}
+  if(r.status===409)return unprepared(await r.json().catch(()=>({})));
+  if(!r.ok){const j=await r.json().catch(()=>({}));
+    return card("<b>Cannot browse this dictionary</b><p>"+esc(j.error||("Error "+r.status))+"</p>"+
+      '<p><a href="/browse">Choose another…</a></p>')}
+  state=await r.json();
+  $("msg").hidden=true;
+  render();
+  const url="?dict="+encodeURIComponent(dictId)+"&p="+state.page;
+  if(record==="push"&&url!==location.search)history.pushState(null,"",url);
+  else if(record!=="none")history.replaceState(null,"",url);
+  /* A page turn is a new page: start it at the top, the way turning one
+     does. Without this the reader lands in the middle of the new page at
+     whatever depth they had scrolled the old one. */
+  if(record!=="none")scrollTo(0,0);
+}
+
+function render(){
+  const d=state;
+  document.title=d.name+" · Browse";
+  $("top").hidden=false;$("foot").hidden=false;
+  $("name").textContent=d.name;
+  const a=unesc(d.words[0]||""),z=unesc(d.words[d.words.length-1]||"");
+  $("sub").textContent=d.total?a+" — "+z+"  ·  "+num(d.total)+" words":"no headwords";
+  $("list").innerHTML=d.words.map(w=>{
+    const e=esc(unesc(w));
+    return '<a href="/?q='+encodeURIComponent(w)+"&dict="+encodeURIComponent(d.dict)+
+      '&mode=exact" title="'+e+'">'+e+"</a>";
+  }).join("");
+
+  /* The strip belongs to the dictionary, not to the page, so it is built once
+     and only its current chip moves. */
+  if(stripFor!==d.dict){
+    stripFor=d.dict;
+    $("strip").innerHTML=d.alphabet.map(l=>{
+      const e=esc(unesc(l.l));
+      return '<button type="button" data-o="'+l.o+'" title="'+e+" — "+num(l.n)+' words">'+e+"</button>";
+    }).join("");
+  }
+  const at=(d.page-1)*d.size;
+  let cur=-1;
+  d.alphabet.forEach((l,i)=>{if(l.o<=at)cur=i});
+  $("strip").querySelectorAll("button").forEach((b,i)=>{
+    if(i===cur){b.setAttribute("aria-current","true");
+      b.scrollIntoView({block:"nearest",inline:"center"})}
+    else b.removeAttribute("aria-current");
+  });
+
+  document.querySelectorAll("[data-pos]").forEach(el=>el.textContent=d.page+" / "+(d.pages||1));
+  const ends={first:d.page<=1,prev:d.page<=1,next:d.page>=d.pages,last:d.page>=d.pages};
+  document.querySelectorAll("[data-go]").forEach(b=>{b.disabled=!!ends[b.dataset.go]});
+}
+
+function turn(where){
+  if(!state)return;
+  const p=where==="prev"?state.page-1:where==="next"?state.page+1:where==="first"?1:state.pages;
+  if(p>=1&&p<=state.pages&&p!==state.page)show({p},"push");
+}
+
+/* The one state with no list to draw. "Wait" and "act" are different answers
+   and are told apart by the server, not guessed here. */
+function unprepared(j){
+  if(j.indexing){
+    card("<b>Building the index…</b><p>This dictionary is being indexed right now. "+
+      "The list opens by itself the moment it is ready.</p>");
+    poll=setTimeout(()=>show(last,"none"),2500);
+  }else{
+    card("<b>Not indexed yet</b><p>Browsing needs this dictionary's index. "+
+      'Open <a href="/">the app</a>, find it in the dictionary panel and switch its index on — '+
+      "then come back to this page.</p>");
+  }
+}
+
+/* No ?dict= is not an error: it is the question "which one?", and a page that
+   can be reached from a bookmark bar has to be able to answer it. Only
+   indexed dictionaries are offered, because only they can be browsed. */
+async function chooser(){
+  card("<b>Browse a dictionary</b><p>Reading it word by word, A to Z.</p>");
+  let text="";
+  try{text=await(await fetch("/api/dicts")).text()}catch(e){}
+  const ds=[];
+  for(const line of text.split("\n")){
+    if(!line)continue;
+    let m;try{m=JSON.parse(line)}catch(e){continue}
+    if(m.t==="dict"&&m.dict&&(m.dict.dbSize||0)>0)ds.push(m.dict);
+  }
+  ds.sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+  if(!ds.length)return card("<b>Nothing to browse yet</b><p>Browsing needs a dictionary's index. "+
+    'Open <a href="/">the app</a> and switch one on in the dictionary panel.</p>');
+  card("<b>Browse a dictionary</b><p>Reading it word by word, A to Z.</p><div class='picks'>"+
+    ds.map(d=>'<a href="?dict='+encodeURIComponent(d.id)+'">'+esc(d.name||d.id)+
+      (d.entries?"<span>"+num(d.entries)+" entries</span>":"")+"</a>").join("")+"</div>");
+}
+
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]");
+  if(g)return turn(g.dataset.go);
+  const c=e.target.closest(".strip button");
+  if(c&&state)show({p:Math.floor(Number(c.dataset.o)/state.size)+1},"push");
+});
+
+/* Enter jumps to the word. It is not a search - nothing is matched, nothing
+   is scored: the list is simply put down at the place that word occupies in
+   it, which is the one thing searching cannot do. */
+$("jump").addEventListener("keydown",e=>{
+  if(e.key!=="Enter")return;
+  e.preventDefault();
+  const v=e.target.value.trim();
+  if(v){e.target.blur();show({at:v},"push")}
+});
+
+addEventListener("keydown",e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.target.tagName==="INPUT"){if(e.key==="Escape"){e.target.value="";e.target.blur()}return}
+  switch(e.key){
+    case"ArrowLeft":case"PageUp":e.preventDefault();return turn("prev");
+    case"ArrowRight":case"PageDown":e.preventDefault();return turn("next");
+    case"Home":e.preventDefault();return turn("first");
+    case"End":e.preventDefault();return turn("last");
+  }
+  /* A typed letter is the start of a word, not a shortcut for its letter:
+     the strip is one tap away and a reader who types "zy" means zygote.
+     Focus moves on keydown, so the character itself lands in the field. */
+  if(e.key.length===1&&e.key.trim()&&state)$("jump").focus();
+});
+
+addEventListener("popstate",()=>{
+  const p=new URLSearchParams(location.search);
+  if(!p.get("dict"))return chooser();
+  dictId=p.get("dict");
+  show({p:Number(p.get("p"))||1},"none");
+});
+
+(function(){
+  const p=new URLSearchParams(location.search);
+  dictId=p.get("dict")||"";
+  if(!dictId)return chooser();
+  show({p:Number(p.get("p"))||1},"replace");
+})();
+</script>

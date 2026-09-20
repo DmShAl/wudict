@@ -50,6 +50,9 @@ var setupHTML string
 //go:embed web/lemmas.html
 var lemmasHTML []byte // the lemma-data installer (D91)
 
+//go:embed web/browse.html
+var browseHTML []byte // the page-by-page headword view (browse.go)
+
 //go:embed web/setup.css
 var setupCSS []byte // palette and controls shared by setup.html and lemmas.html
 

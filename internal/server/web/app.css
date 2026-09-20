@@ -784,6 +784,12 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 .pd .pfx{color:var(--fg-soft)}
 .pd .path{color:var(--fg-faint);cursor:pointer}
 .pd .err{color:#c0564f}
+/* Not a .feat: those chips are switches that spend disk, and this one only
+   opens a page. Same muted register as the provenance rows under it. */
+.pd .acts a.browse{display:inline-flex;align-items:center;gap:.35em;margin-top:.3em;
+  font-size:11.5px;color:var(--fg-faint);text-decoration:none}
+.pd .acts a.browse:hover{color:var(--accent)}
+.pd .acts a.browse svg{width:13px;height:13px;flex:none}
 /* Folders & configuration: a quiet disclosure under the dictionary cards.
    It answers "where is it looking?", "where did my prepared data go?" and
    "which config file is in effect?" — otherwise only visible on the terminal
