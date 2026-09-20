@@ -7,12 +7,22 @@ records what an agent session changed, what it verified, and what it left.
 
 ## Branch state (verify with git before trusting)
 
-Branch `dev`, clean and pushed to `origin/dev`. The review items below and
-the appearance/presets work described further down are all committed on
-`dev` (the appearance rounds landed as `Move windows background Color…`,
-`CSS Presets`, `Appearence dialog fix`; the hardening batch up to
-`Close the intake archive before disposing of its source`). This file's
-older "uncommitted on `fix/review-hardening`" notes are historical.
+Branch `dev` at merge commit `adb5507` (2026-09-20): upstream `master`
+(wuweidict/wudict @ `312b88b` — Browse A-Z headword pages, state.json
+dupes cleanup, accordion-clipping ResizeObserver fix, docs) merged into
+`dev` and pushed. One conflict, `index.html` (the fork keeps styles in
+`web/app.css`); resolution: fork structure + upstream's browseLink and
+card-chip markup in index.html, the `.pd .acts a.browse` CSS into
+app.css after `.pd .err`, ResizeObserver border-box fix stays in
+index.html. Verified by a throwaway-worktree trial merge BEFORE the real
+one: `go build`, `go vet`, store/dict green; server failures all from the
+known Windows list. Note: `git worktree list` shows two unrelated codex
+worktrees (`.codex/worktrees/…`) — not ours, left alone. A half-done
+manual merge attempt (10 files deleted in the working tree, index
+intact) was found and recovered with `git merge --abort` before redoing
+the merge properly; nothing was lost.
+
+Older appearance/presets/review notes below are historical.
 
 ## GitHub-facing identity (2026-09-20, this session)
 
