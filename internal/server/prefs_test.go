@@ -338,3 +338,81 @@ func (u *UIPrefs) sorted() bool {
 	}
 	return u.SortMine
 }
+
+// The file-name rung of heal's identity ladder, from both sides. It is the
+// weakest rung and the only one that can guess wrong, so it fires only when
+// the name names exactly one thing in the registry AND exactly one thing in
+// the stored records. The stored side is the half that was missing: a library
+// folder the user removes leaves a record behind (kept on purpose - an
+// unplugged drive looks the same), every one of those records has a path
+// ending "text.db", and with one prepared dictionary left the dead record
+// would otherwise adopt the live one, taking its off switch and its place in
+// the order with it.
+func TestPrefsFileNameRungNeedsBothSidesUnique(t *testing.T) {
+	const live0, live1 = "live00000000", "live11111111"
+	lib := func(name string) string { return filepath.Join("/lib", name, "text.db") }
+
+	tests := []struct {
+		name   string
+		paths  []string   // dictionaries the registry has right now
+		stored []DictPref // what state.json remembers
+		want   []string   // id each record must hold afterwards
+	}{{
+		name:   "unique on both sides re-attaches",
+		paths:  []string{lib("one")},
+		stored: []DictPref{{ID: "stale0000000", Path: lib("gone"), Off: true}},
+		want:   []string{live0},
+	}, {
+		name:   "ambiguous in the registry is not guessed",
+		paths:  []string{lib("one"), lib("two")},
+		stored: []DictPref{{ID: "stale0000000", Path: lib("gone"), Off: true}},
+		want:   []string{"stale0000000"},
+	}, {
+		name:   "ambiguous in the stored records is not guessed",
+		paths:  []string{lib("one")},
+		stored: []DictPref{{ID: "stale0000000", Path: lib("gone")}, {ID: "stale1111111", Path: lib("alsogone")}},
+		want:   []string{"stale0000000", "stale1111111"},
+	}, {
+		name:  "an exact path still wins over the collision",
+		paths: []string{lib("one")},
+		stored: []DictPref{
+			{ID: "stale0000000", Path: lib("gone")},
+			{ID: "stale1111111", Path: lib("one"), Off: true},
+		},
+		want: []string{"stale0000000", live0},
+	}, {
+		name:   "distinct file names are unaffected",
+		paths:  []string{"/dicts/alpha.dsl", "/dicts/beta.dsl"},
+		stored: []DictPref{{ID: "stale0000000", Path: "/elsewhere/beta.dsl", Off: true}},
+		want:   []string{live1},
+	}}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ids := []string{live0, live1}
+			r := &Registry{}
+			for i, p := range tc.paths {
+				r.entries = append(r.entries, &entry{ID: ids[i], Path: p})
+			}
+			p := LoadPrefs("") // in-memory: this rung reads nothing from disk
+			if err := p.Replace(tc.stored); err != nil {
+				t.Fatal(err)
+			}
+			got := p.heal(r)
+			if len(got) != len(tc.want) {
+				t.Fatalf("records lost or invented: %+v", got)
+			}
+			for i, want := range tc.want {
+				if got[i].ID != want {
+					t.Errorf("record %d: id %q, want %q (%+v)", i, got[i].ID, want, got[i])
+				}
+			}
+			// Re-attaching must carry the setting across, never reset it.
+			for i, d := range got {
+				if d.Off != tc.stored[i].Off {
+					t.Errorf("record %d: off %v, want %v", i, d.Off, tc.stored[i].Off)
+				}
+			}
+		})
+	}
+}

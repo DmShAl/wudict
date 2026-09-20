@@ -289,6 +289,20 @@ func (p *Prefs) heal(r *Registry) []DictPref {
 		b := strings.ToLower(filepath.Base(e.Path))
 		base[b] = append(base[b], e)
 	}
+	// The other half of the file-name rung's guard, and the half that was
+	// missing: the name has to be unique among the STORED records too. One
+	// prepared dictionary and a handful of dead "…/text.db" records - the
+	// residue of library folders the user has since removed - is the shape
+	// where counting only the registry side lets a dead record adopt the live
+	// entry, inheriting its off switch and its place in the order. Records a
+	// stronger rung already claimed are counted as well: a name two records
+	// share is ambiguous evidence whichever of them answered to it first.
+	storedBase := map[string]int{}
+	for _, d := range stored {
+		if d.Path != "" {
+			storedBase[strings.ToLower(filepath.Base(d.Path))]++
+		}
+	}
 
 	out := append([]DictPref(nil), stored...)
 	claimed := map[string]bool{}
@@ -309,7 +323,8 @@ func (p *Prefs) heal(r *Registry) []DictPref {
 			e = byPath[filepath.Clean(abs)]
 		}
 		if e == nil && d.Path != "" {
-			if m := base[strings.ToLower(filepath.Base(d.Path))]; len(m) == 1 {
+			b := strings.ToLower(filepath.Base(d.Path))
+			if m := base[b]; len(m) == 1 && storedBase[b] == 1 {
 				e = m[0]
 			}
 		}
