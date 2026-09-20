@@ -35,6 +35,25 @@ Local `origin` updated to the new URL. No CI, badge or script hardcodes the
 old slug; the only in-repo mention (historical handoff note in
 `docs/ANDROID-FORK.md`) is annotated.
 
+## Release wudict2-v0.1.0 (2026-09-20, this session)
+
+Tagged `wudict2-v0.1.0` (annotated, on dev `4b082e1`), pushed, then
+`build-android.cmd release` rebuilt the APK so `git describe` supplied the
+versionName (aapt2 confirms `versionName='wudict2-v0.1.0'`, versionCode 291,
+package `com.dmshepeta.wudict2`; apksigner: V2, CN=Dmitry Shepeta). Release
+created via API and the signed APK uploaded as
+`wudict2-android-arm64-foss.apk` (7,241,264 bytes; download URL verified
+200 with matching length):
+https://github.com/DmShAl/wudict2/releases/tag/wudict2-v0.1.0
+Fork-tag convention going forward: prefix release tags with `wudict2-…` so
+upstream's `vX.Y.Z` tags never clash when syncing `master`.
+
+Windows gotcha: in a background `cmd //c` from this shell,
+`LOCALAPPDATA` may be undefined, so build-android.cmd's default SDK path
+stays the literal `%LOCALAPPDATA%\Android\Sdk` and fails. Fix: pass
+`set ANDROID_HOME=C:\Users\shepe\AppData\Local\Android\Sdk&&` in front of
+the script call (no space before `&&`).
+
 ## What remains from the review (with the reasons for leaving each)
 
 - **Ingest is not cancellable** — deferred on purpose. Plumbing ctx through
