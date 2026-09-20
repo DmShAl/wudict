@@ -1,7 +1,25 @@
-# WuWeiDict - desktop and mobile dictionary app
+# wuDict2 — an Android fork of WuWeiDict
 
-Fast, _native_, self-contained, multi-format dictionary server that runs in your
-browser at [http://localhost:6888](http://localhost:6888). 
+**wuDict2** is an Android fork of [WuWeiDict](https://github.com/wuweidict/wudict)
+("wuDict"): a fast, _native_, self-contained, multi-format dictionary server that
+runs in your browser at [http://localhost:6888](http://localhost:6888).
+
+What differs from upstream:
+
+- Its own Android identity — application ID `com.dmshepeta.wudict2`, launcher
+  name **wuDict2** — so it installs and runs **beside** the upstream wuDict app.
+- A different default server port, **6889** (upstream uses 6888), so both apps
+  can run at the same time on one device.
+- Android-focused UI work: an extended Appearance sheet (window background
+  color and image, CSS presets as toggleable layers), a native folder picker,
+  and ongoing reliability fixes.
+- The Go server, the supported formats and the GPL-3.0-or-later license stay
+  upstream-compatible; upstream copyright notices remain in place.
+
+Desktop builds and the general manual live in the
+[upstream repository](https://github.com/wuweidict/wudict). To build the
+Android app from source, see the
+[Android build instructions](pages/docs/reference/building.md).
 
 Runs on Android, macOS, Linux, Windows.
 
@@ -20,13 +38,6 @@ Runs natively on [android](https://wuweidict.github.io/wudict/apps/android/), [m
 | Babylon | `.bgl`                              | gzip block stream; source/target charset auto-detected (Latin / Cyrillic / CJK code pages); embedded images; indexed automatically on first open |
 | ZIM | `.zim`                              | Kiwix/Wikimedia offline archives; see https://library.kiwix.org
 | WuWeiDict | cache folder (`text.db`)            | wuDict's own SQLite-based format (see *Sharing*, below) |
-
-## wuDict2 for Android
-
-wuDict2 is this repository's Android fork of [WuWeiDict](https://github.com/wuweidict/wudict).
-It keeps the upstream GPL-3.0-or-later license and author notices. Its Android
-application ID is `com.dmshepeta.wudict2`, so it can be installed beside the
-upstream app. See [Android build instructions](pages/docs/reference/building.md).
 
 ## wuDict for Desktop
 
