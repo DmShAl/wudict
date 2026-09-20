@@ -28,6 +28,13 @@ offline-dictionary). Homepage still points at the upstream docs site —
 deliberately kept. `master` stays upstream-sync-only per AGENTS.md; it was
 not touched.
 
+Repository renamed `DmShAl/wudict` → `DmShAl/wudict2` on the user's request,
+same session: same repo, all settings/issues/fork relation kept, GitHub
+redirects the old slug permanently (until a new repo takes that name).
+Local `origin` updated to the new URL. No CI, badge or script hardcodes the
+old slug; the only in-repo mention (historical handoff note in
+`docs/ANDROID-FORK.md`) is annotated.
+
 ## What remains from the review (with the reasons for leaving each)
 
 - **Ingest is not cancellable** — deferred on purpose. Plumbing ctx through

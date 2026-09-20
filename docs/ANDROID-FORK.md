@@ -2,6 +2,8 @@
 
 wuDict2 is an Android fork of [WuWeiDict](https://github.com/wuweidict/wudict).
 The upstream copyright notices and GPL-3.0-or-later license remain in place.
+The fork's repository on GitHub is [DmShAl/wudict2](https://github.com/DmShAl/wudict2)
+(renamed from `DmShAl/wudict` on 2026-09-20; the old URL redirects).
 The Android brand and application ID are distinct. The Java package and Gradle
 namespace stay `com.legbehindneck.wudict` to reduce merge conflicts with
 upstream; a small activity in `com.dmshepeta.wudict2` provides a distinct lookup
