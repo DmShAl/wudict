@@ -191,6 +191,9 @@ async function show(opts,record){
     return card("<b>Cannot browse this dictionary</b><p>"+esc(j.error||("Error "+r.status))+"</p>"+
       '<p><a href="/browse">Choose another…</a></p>')}
   state=await r.json();
+  /* What the reader asked for, which the strip highlights by: the chip they
+     clicked, or - for a typed jump - the row the server located. */
+  state.mark=opts.o!=null?opts.o:state.at;
   $("msg").hidden=true;
   render();
   const url="?dict="+encodeURIComponent(dictId)+"&p="+state.page;
@@ -224,9 +227,17 @@ function render(){
       return '<button type="button" data-o="'+l.o+'" title="'+e+" — "+num(l.n)+' words">'+e+"</button>";
     }).join("");
   }
+  /* Highlight what was ASKED for, not what the page happens to start with.
+     Both a chip click and a jump snap down to the page grid, so the page
+     holding the first K opens in the tail of J - and a strip that answers a
+     click on K by lighting up J reads as a bug, because it is one. A mark
+     outside this page (a page turn, a reload, a clamped bookmark) falls back
+     to where the page starts, which is then exactly where the reader is. */
   const at=(d.page-1)*d.size;
+  let mark=d.mark;
+  if(!(mark>=at&&mark<at+d.size))mark=at;
   let cur=-1;
-  d.alphabet.forEach((l,i)=>{if(l.o<=at)cur=i});
+  d.alphabet.forEach((l,i)=>{if(l.o<=mark)cur=i});
   $("strip").querySelectorAll("button").forEach((b,i)=>{
     if(i===cur){b.setAttribute("aria-current","true");
       b.scrollIntoView({block:"nearest",inline:"center"})}
@@ -283,7 +294,7 @@ document.addEventListener("click",e=>{
   const g=e.target.closest("[data-go]");
   if(g)return turn(g.dataset.go);
   const c=e.target.closest(".strip button");
-  if(c&&state)show({p:Math.floor(Number(c.dataset.o)/state.size)+1},"push");
+  if(c&&state){const o=Number(c.dataset.o);show({p:Math.floor(o/state.size)+1,o:o},"push")}
 });
 
 /* Enter jumps to the word. It is not a search - nothing is matched, nothing

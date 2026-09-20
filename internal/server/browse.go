@@ -27,12 +27,17 @@ const browsePageSize = 300
 // every page (a kilobyte) instead of being a second endpoint the client has to
 // sequence against the first.
 type browseResp struct {
-	Dict     string        `json:"dict"`
-	Name     string        `json:"name"`
-	Total    int           `json:"total"`
-	Page     int           `json:"page"`  // 1-based, as the URL spells it
-	Pages    int           `json:"pages"` // 0 when the dictionary is empty
-	Size     int           `json:"size"`
+	Dict  string `json:"dict"`
+	Name  string `json:"name"`
+	Total int    `json:"total"`
+	Page  int    `json:"page"`  // 1-based, as the URL spells it
+	Pages int    `json:"pages"` // 0 when the dictionary is empty
+	Size  int    `json:"size"`
+	// At is the row this view was ASKED for, which is not the row it starts
+	// at: a jump snaps down to the page grid, so a page reached by asking for
+	// K usually opens in the tail of J. The client highlights the strip by
+	// this, or clicking K lights up J.
+	At       int           `json:"at"`
 	Words    []string      `json:"words"`
 	Alphabet []dict.Letter `json:"alphabet"`
 }
@@ -92,16 +97,16 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		total += l.Count
 	}
 
-	offset := 0
+	offset, mark := 0, -1
 	if at := q.Get("at"); at != "" {
 		// A jump lands on the PAGE holding the word, not on the word: the
 		// reader asked to be put down in the list there, and a page that
 		// started mid-letter every time would have no stable address.
-		if offset, err = b.Locate(at); err != nil {
+		if mark, err = b.Locate(at); err != nil {
 			httpErr(w, 500, "browsing %s: %v", e.ID, err)
 			return
 		}
-		offset -= offset % browsePageSize
+		offset = mark - mark%browsePageSize
 	} else if p, _ := strconv.Atoi(q.Get("p")); p > 1 {
 		offset = (p - 1) * browsePageSize
 	}
@@ -109,6 +114,11 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	// shows the last page rather than an empty one or an error.
 	if total > 0 && offset >= total {
 		offset = (total - 1) / browsePageSize * browsePageSize
+	}
+	// A mark outside the page it produced is a stale bookmark or a jump past
+	// the end; the page's own start is then the only honest answer.
+	if mark < offset || mark >= offset+browsePageSize {
+		mark = offset
 	}
 	words, err := b.Page(offset, browsePageSize)
 	if err != nil {
@@ -128,6 +138,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		Page:     offset/browsePageSize + 1,
 		Pages:    (total + browsePageSize - 1) / browsePageSize,
 		Size:     browsePageSize,
+		At:       mark,
 		Words:    words,
 		Alphabet: alphabet,
 	})

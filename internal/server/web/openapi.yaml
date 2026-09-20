@@ -1444,6 +1444,15 @@ paths:
                     description: The page actually served, 1-based, after clamping.
                   pages: { type: integer, description: 0 when the dictionary is empty. }
                   size: { type: integer, description: 'Headwords per page, fixed by the server.' }
+                  at:
+                    type: integer
+                    description: >
+                      The browse offset this view was asked for, which is not
+                      where the page starts: a jump snaps down to the page
+                      grid, so the page holding the first K opens in the tail
+                      of J. The client highlights the strip by this, and falls
+                      back to the page's own start when it is a plain page
+                      turn.
                   words:
                     type: array
                     description: The headwords on this page. Homographs appear once.
