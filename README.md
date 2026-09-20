@@ -6,8 +6,8 @@ runs in your browser at [http://localhost:6888](http://localhost:6888).
 
 What differs from upstream:
 
-- Its own Android identity — application ID `com.dmshepeta.wudict2`, launcher
-  name **wuDict2** — so it installs and runs **beside** the upstream wuDict app.
+- Its own Android identity — launcher name **wuDict2** — so it installs and
+  runs **beside** the upstream wuDict app.
 - A different default server port, **6889** (upstream uses 6888), so both apps
   can run at the same time on one device.
 - Android-focused UI work: an extended Appearance sheet (window background
