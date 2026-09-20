@@ -33,7 +33,10 @@ same session: same repo, all settings/issues/fork relation kept, GitHub
 redirects the old slug permanently (until a new repo takes that name).
 Local `origin` updated to the new URL. No CI, badge or script hardcodes the
 old slug; the only in-repo mention (historical handoff note in
-`docs/ANDROID-FORK.md`) is annotated.
+`docs/ANDROID-FORK.md`) is annotated. User preference, given twice
+(release notes, then README): do NOT name the application ID
+(`com.dmshepeta.wudict2`) in public-facing texts — "installs beside the
+upstream wuDict app, default port 6889" is the approved wording.
 
 ## Release wudict2-v0.1.0 (2026-09-20, this session)
 
