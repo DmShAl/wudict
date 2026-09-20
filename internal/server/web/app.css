@@ -355,12 +355,26 @@ input:disabled,select:disabled{opacity:.55;cursor:not-allowed}
    being tuned. The page below stays live and keeps its scroll position; the
    matching padding on <body> keeps the last result reachable above it. */
 html{--styler-h:min(45vh,420px)}
-#styler{position:fixed;left:0;right:0;bottom:0;z-index:210;display:none;
+/* --styler-bottom is normally 0; the page's visualViewport handler sets both
+   vars while the sheet is open and the soft keyboard covers part of the
+   window - see stylerFit in index.html. */
+#styler{position:fixed;left:0;right:0;bottom:var(--styler-bottom,0);z-index:210;
+  display:none;
   height:var(--styler-h);flex-direction:column;
   background:var(--bg);border-top:1px solid var(--line);box-shadow:var(--shadow);
   padding:var(--sp-2) var(--sp-3);
   padding-bottom:calc(var(--sp-2) + var(--wd-inset-bottom,0px))}
 #styler.show{display:flex}
+/* The sheet is a window like the others: under the shell it wears the same
+   paper tint and wallpaper the dialogs and the history window wear
+   (history.css has the original recipe). Solid --bg is the no-shell answer. */
+html[data-shell-sepia] #styler{
+  background-color:var(--paper-bg);
+  background-image:linear-gradient(#ffffff24,#ffffff24)}
+html[data-shell-image] #styler{
+  background-color:var(--paper-bg,var(--bg));
+  background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
+  background-size:100% 100%}
 body.styling{padding-bottom:var(--styler-h)}
 /* The three headings are kept apart by hairlines rather than by spacing
    alone: the sheet is tall, sections scroll past each other, and a line under
@@ -372,6 +386,13 @@ body.styling{padding-bottom:var(--styler-h)}
 #appearanceBackground{flex:none;border-bottom:1px solid var(--line);
   padding-bottom:.55em;margin-bottom:.45em}
 #appearanceBackground[hidden]{display:none}
+/* Editing wants the room back. With the keyboard up, the fixed rows above
+   the editor - head, Background block with its thumbnail strip, toolbar -
+   ate the lifted sheet down to a line of CSS. While the caret is in the
+   textarea the Background block stands down, keyboard or not: the strip
+   needs no keyboard, the block is irrelevant while CSS is being typed, and
+   it returns the moment the caret leaves. The class is set by stylerFit. */
+#styler.editing #appearanceBackground,#styler.editing #stylerNote{display:none}
 /* Both section headings cut from one cloth: same size, tone and weight, so
    neither reads as more important than the other. */
 #appearanceBackground strong,.appearance-heading{font-size:13px;font-weight:600;
@@ -541,7 +562,7 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 /* The editor speaks the sheet's own typeface, the way the Background rows
    above it do: it is prose to be tweaked on a phone, not a terminal session,
    and a second family here read as a different program. */
-#stylerCSS{flex:1 1 auto;min-height:0;width:100%;margin-top:.5em;resize:none;
+#stylerCSS{flex:1 1 auto;min-height:5em;width:100%;margin-top:.5em;resize:none;
   font:inherit;font-size:13px;line-height:1.5;tab-size:2;padding:.5em .6em;
   color:var(--fg);background:var(--bg-card);
   border:1px solid var(--line);border-radius:8px}

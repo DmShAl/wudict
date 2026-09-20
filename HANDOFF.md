@@ -339,3 +339,40 @@ On-device checks: preset toggling feels instant on a real dictionary set,
 radio switching in background/, cold-start injection order with several
 presets enabled, migration of old pastes, `?style=off` interplay, and the
 fonts group (Condensed/Light) against the system font-size setting.
+
+Two user-review changes on top (same evening, verified in the desktop
+browser only): the sheet now OPENS on the Presets tab (stylerOpen ends with
+stylerShowPresets, not stylerShowTab — the switches are the entry point, and
+no textarea focus means no keyboard popping over the pane), and the
+keyboard-fit handler `stylerFit` + `#styler{bottom:var(--styler-bottom,0)}`
+exist because a soft keyboard shrinks the layout viewport, `vh` with it, and
+the fixed-height sheet squeezed the editor to one line. First attempt
+relied on visualViewport resize/scroll events — on the phone the keyboard
+overlap happened anyway (the events do not reliably fire for a keyboard in
+every WebView mode), so while the sheet is open the fit now runs on a 300ms
+POLL (`stylerFitStart`/`stylerFitStop` around open/close): covered window =
+innerHeight − vv.height − vv.offsetTop; when covered, `--styler-h` is ~62%
+of the VISIBLE height (floored at 240px) and `--styler-bottom` lifts the
+sheet above the keyboard; keyboard down → overrides clear. `#stylerCSS`
+has `min-height:5em` as the belt — at the 240px floor the editor keeps
+~94px. The sheet also wears the shell background like the other windows:
+`html[data-shell-sepia/image] #styler` applies the paper tint + wallpaper
+recipe from history.css; solid `--bg` is the no-shell answer.
+
+Follow-up from the phone run: the panel DID lift, but the fixed rows above
+the editor (head, Background block with the strip) had grown so much since
+the pre-thumbnail sheet that the lifted height left the editor one line.
+The first `.editing` trigger (covered window AND caret in the textarea)
+never fired on the phone, and the reason matters: **on the phone the
+fork's inset padding shrinks the WebView together with the keyboard, so
+`window.innerHeight` and `visualViewport.height` stay in step and the
+overlap difference is ALWAYS ~0 there.** "The panel rises" on the phone is
+the fork's own inset mechanism, not the page. The trigger is now the CARET
+IN THE TEXTAREA alone (`stylerFit` toggles `#styler.editing` from the poll
+and from focus/blur on the box; `#styler.editing` stands the Background
+block and the note down). Measured: the block is 147px on a desktop
+viewport; collapsing it took the editor from 219px to 409px. The color
+input lives INSIDE the hidden block, but the trigger being the textarea's
+caret means typing a hex keeps the block — the caret is elsewhere. The
+overlap-based LIFT stays in stylerFit for window modes where the keyboard
+draws over the page instead of shrinking it.

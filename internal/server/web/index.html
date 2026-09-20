@@ -4431,12 +4431,16 @@ async function stylerOpen(){
       return;
     }
   }
-  stylerShowTab(stylerTab);
+  // The sheet opens on PRESETS, by the user's rule: the switches are the
+  // entry point and the text tabs are one tap away - which also keeps the
+  // keyboard from popping over the pane the moment it opens.
+  stylerShowPresets();
   // Hand the app layer to the live element straight away, so a later Clear or
   // a deleted rule takes effect the moment it is typed rather than on reload.
   // Reopening also restores a preview that closing put back.
   stylerPreviewAll(stylerText);
   stylerNote();
+  stylerFitStart();
   if(stylerView==="css")$("stylerCSS").focus();
 }
 function stylerCloseSheet(){
@@ -4446,6 +4450,58 @@ function stylerCloseSheet(){
   // stops being shown. Preview is preview; the page a closed editor leaves
   // behind is the page the files describe.
   if(stylerDirty("app")||stylerDirty("article"))stylerPreviewAll(stylerSaved);
+  stylerFitStop();
+}
+/* Keyboard fit. When the soft keyboard opens, what happens to the page
+   depends on the window mode: the layout viewport may shrink (vh with it —
+   the old one-line editor), or the keyboard may simply draw OVER the page
+   while innerHeight never moves. The visual viewport knows the truth in
+   both worlds: covered = innerHeight - height - offsetTop. While the sheet
+   is open the fit runs on a 300ms POLL, not on events - whether the
+   keyboard announces itself as a viewport resize, an offset change or
+   nothing at all differs by WebView version, and a switch that works only
+   when the event feels like firing is not a switch. The poll is three
+   cheap reads a second, and it exists only while the sheet is open. With
+   the keyboard down the overrides clear and the CSS defaults stand. */
+const stylerVV=window.visualViewport;
+let stylerFitTimer=null;
+function stylerFit(){
+  const sheet=$("styler");
+  const open=sheet.classList.contains("show");
+  const overlap=open&&stylerVV
+    ?Math.max(0,window.innerHeight-stylerVV.height-stylerVV.offsetTop):0;
+  const root=document.documentElement.style;
+  // Editing collapse. The trigger is the CARET IN THE TEXTAREA, not the
+  // keyboard: on the phone the fork's inset padding shrinks the WebView
+  // together with the keyboard, so innerHeight and visualViewport stay in
+  // step and their difference is ALWAYS ~0 there - an overlap test can
+  // never fire. "The reader is editing CSS" is the semantic fact anyway:
+  // the Background block stands down while the caret works, and returns the
+  // moment the caret leaves (focus/blur below, and the poll as the net).
+  sheet.classList.toggle("editing",
+    open&&document.activeElement===$("stylerCSS"));
+  // The lift, for the window modes where the keyboard draws OVER the page
+  // instead of shrinking it: covered = innerHeight - height - offsetTop.
+  if(overlap<=0){
+    root.removeProperty("--styler-h");
+    root.removeProperty("--styler-bottom");
+    return;
+  }
+  root.setProperty("--styler-h",
+    Math.max(240,Math.min(Math.round(stylerVV.height*.62),560))+"px");
+  root.setProperty("--styler-bottom",overlap+"px");
+}
+function stylerFitStart(){
+  stylerFit();
+  if(stylerVV&&!stylerFitTimer)stylerFitTimer=setInterval(stylerFit,300);
+}
+function stylerFitStop(){
+  if(stylerFitTimer){clearInterval(stylerFitTimer);stylerFitTimer=null}
+  stylerFit();
+}
+if(stylerVV){
+  stylerVV.addEventListener("resize",stylerFit);
+  stylerVV.addEventListener("scroll",stylerFit);
 }
 async function stylerSave(){
   stylerCommit();
@@ -4570,6 +4626,11 @@ $("stylerCSS").addEventListener("input",()=>{
   clearTimeout(stylerTimer);
   stylerTimer=setTimeout(stylerPreview,250);
 });
+// Focus and blur re-run the fit immediately: the editing collapse (and its
+// undo) should not wait up to a poll tick for a caret the reader moved a
+// moment ago.
+$("stylerCSS").addEventListener("focus",stylerFit);
+$("stylerCSS").addEventListener("blur",stylerFit);
 /* Empties the box; SAVE is still what removes the file, so a mispress costs
    nothing — and Ctrl/⌘-Z brings the text straight back either way. Selecting
    first and deleting through the editing command is what keeps that true. */
