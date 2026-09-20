@@ -872,10 +872,6 @@ func (mdict *MdictBase) decodeRecordBlockInfo(data []byte, startOffset, endOffse
 	return nil
 }
 
-func (mdict *MdictBase) buildRecordRangeTree() {
-	BuildRangeTree(mdict.recordBlockInfo.recordInfoList, mdict.rangeTreeRoot)
-}
-
 // recordBlockAt returns the record block holding a decompressed offset.
 //
 // recordInfoList is built by readRecordBlockInfo in file order, so

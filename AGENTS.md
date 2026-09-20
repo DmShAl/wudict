@@ -1,6 +1,7 @@
 # Working in this checkout
 
 - Read `CLAUDE.md` for the existing project map and conventions; consult the relevant sections of `docs/SPEC.md` before implementation. Do not duplicate those documents here.
+- For the state of the latest agent work session (branch, what changed and why, what remains, Windows verification recipes and known test failures), read `HANDOFF.md` in the repository root before planning anything.
 - For Android fork identity, server startup, builds, and current verification, start with `docs/ANDROID-FORK.md`. For the separate UI work and its device checks, use `docs/ANDROID-UI-HANDOFF.md`.
 - Check branch/status before editing; preserve uncommitted work and user changes. Branch names in handoff snapshots are historical context, not instructions to switch branches. Work directly in this checkout unless the user asks otherwise; do not apply old stashes or patches without inspecting them.
 - The user builds from Windows cmd with `build-android.cmd`. Do not commit, publish, or install APKs unless requested. Do not read or print private signing settings/passwords.

@@ -4,6 +4,10 @@
 
 package store
 
+import (
+	"github.com/wuweidict/wudict/internal/logx"
+)
+
 // Sequential access to a whole prepared dictionary: the read side of what
 // ingest wrote. Used by `wudict dump`, which needs every entry in one pass
 // rather than a query's worth of them.
@@ -98,6 +102,12 @@ func (m *Media) Names() []string {
 		if rows.Scan(&n) == nil {
 			out = append(out, n)
 		}
+	}
+	// Same bargain Keywords makes: the []string signature cannot carry a read
+	// error, so a read that died part way is named where it happened instead
+	// of passing for a short list.
+	if err := rows.Err(); err != nil {
+		logx.Warn("media names: %v (returning the %d read so far)", err, len(out))
 	}
 	return out
 }

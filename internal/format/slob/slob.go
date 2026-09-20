@@ -196,9 +196,12 @@ func articleHTML(ctype string, data []byte) (string, bool) {
 	}
 }
 
+// htmlEscaper is built once: strings.NewReplacer compiles a trie, and this
+// runs for the text item of every lookup.
+var htmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
 func htmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-	return r.Replace(s)
+	return htmlEscaper.Replace(s)
 }
 
 func fold(s string) string { return dict.Fold(s) }

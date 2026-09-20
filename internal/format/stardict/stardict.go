@@ -640,9 +640,12 @@ func partToHTML(t byte, data []byte) string {
 	}
 }
 
+// htmlEscaper is built once: strings.NewReplacer compiles a trie, and this
+// runs for every plain-text record part of every lookup.
+var htmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
 func htmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-	return r.Replace(s)
+	return htmlEscaper.Replace(s)
 }
 
 // wordCount reports the .ifo wordcount (used by tests).

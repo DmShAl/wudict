@@ -33,7 +33,6 @@ import (
 
 type Mdict struct {
 	*MdictBase
-	rangeTreeRoot *RecordBlockRangeTreeNode
 }
 
 func New(filename string) (*Mdict, error) {
@@ -44,9 +43,8 @@ func New(filename string) (*Mdict, error) {
 
 	mdict := &Mdict{
 		MdictBase: &MdictBase{
-			filePath:      filename,
-			fileType:      dictType,
-			rangeTreeRoot: new(RecordBlockRangeTreeNode),
+			filePath: filename,
+			fileType: dictType,
 		},
 	}
 	return mdict, mdict.init()
@@ -100,13 +98,11 @@ func (mdict *Mdict) BuildIndex() error {
 		return err
 	}
 
-	mdict.buildRecordRangeTree()
-
 	return nil
 }
 
 // BuildRecordIndex reads ONLY what is needed to fetch a record by its offsets:
-// the record-block meta, the record-block table, and the range tree over it.
+// the record-block meta and the record-block table.
 // It is the cheap half of BuildIndex - no key-block info, no keyword entries.
 //
 // Those two halves look coupled and are not. readRecordBlockMeta needs exactly
@@ -149,7 +145,6 @@ func (mdict *Mdict) BuildRecordIndex() error {
 	if err := mdict.readRecordBlockInfo(); err != nil {
 		return err
 	}
-	mdict.buildRecordRangeTree()
 	return nil
 }
 
