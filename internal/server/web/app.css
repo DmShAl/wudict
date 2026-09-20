@@ -632,11 +632,11 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
   padding-top:var(--wd-inset-top,0px);
   display:flex;flex-direction:column;overflow:hidden}
 /* One scroll container inside a fixed head, rather than a sticky head inside a
-   scrolling card (D143). The Dictionary settings window reuses the class, and
-   its master switch sticks to the top:0 of the same kind of box, one window
-   over. min-height:0 is not optional: a flex child's default min-height:auto
-   refuses to shrink below its content, and the card would grow instead of
-   scrolling. */
+   scrolling card (D143). The Dictionary settings window reuses the class for
+   its own head — the title above, the toolbar under it — and its cards scroll
+   inside it the same way. min-height:0 is not optional: a flex child's default
+   min-height:auto refuses to shrink below its content, and the card would grow
+   instead of scrolling. */
 .panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;
   padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px));
   -webkit-overflow-scrolling:touch}
@@ -650,35 +650,15 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
    the ✕ must not be somewhere up the page, so this row never scrolls. Nothing
    that spends disk or CPU belongs in it: top-right is the most-clicked real
    estate in the panel, which is exactly why bulk full-text was moved out of it
-   (D31). The master switch left this row in the other direction — down, to the
-   list it actually scopes — and has since left the panel altogether, for the
-   Dictionary settings window that list now lives in. */
+   (D31). The master switch left this row first — down, to the list it scoped —
+   and then the panel altogether, for the Dictionary settings window that list
+   lives in now. */
 .panel-head{flex:none;background:var(--bg);padding:var(--sp-3) 0 0}
-/* The master switch sits in the same right-hand column as the per-card ones,
-   so the column reads as one control surface instead of a stray toggle
-   (right padding = card padding + its 1px border). It sits DIRECTLY above the
-   first card with nothing of another domain in between (D143): alignment
-   across an interruption is a far weaker cue than adjacency, and the panel
-   used to interrupt the column at exactly the x the eye seeks — while the
-   reader scrolling to a dictionary's card had to pass the switch that scopes
-   it. Dictionary settings is that adjacency kept and that interruption gone:
-   the two halves are now the only things in the box. Sticky at the top of the
-   scroller, so adjacency and persistence stop competing — the cards pass
-   underneath the control that scopes them, which is why the background must
-   be opaque. */
-.allrow{position:sticky;top:0;z-index:1;background:var(--bg);
-  display:flex;align-items:center;gap:.35em;
-  padding:var(--sp-1) calc(var(--sp-2) + 1px) var(--sp-1) var(--sp-2);
-  border-bottom:1px solid var(--line);margin-bottom:var(--sp-1)}
-.allrow label{flex:1;color:var(--fg-soft);font-size:12px;cursor:pointer;user-select:none}
-.en:indeterminate{background:var(--accent)}
-.en:indeterminate::after{transform:translateX(7px);width:14px;border-radius:3px}
 .pd{border:1px solid var(--line);border-radius:8px;background:var(--bg-card);
   padding:var(--sp-1) var(--sp-2);margin-bottom:var(--sp-1);font-size:13px}
 .pd.dragging{opacity:.45}
 .pd.drop-before{box-shadow:0 -2px 0 var(--accent)}
 .pd.drop-after{box-shadow:0 2px 0 var(--accent)}
-.pd.off{opacity:.5}
 .pd .hd{display:flex;align-items:center;gap:.35em}
 .pd .grip{cursor:grab;color:var(--fg-faint);user-select:none;font-size:14px;
   line-height:1;letter-spacing:-.15em;padding-right:.15em}

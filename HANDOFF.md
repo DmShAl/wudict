@@ -27,37 +27,53 @@ Older appearance/presets/review notes below are historical.
 ## Dictionary settings window (2026-09-20, this session)
 
 Branch `Dictionary-settings`, cut from `dev` (`adb5507`, plus the HANDOFF
-commit); worktree clean before this change, nothing committed yet. The
-Dictionaries panel's master switch ("All enabled") and the per-dictionary card
-list left the drawer for a window of their own — `Dictionary settings`, opened
-by a new `Edit dictionary settings` button beside `Edit dictionary groups`, the
-same pattern as the group editor (modal `dialog.group-dialog.panel-card`,
-`showModal()`, focus back to the trigger on close).
+commit); nothing committed yet. The per-dictionary cards left the Dictionaries
+panel for a window of their own — `Dictionary settings`, opened by a new
+`Edit dictionary settings` button beside `Edit dictionary groups`, the same
+pattern as the group editor (modal `dialog.group-dialog.panel-card`,
+`showModal()`). A second pass, on the user's instruction, took the enable/
+disable feature out entirely and moved the machine's four actions in with the
+cards.
 
 - `web/index.html`: `<dialog id="dictSettings">` sits right after `#panel` and
-  owns `#panelList` plus `#enAll`/`#enAllLabel`; the panel's action row is now
-  a `.facts` div holding the two buttons. New JS: `showDictSettings`, a
-  `dictListTop` scroll listener on `#dictSettingsScroll` (a closed dialog's
-  scroller loses its offset, and a hundred cards is a lot of place to lose),
-  and `reissueIfCorpusMoved`, which took over the re-issue `hidePanel` used to
-  do. ONE snapshot (`panelSnap`) now serves both closers: the window's close
-  searches once if the corpus moved, and the panel's close after it finds the
-  snapshot level and searches nothing.
-- `web/group-editor.css`: `#dictSettings` height/overscroll, and `:not(.en)`
-  on the five `.group-dialog input[type=checkbox]` rules — the window IS a
-  `.group-dialog`, and without that exclusion the panel's 32×18 toggles (and
-  the master switch's indeterminate state) would render as the editor's 20px
-  squares. `app.css` changed only in comments that described the switch as part
-  of the panel.
+  owns `#panelList` plus a fixed `.facts.configbar` holding `#editFolders`,
+  `#rescanBtn`, `#lemmaLink`, `#ftsAllBtn`/`#ftsAllBox` (moved out of the panel's
+  folder drawer, which keeps the history controls, Browse A–Z…, Appearance…, the
+  paths and About). New JS: `showDictSettings`, a `dictListTop` scroll listener
+  on `#dictSettingsScroll` (a closed dialog's scroller loses its offset, and a
+  hundred cards is a lot of place to lose), and `reissueIfCorpusMoved`, which
+  took over the re-issue `hidePanel` used to do. ONE snapshot (`panelSnap`)
+  serves both closers: the first of them to close searches once if the ORDER
+  moved, the second finds the snapshot level and searches nothing.
+- **No "disabled dictionary" any more** — both switches are gone from the UI and
+  the client no longer honours the stored `off` flag (a dictionary switched off
+  before would otherwise stay invisible with nothing left to switch it on).
+  `savePrefs` omits `off`, so the server's omitempty field goes false and
+  `state.json` converges; `prefs.Off` (warm-up skip only) is untouched. Deleted:
+  `disabled`, `enabledOrderedIds`, `toggleDict`, `setAllEnabled`,
+  `syncPanelHeader`, the card's `.en` input and its `change` listener; the
+  empty-scope message now names an empty group or says "no dictionaries to
+  search". CSS: `.allrow`, `.allrow label`, `.pd.off` removed.
+- `web/group-editor.css`: `#dictSettings` height/overscroll plus `.configbar`
+  and `#ftsAllBox` pinned (`flex:none`). The earlier `:not(.en)` exclusion on the
+  checkbox rules was reverted — with the switches gone, no `.en` element lives
+  inside a `.group-dialog` any more.
 - Verified in the desktop browser against a throwaway server (temp config, two
-  stub `.dsl`s, port 6899): panel holds the buttons and neither the list nor
-  the switch; modal open at 560×650 with the switch in the cards' column;
-  toggle → dimmed card, indeterminate master, no search; window close → exactly
-  one re-issue with the disabled section gone; reopen → state and scroll offset
-  restored; mixed → all; Escape and focus return; Remove…/About flows intact;
-  group editor unchanged; 380×700 and 320×640 layouts fit. `go build ./...` and
-  the three asset tests pass. No APK built, nothing on a phone, dark and paper
-  themes not checked.
+  stub `.dsl`s, port 6899): panel holds the two buttons and none of the four
+  actions; window modal at 560×650, toolbar above the cards, zero checkboxes in
+  it; card reorder persists and does not search while the window is open; after
+  closing window + panel the query re-issued exactly once with the new order;
+  scroll offset restored on reopen; Rescan redraws the cards; the bulk FTS box
+  opens inside the window (list 540px → 410px); empty-group message correct;
+  Remove…/About/group editor intact; 380×700 and 320×640 fit. `go build ./...`
+  passes. No APK, nothing on a phone, dark and paper themes unchecked.
+- **This machine's in-app browser does not fire `<dialog>`'s `close` event at
+  all** (Electron 41 / Chrome 146: a bare probe dialog closed with `close()` is
+  silent, trusted or not). The focus return and the re-issue that hang off that
+  event therefore cannot be exercised there — verified instead with a synthetic
+  `dispatchEvent(new Event("close"))` and end-to-end through `hidePanel`'s own
+  closer. Real Chromium and the Android WebView fire it; the group editor has
+  relied on the same event all along.
 
 ## GitHub-facing identity (2026-09-20, this session)
 

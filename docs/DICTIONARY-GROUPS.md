@@ -7,10 +7,10 @@ see only members. Members appear first, followed by nonmembers, each in the
 existing dictionary order. A dictionary can belong to several groups.
 
 **All Dictionaries** always includes the current collection, including newly
-added and globally disabled dictionaries. Its checkboxes cannot be cleared.
-Removing a dictionary from a user group does not remove its files or change
-whether it is enabled for search. This editor does not change search filters;
-renaming and deleting groups are outside its scope.
+added dictionaries. Its checkboxes cannot be cleared. Removing a dictionary
+from a user group does not remove its files; it only changes which group
+selects it. This editor does not change search filters; renaming and deleting
+groups are outside its scope.
 
 ## Storage and API
 

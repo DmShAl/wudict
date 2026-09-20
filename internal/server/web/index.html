@@ -162,10 +162,10 @@ window.wudictShellBackground = function (color, image, imageName) {
      navigates the collection, they edit it, and each edits a list far longer
      than this drawer — a group's membership, and a card per installed
      dictionary with its index chips, sizes, switches and Remove…
-     The cards used to be the panel's own tail, under the master switch that
-     scopes them, so the drawer ended in a hundred switches and a reader who
-     came for the folder paths or the search settings walked through all of
-     them. A window per subject is also what the group editor already was. -->
+     The cards used to be the panel's own tail, so the drawer ended in a
+     hundred of them and a reader who came for the folder paths or the search
+     settings walked through every one. A window per subject is also what the
+     group editor already was. -->
 <div class="facts">
 <button type="button" class="btn" id="editGroups">Edit dictionary groups</button>
 <button type="button" class="btn" id="editDictSettings">Edit dictionary settings</button>
@@ -238,18 +238,6 @@ window.wudictShellBackground = function (color, image, imageName) {
       </label>
       <button type="button" class="act" id="clearHistory" disabled>Clear</button>
     </span>
-    <a class="act" id="editFolders" href="/setup"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.6 4a1 1 0 0 1 1-1h3.3l1.5 1.7h6a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1z"/></svg>Edit folders…</a>
-    <!-- A real <button>, not a <span>: as a span with no tabindex this action
-         could not be reached by keyboard at all. -->
-    <button type="button" class="act" id="rescanBtn" title="Re-scan every folder and re-open the dictionaries found (takes a moment)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.3 8a5.3 5.3 0 1 1-1.7-3.9"/><path d="M13.6 2v3h-3"/></svg>Rescan folders</button>
-    <!-- Word-form data is installed long after first run - "why does estuviera
-         find nothing?" is a question asked while searching, not while choosing
-         folders - so the link lives here as well as on the setup page.
-         One stem, two forms: not a conventional glyph, which is why it keeps
-         its label and its title. Nothing conventional means "inflection", and
-         borrowing the book from the top bar would make that glyph mean two
-         things, which is to say neither. -->
-    <a class="act" id="lemmaLink" href="/lemmas" title="Install the word-form data that lets an inflected word find its dictionary entry"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.2 8h2.6"/><path d="M4.8 8V5a1.4 1.4 0 0 1 1.4-1.4h4.4"/><path d="M4.8 8v3a1.4 1.4 0 0 0 1.4 1.4h4.4"/></svg>Lemmatization…</a>
     <!-- Reading the library instead of asking it something. It is in this row
          and not in the top bar because it is a destination, not a mode of the
          search: the search box answers a question, and this opens a dictionary
@@ -264,29 +252,12 @@ window.wudictShellBackground = function (color, image, imageName) {
          means "folders and setup", and one glyph cannot mean two things
          without meaning neither. -->
     <button type="button" class="act" id="stylerLink" title="Background and custom styles"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.6 1.9l2.5 2.5-7 7-3.2.7.7-3.2z"/><path d="M9.9 3.6l2.5 2.5"/></svg>Appearance…</button>
-    <!-- Last, and the only one in the row that opens something instead of
-         doing something — the ▸ says so, and .act.disc is what gives it the
-         row's chrome without taking that distinction away. It belongs here and
-         not below the folder list: a reader opens this drawer to act, and the
-         panel's most expensive action was the one buried furthest from the
-         other four (D143).
-         The shouted version ("ENABLE … GLOBALLY!") gave the panel's least-used
-         action its loudest voice, which is the hierarchy upside down; every
-         word it was shouting is stated precisely, one click away, in the panel
-         this opens. "Full-text" and not a friendlier paraphrase: it is the term
-         the mode dropdown, the per-dictionary switch and the result summaries
-         all use, and this action's whole job is to flip that switch in bulk.
-         "every dictionary" and not "globally": the scope is the one thing a
-         reader must not misread here, and "dictionaries" is the unit this panel
-         already counts in. The verb went to the button inside the panel, which
-         is the thing that actually indexes — a trigger that only reveals a
-         choice must not be named for the choice. -->
-    <button type="button" class="act disc" id="ftsAllBtn" aria-expanded="false" aria-controls="ftsAllBox"
-      title="Optional. Every dictionary can already be searched by headword; full-text search also looks inside article text, and uses noticeably more disk space.">Full-text for every dictionary…</button>
   </div>
-  <div id="ftsAllBox" class="bulkbox" hidden></div>
-  <!-- The paths the row above acts on. Actions first: this drawer is opened to
-       DO something far more often than to read a path (D143). -->
+  <!-- The paths themselves, each with its own reveal button. The actions that
+       change them (Edit folders…, Rescan folders) live one window over in
+       Dictionary settings, with the cards those paths belong to — a reader
+       opens this drawer to read where the dictionaries are, not to move the
+       collection. -->
   <div id="folderBody"></div>
   <!-- About: last row of the only chrome panel the app has. Users already open
        this for their folder paths, so the identity/version/links live where
@@ -302,18 +273,52 @@ window.wudictShellBackground = function (color, image, imageName) {
 </div>
 </div>
 
-<!-- Dictionary settings: the master switch and one card per installed
-     dictionary, in a window of their own, opened from the panel exactly as the
-     group editor is. What lives here is all of the same kind — how each
-     dictionary is prepared and whether it is searched — and none of it is what
-     the panel is for. The list keeps its id and its markup, so every renderer,
-     pointer handler and disclosure that already worked on it works here; only
-     the box it sits in changed. -->
+<!-- Dictionary settings: everything that configures the collection — where its
+     files are found, re-reading them, the word-form data, bulk indexing — and
+     one card per installed dictionary, in a window of their own, opened from
+     the panel exactly as the group editor is. The buttons act on the cards
+     under them, which is why they are one surface, and why the panel no longer
+     carries them: a reader opens that drawer to consult a path or a search
+     setting, not to reconfigure a machine.
+     The list keeps its id and its markup, so every renderer, pointer handler
+     and disclosure that already worked on it works here; only the box it sits
+     in changed. -->
 <dialog id="dictSettings" class="group-dialog panel-card" aria-labelledby="dictSettingsTitle">
   <h2 id="dictSettingsTitle">Dictionary settings <button type="button" class="btn" id="closeDictSettings" aria-label="Close dictionary settings">✕</button></h2>
+  <!-- Outside the scroller, so the machine's actions stay reachable however far
+       down a hundred cards the reader has gone. -->
+  <div class="facts configbar">
+    <a class="act" id="editFolders" href="/setup"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.6 4a1 1 0 0 1 1-1h3.3l1.5 1.7h6a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1z"/></svg>Edit folders…</a>
+    <!-- A real <button>, not a <span>: as a span with no tabindex this action
+         could not be reached by keyboard at all. -->
+    <button type="button" class="act" id="rescanBtn" title="Re-scan every folder and re-open the dictionaries found (takes a moment)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.3 8a5.3 5.3 0 1 1-1.7-3.9"/><path d="M13.6 2v3h-3"/></svg>Rescan folders</button>
+    <!-- Word-form data is installed long after first run, and it is part of what
+         makes a dictionary answer, so it belongs beside the dictionaries — the
+         setup page it is also linked from is a place nobody visits twice.
+         One stem, two forms: not a conventional glyph, which is why it keeps
+         its label and its title. Nothing conventional means "inflection", and
+         borrowing the book from the top bar would make that glyph mean two
+         things, which is to say neither. -->
+    <a class="act" id="lemmaLink" href="/lemmas" title="Install the word-form data that lets an inflected word find its dictionary entry"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.2 8h2.6"/><path d="M4.8 8V5a1.4 1.4 0 0 1 1.4-1.4h4.4"/><path d="M4.8 8v3a1.4 1.4 0 0 0 1.4 1.4h4.4"/></svg>Lemmatization…</a>
+    <!-- Last, and the only one in the row that opens something instead of
+         doing something — the ▸ says so, and .act.disc is what gives it the
+         row's chrome without taking that distinction away.
+         The shouted version ("ENABLE … GLOBALLY!") gave the least-used action
+         its loudest voice, which is the hierarchy upside down; every word it
+         was shouting is stated precisely, one click away, in the box this
+         opens. "Full-text" and not a friendlier paraphrase: it is the term the
+         mode dropdown, the per-dictionary switch and the result summaries all
+         use, and this action's whole job is to flip that switch in bulk.
+         "every dictionary" and not "globally": the scope is the one thing a
+         reader must not misread here, and "dictionaries" is the unit the cards
+         below already count in. The verb went to the button inside the box,
+         which is the thing that actually indexes — a trigger that only reveals
+         a choice must not be named for the choice. -->
+    <button type="button" class="act disc" id="ftsAllBtn" aria-expanded="false" aria-controls="ftsAllBox"
+      title="Optional. Every dictionary can already be searched by headword; full-text search also looks inside article text, and uses noticeably more disk space.">Full-text for every dictionary…</button>
+  </div>
+  <div id="ftsAllBox" class="bulkbox" hidden></div>
   <div class="panel-scroll" id="dictSettingsScroll">
-    <div class="allrow"><label for="enAll" id="enAllLabel">Enable all</label>
-    <input type="checkbox" class="en" id="enAll" aria-label="Enable all dictionaries"></div>
     <div id="panelList"></div>
   </div>
 </dialog>
@@ -395,18 +400,26 @@ const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
 const escAttr=s=>esc(s).replace(/"/g,"&quot;");
 let dicts=[],lastQuery=null,searchSeq=0,searchAC=null;
 
-/* Preference order (ids) + disabled set. New dictionaries not yet in the saved
-   order fall in alphabetically after the ordered ones.
+/* Preference order (ids). New dictionaries not yet in the saved order fall in
+   alphabetically after the ordered ones.
 
-   These two live on the SERVER (~/.wudict/state.json), unlike the theme, the
-   wide toggle and the dropdown selection, which stay in localStorage. The line
-   is "does this describe the collection, or the browser looking at it?".
+   This lives on the SERVER (~/.wudict/state.json), unlike the theme, the wide
+   toggle and the dropdown selection, which stay in localStorage. The line is
+   "does this describe the collection, or the browser looking at it?".
    localStorage is keyed by scheme://host:port, so a different port, 127.0.0.1
    instead of localhost, or a phone on the LAN each silently reset a curated
    list of a hundred dictionaries — and the server, which owns the
-   dictionaries, is also the only thing that can act on the answer (it skips
-   disabled ones when warming up). */
-let prefOrder=[],disabled=new Set();
+   dictionaries, is also the only thing that can act on the answer.
+
+   There is no "disabled dictionary" any more: the two switches that used to
+   say so are gone from the UI, so the client no longer honours the `off` flag
+   in the file either (a dictionary switched off before would otherwise be
+   invisible with nothing left to switch it back on), and it no longer writes
+   one — the server's `off` key falls back to its zero value on the next save
+   and the file converges on "nothing off". The field itself stays in the
+   schema: it is the server's (`prefs.Off` skips a dictionary when warming up),
+   shared with the upstream project, and nothing here needs it deleted. */
+let prefOrder=[];
 /* Set when /api/dicts has delivered its last row. The picker's groups are
    counted over the complete list or not shown at all. */
 let dictsSettled=false;
@@ -415,11 +428,10 @@ function loadJSON(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e
    not silently throw away someone's curation. Self-erasing: the keys are
    removed as they are read, and the server file is authoritative from then on. */
 function adoptLocalPrefs(){
-  const o=loadJSON("wudict_order",null),d=loadJSON("wudict_disabled",null);
-  if(!o&&!d)return false;
+  const o=loadJSON("wudict_order",null);
+  if(!o)return false;
   if(Array.isArray(o))prefOrder=o;
-  if(Array.isArray(d))disabled=new Set(d);
-  localStorage.removeItem("wudict_order");localStorage.removeItem("wudict_disabled");
+  localStorage.removeItem("wudict_order");
   return true;
 }
 let prefsReady=false;
@@ -434,10 +446,9 @@ async function loadPrefs(){
     if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
-    disabled=new Set(rows.filter(d=>d.off).map(d=>d.id));
   }catch(e){
     // A page that cannot read its settings must still search: fall back to
-    // "everything enabled, alphabetical" rather than refusing to start.
+    // "everything, alphabetical" rather than refusing to start.
     console.warn("could not load settings:",e);
   }
 }
@@ -447,12 +458,15 @@ async function loadPrefs(){
 let prefsTimer=null,prefsSent=null;
 function savePrefs(now){
   clearTimeout(prefsTimer);
-  // Never write a baseline we could not read: if the load failed, "nothing is
-  // disabled, no order" is our ignorance, not the user's setting, and saving
-  // it would destroy the real one.
+  // Never write a baseline we could not read: if the load failed, "no order"
+  // is our ignorance, not the user's setting, and saving it would destroy the
+  // real one.
   if(!prefsReady){setStatus("⚠ settings are not being saved — reload the page");return}
   if(!now){prefsTimer=setTimeout(()=>savePrefs(true),400);return}
-  const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
+  // No `off` in the body: the server's field falls back to false (its
+  // omitempty zero value), which is what retires a flag set by the switches
+  // that no longer exist.
+  const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d)})),
     ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
   if(body===prefsSent)return;
   prefsSent=body;
@@ -470,7 +484,6 @@ function orderedDicts(){
   return out.concat(rest);
 }
 function orderedIds(){return orderedDicts().map(d=>d.id)}
-function enabledOrderedIds(){return orderedDicts().filter(d=>!disabled.has(d.id)).map(d=>d.id)}
 function userGroupOrderedDicts(){
   if(pickerGroup==="all")return orderedDicts();
   const group=userGroups.find(g=>g.id===pickerGroup);
@@ -485,19 +498,19 @@ function orderedGroupDicts(group,ordered){
   return first.concat(ordered.filter(d=>members.has(d.id)&&!seen.has(d.id)));
 }
 function activeUserGroupIds(){
-  return userGroupOrderedDicts().filter(d=>!disabled.has(d.id)).map(d=>d.id);
+  return userGroupOrderedDicts().map(d=>d.id);
 }
 /* A group selection ("g:lang:en") stands for the dictionaries the server put
-   in that group — in the user's own order, minus the ones they switched off.
+   in that group — in the user's own order.
    It is exactly what "All dictionaries" resolves to, narrowed: the same order
    (so D142 still opens the first of THEIR dictionaries that answered), the
-   same respect for the off switch, the same comma-separated dict= parameter.
-   Nothing is asked of the server: the memberships arrived with the rows. */
+   same comma-separated dict= parameter. Nothing is asked of the server: the
+   memberships arrived with the rows. */
 function groupIds(sel){
   const i=sel.indexOf(":",2);
   if(i<0)return [];
   const f=sel.slice(2,i),v=sel.slice(i+1);
-  return orderedDicts().filter(d=>!disabled.has(d.id)&&(d.groups||[]).some(g=>g.f===f&&g.v===v)).map(d=>d.id);
+  return orderedDicts().filter(d=>(d.groups||[]).some(g=>g.f===f&&g.v===v)).map(d=>d.id);
 }
 /* The label a group is shown under, for a message that has to name it. */
 function groupLabel(sel){
@@ -846,14 +859,15 @@ function dictIDByName(name){
 /* Readiness (D30). An empty `dicts` used to mean two different things —
    "still loading" and "you disabled them all" — and the search path could not
    tell them apart, so a slow startup accused the user of disabling a list that
-   was merely late. It cannot happen now: the server serves this page only when
+   was merely late. The second meaning is gone with the switches that expressed
+   it, and it could not happen now anyway: the server serves this page only when
    the registry is non-empty (handleIndex falls back to /setup otherwise), so
    here an empty list ALWAYS means "not ready yet".
      boot    — nothing usable: form inert, spinner, no warnings of any kind
      partial — ≥1 dictionary in: fully interactive, more still arriving
      ready   — the list is complete
      failed  — the stream broke: interactive anyway, with a retry
-   Only partial/ready may say anything about what the user has disabled. */
+   Only partial/ready may say anything about what the collection holds. */
 let phase="boot",dictTotal=0,staleSearch=false;
 function setPhase(p){
   if(phase===p)return;
@@ -1070,10 +1084,8 @@ $("out").addEventListener("click",e=>{
    supports no grouping shows the plain list it always had, and a partly
    labelled one shows only the groups that are worth a tap.
 
-   The counts are over every member, disabled or not, for the same reason
-   "All dictionaries" does not say "97 of 105": the groups are facts about
-   the collection, and the off switch is applied when the search is run, not
-   when the menu is drawn. */
+   The counts are over every member for the same reason "All dictionaries"
+   does not say "97 of 105": the groups are facts about the collection. */
 function facetGroups(){
   if(!dictsSettled)return []; // mid-stream counts would be wrong, then change
   const byF=new Map();
@@ -1209,37 +1221,6 @@ function moveDict(id,where){
   else ids.push(id); // bottom
   prefOrder=ids;savePrefs();renderPanel();
 }
-function toggleDict(id){
-  disabled.has(id)?disabled.delete(id):disabled.add(id);
-  savePrefs();renderPanel();
-}
-/* Master switch: mixed → all, all → none, none → all (the Finder/Gmail
-   convention — from a mixed state the useful move is always "select all").
-   It only ever changes which dictionaries "All dictionaries" searches; it
-   never touches a dictionary or its files. */
-function setAllEnabled(on){
-  disabled.clear();
-  if(!on)for(const d of dicts)disabled.add(d.id);
-  savePrefs();renderPanel();
-}
-function syncPanelHeader(){
-  const total=dicts.length,on=dicts.filter(d=>!disabled.has(d.id)).length;
-  const box=$("enAll");
-  box.checked=total>0&&on===total;
-  box.indeterminate=on>0&&on<total;
-  box.disabled=total===0;
-  const label=on===total?"All dictionaries are searched":
-    on===0?"No dictionaries are searched":`${on} of ${total} dictionaries are searched`;
-  // an empty list before the stream finishes is "not here yet", not "none" —
-  // the panel must not contradict the boot screen (D30)
-  $("enAllLabel").textContent=!total?
-      (phase==="boot"?"Still loading…":phase==="failed"?"Could not load":"No dictionaries"):
-    on===total?"All enabled":on===0?"None enabled":`${on} of ${total} enabled`;
-  box.title=label;
-}
-// clicking an indeterminate checkbox sets checked=true, so "mixed → all"
-// needs no special case.
-$("enAll").addEventListener("change",e=>setAllEnabled(e.target.checked));
 /* The narrow-viewport chips. They render the two <select>s and nothing more:
    the selects stay the single source of truth, so this never has to be
    consulted before reading a value — only called after one changes.
@@ -1429,7 +1410,6 @@ function rmTrigger(){
   return `<span class="rm" title="Delete this dictionary and its files — permanently, with no undo">🗑 Remove…</span>`;
 }
 function renderPanel(){
-  syncPanelHeader();
   const el=$("panelList");
   /* Every card is replaced, so the scroll offset has to be carried over by
      hand. Measured on a phone: an ingest that ran for nine minutes ends in a
@@ -1440,8 +1420,7 @@ function renderPanel(){
   el.innerHTML="";
   const ord=orderedDicts();
   for(const d of ord){
-    const off=disabled.has(d.id);
-    const div=document.createElement("div");div.className="pd"+(off?" off":"");div.dataset.id=d.id;
+    const div=document.createElement("div");div.className="pd";div.dataset.id=d.id;
     /* Only what varies AND can be changed. exact and prefix are true for every
        dictionary and cost nothing, so showing them was decoration; contains,
        full-text and media each cost real disk, so each is a switch.
@@ -1518,7 +1497,6 @@ function renderPanel(){
           <button data-mv="down" title="Move down">▼</button>
           <button data-mv="bottom" title="Move to bottom">⏬</button>
         </span>
-        <input type="checkbox" class="en" ${off?"":"checked"} title="${off?"Disabled — excluded from All dictionaries":"Enabled"}">
       </div>
       <div class="meta">${esc(d.format||"?")}${d.entries?" · "+d.entries.toLocaleString()+" entries":""}${d.dbSize?" · indexed":""}</div>
       <div>${caps}</div><div class="acts">${acts}</div>
@@ -1553,37 +1531,35 @@ $("panelList").addEventListener("drop",e=>{
   let to=ids.indexOf(pd.dataset.id);if(after)to++;
   ids.splice(to,0,dragId);prefOrder=ids;savePrefs();clearDrop();dragId=null;renderPanel();
 });
-/* The panel is a full-height overlay OVER the results, and the switches that
-   change what an "All dictionaries" search answers with and in what order —
-   enable/disable, the master switch, drag-reorder — sit in the Dictionary
-   settings window one layer further out. Re-running per click would fire one
-   streaming search per toggle (up to `dicts.length` of them during an "enable
-   all" sweep), each aborting the last through searchSeq, while the user sees
-   none of it behind the two overlays. So the query is re-issued once, when the
-   last of the two closes, and only if the enabled set or its order actually
-   moved — opening the panel to read an About card or check a path must not
-   throw away a finished answer, its scroll offset and its open <details>. Same
-   rule the bulk-FTS, ingest and mid-stream-load paths already follow: when the
-   searchable corpus changes under a live query, re-issue the query.
+/* The panel is a full-height overlay OVER the results, and the one thing that
+   changes what an "All dictionaries" search answers with — the preference order
+   the cards are dragged into, in the Dictionary settings window one layer
+   further out — re-runs that search when it moves. Re-running per click would
+   fire one streaming search per hovered row while the user sees none of it
+   behind the two overlays. So the query is re-issued once, when the last of the
+   two closes, and only if the order actually moved — opening the panel to read
+   an About card or check a path must not throw away a finished answer, its
+   scroll offset and its open <details>. Same rule the bulk-FTS, ingest and
+   mid-stream-load paths already follow: when the searchable corpus changes
+   under a live query, re-issue the query.
 
    ONE snapshot serves both closers, taken when the panel opens (or, if the
    window is ever reached without it, when the window opens): the window closes
    first and re-issues the query, and the panel's own close then finds the
    snapshot already level and has nothing left to re-run. */
 let panelSnap=null,dictListTop=0;
-function panelState(){return enabledOrderedIds().join("\u0000")}
+function panelState(){return orderedIds().join("\u0000")}
 function reissueIfCorpusMoved(){
   const was=panelSnap;panelSnap=panelState();
-  /* Only an "All dictionaries" answer is built from the enabled set. A view
-     scoped to one dictionary — by the selector, or one-shot by a bword:// link
-     (lastScope) — reads that dictionary whether or not it is enabled, so
-     neither overlay can have changed it; and re-running here would carry no
-     scopeOnce and silently widen a cross-reference view back to "all". */
+  /* Only an "All dictionaries" answer is built from the list this window
+     arranges. A view scoped to one dictionary — by the selector, or one-shot by
+     a bword:// link (lastScope) — reads that dictionary whatever the order
+     says, so neither overlay can have changed it; and re-running here would
+     carry no scopeOnce and silently widen a cross-reference view back to
+     "all". */
   if(!lastQuery||was===null||lastScope)return;
   const sc=$("dict").value;
   if(!(sc==="all"||sc.startsWith("g:")))return;
-  // an empty enabled set is a real answer here, not a no-op: doSearch renders
-  // "all dictionaries are disabled" rather than a zero-hit "not found"
   if(was!==panelSnap)doSearch();
 }
 function showPanel(){panelSnap=panelState();$("panel").classList.add("show");loadFolders()}
@@ -2019,9 +1995,6 @@ async function runRemove(id,kind,node){
   if($("folderBody").childNodes.length)loadFolders();
   if(lastQuery)doSearch();
 }
-$("panelList").addEventListener("change",e=>{
-  if(e.target.classList.contains("en"))toggleDict(e.target.closest(".pd").dataset.id);
-});
 /* the "enable full-text search" link - in a result summary when the search
    named one dictionary, in the grouped no-index list when it named many */
 document.addEventListener("click",e=>{
@@ -2740,8 +2713,8 @@ async function doSearch(ev){
   // No "Searching…" text: the spinner alone says it, and saying it twice
   // cost a permanently reserved line above the results.
   setBusy(true);
-  // "All" queries the enabled dictionaries in preference order (fewer
-  // results each); a specific pick queries just that one (more results).
+  // "All" queries every dictionary in preference order (fewer results each);
+  // a specific pick queries just that one (more results).
   let dictParam,perDict;
   // A group resolves to a LIST of ids here and is sent as one, exactly like
   // "all": the server has no notion of a group, and giving it one would mean
@@ -2749,21 +2722,20 @@ async function doSearch(ev){
   const ids=dictSel==="all"?activeUserGroupIds():dictSel.startsWith("g:")?groupIds(dictSel):null;
   if(ids){
     if(!ids.length){
-      // "You disabled them all" is only knowable once the list is complete:
-      // mid-stream, the dictionaries that arrived may all be disabled while
-      // dozens still on their way are not. So the accusation waits for a
+      // An empty list means an empty GROUP — the only way left to arrive at
+      // none. Which group is empty is only knowable once the list is complete:
+      // mid-stream, the dictionaries that arrived may not include its members
+      // while dozens are still on their way. So the statement waits for a
       // settled, non-empty list, and until then this reads as what it is —
       // still loading — and re-runs itself when the rest lands (D30).
       const settled=(phase==="ready"||phase==="failed")&&dicts.length>0;
       const lbl=dictSel==="all"?(pickerGroup==="all"?"":userGroups.find(g=>g.id===pickerGroup)?.name||""):groupLabel(dictSel);
-      const emptyGroup=dictSel==="all"&&pickerGroup!=="all"&&!userGroupOrderedDicts().length;
       $("out").replaceChildren();liveSearchBoxes=null;refreshLivePicker();
       livePickerSearching=false;
       setBusy(false); // nothing was ever sent; both branches below are statements
       setStatus(settled
-        ?(emptyGroup?`“${esc(lbl)}” is empty — add dictionaries in Edit dictionary groups`
-          :lbl?`⚠ Nothing enabled under “${esc(lbl)}” — enable some in the ☰ panel`
-             :"⚠ All dictionaries are disabled — enable some in the ☰ panel")
+        ?(lbl?`“${esc(lbl)}” is empty — add dictionaries in Edit dictionary groups`
+             :"⚠ No dictionaries to search — add some from Edit folders…")
         :'<span class="spin"></span>'+esc(readyCount()));
       if(!settled)staleSearch=true;
       return;
