@@ -96,7 +96,7 @@ theme. Search URLs are bookmarkable.
 
 For macOS you can either run the `wudict` binary from a terminal, or as an 
 alternative use the wudict-macos-app.zip from [releases](https://github.com/wuweidict/wudict/releases) 
-which wraps `wudict` into an macOS app bundle.
+which wraps `wudict` into a macOS app bundle.
 
 ## Run wudict as a service (macOS)
 
@@ -124,6 +124,8 @@ a dictionary file, it hides the  console window, and shows a **tray icon** inste
 
 On linux `wudict` can be installed as a **systemd user unit** — only copying the binary into
 `/usr/local/bin` needs sudo, the service itself runs with user permissions and start/stop does not require sudo.
+Unlike system services which are managed via `systemd start|stop|status <service-name>`, a user systemd service 
+additionally requires the `--user` key, e.g. `systemd --user start|stop|status wudict`.
 
 ```sh
 # from project root
@@ -265,11 +267,11 @@ system. **Edit folders…** opens the dictionary folders editor.
 
 ## Patching dictionary's files
 
-Dictionaries carry their own stylesheets, scripts, images and audio
-inside the dictionary file. You can provide your own 'patched' versions 
-for example to fix broken or missing resources in the `res/` subfolder in 
-wuDict's DB folder at under `~/.wudict/db/<some-dict-name/res`. Any
-file in the `./res` folder is served **instead of** the original.
+Dictionaries can include their own stylesheets, scripts, images and audio. 
+You can provide your own 'patched' versions 
+by placing the files in the `res/` subfolder in 
+wuDict's DB folder at `~/.wudict/db/<some-dict-name/res`. Files from `./res` 
+take precedence over the original files from `.mdd`, `.slob`, `.dsl.files.zip` etc.
 
 ```
 ~/.wudict/db/Cambridge English Dictionary Online/
@@ -280,20 +282,16 @@ file in the `./res` folder is served **instead of** the original.
     css/style.css
 ```
 
-Subfolders work, and they matter: articles routinely reference
-`js/…` and `css/…`, so mirror whatever path the article is referencing.
-
-This works for any file and any dictionary, and it is also how you'd
-patch a CSS stylesheet you want to modify or swap an icon. Nothing is modified
-inside the dictionary itself — remove the file and you're back to the original.
+Subfolders must follow the same hierarchy as the original resources.
+E.g. intermediary folders like `js/…` and `css/…` must mirror the path the article is referencing.
 
 One exception: a `.spx` audio file placed in `res/` is served as-is,
-**not** transcoded to WAV the way a `.spx` inside the dictionary is. Supply `.mp3` or `.wav` instead.
+**not** transcoded to WAV the way a `.spx` inside the dictionary is. Use `.mp3` or `.wav` instead.
 
 ## Custom styles
 
 `res/` patches one file of one dictionary. To restyle **everything** — wuDict
-itself and every article — write your own CSS in two optional files beside the
+itself and every article — put your own CSS in two optional files beside the
 `wudict.toml` in effect, usually `~/.wudict/style/`:
 
 ```
@@ -304,9 +302,8 @@ itself and every article — write your own CSS in two optional files beside the
 
 The ☰ panel's **Custom styles…** opens an editor for app and article styles, docked at the
 bottom of the page so you get live preview of your CSS changes as you type. 
-Several presets are provided — a compact mobile view, sepia, high contrast, true-black OLED, 
-a wider column, justified text, normalize tables.
-
+A few presets are included — a compact mobile view, sepia, high contrast, true-black OLED, 
+a wider column, justified text, normalized tables.
 
 ```css
 /* app.css — sepia in light mode, page and definitions together */
@@ -333,34 +330,31 @@ and the page is served with default styles.
 ## Disk use
 
 A prepared dictionary is usually **smaller than the file it came from**:
-article text is compressed, and full-text search and contains indexes are only built when you ask for it.
+article text is compressed, and full-text search and contains indexes are only built on-demand.
 
-| what | cost (40k-entry dictionary, 45.6 MB source) |
-|---|---|
-| finding a headword — exact, prefix, accent-insensitive | ~2 MB, always on |
-| full-text search | ~12 MB, one click |
-| contains (substring) | ~2.4 MB, one click |
-| packed media | as large as the images/audio |
+| index type                                         | cost (40k-entry dictionary, 45.6 MB source) |
+|----------------------------------------------------|---|
+| regular search — exact, prefix, accent-insensitive | ~2 MB, always on |
+| full-text search                                   | ~12 MB, one click |
+| contains (substring)                               | ~2.4 MB, one click |
+| packed media                                       | as large as the images/audio |
 
 The ☰ panel shows these as switches per dictionary, with their real sizes —
-click to add, click again to remove. Removing is offered only while the
-original file is still on disk, since that is what makes it reversible; a
-dictionary whose source is gone shows its switches locked, because the
-prepared data is then the only copy.
+click to add, click again to remove.
 
 `NO_COMPRESS = "1"` (or `--no-compress`) stores article text verbatim:
-roughly 3x larger databases, marginally faster reads.
+roughly 3x larger databases, marginally faster reads. 
+By default (e.g. `NO_COMPRESS = "0"`) article bodies are compressed with gzip.
 
 ## Speex audio (.spx)
 
 Browsers cannot play Speex. wuDict internally transcodes
-`.spx` resources to WAV on the fly and caches the result. 
+`.spx` audio to WAV on the fly and caches the result. 
 If wuDict was built without the internal speex decoder (the purego flavours) 
 then the external `speexdec` utility can be used (for mac: `brew install speex`, 
 linux: `apt install speex`, etc).
 
-
-## Build from source
+## Building from source
 
 Requires [Go](https://go.dev/doc/install) (and a C compiler for the
 default cgo build):
@@ -372,6 +366,9 @@ make check          # tidy + vet + tests
 make cross          # all release platforms (pure-Go sqlite, no C toolchain)
 make help           # every available target
 ```
+
+`make` is preinstalled on macOS/linux, for windows get the `make-X.Y.Z-without-guile-w32-bin.zip` e.g. from 
+[sourceforge.net](https://sourceforge.net/projects/ezwinports/files/) and extract `make.exe` to a folder in `%PATH%`.
 
 Or with the Go toolchain alone:
 
@@ -407,22 +404,21 @@ make mac-app            # dist/wuDict.app — universal-ready, ad-hoc signed
 make mac-app-install    # copy it to ~/Applications (APP_DEST= to relocate)
 ```
 
-The bundle is the same binary as console `wudict` which which spawns no terminal window, and 
-additionally puts  a **menu-bar icon** up for common actions. See more about [running on macOS](https://wuweidict.github.io/wudict/apps/macos/).
+The bundle is the same binary as console `wudict` which spawns no terminal window, and 
+additionally adds a **menu-bar icon** with common actions. See more about [running on macOS](https://wuweidict.github.io/wudict/apps/macos/).
 
 
 ## Acknowledgements
 
-Almost nothing here was invented by this project. The formats it reads are
-closed, and they are readable at all because other people spent years working
-them out and then wrote down what they found.
+Almost nothing here was invented by this project. Some of the formats `wudict` reads are open-source, others are
+closed source, and they are available because other people spent years working
+on dictionaries and tools to read, write and convert data in these formats.
 
 ### Prior art and format knowledge
 
-- **[pyglossary](https://github.com/ilius/pyglossary)** — the reference this
-  project was built against. Its plugins are the clearest working description of
+- **[pyglossary](https://github.com/ilius/pyglossary)** — its plugins are the clearest working description of
   MDX/MDD, StarDict, Slob, DSL and BGL that exists anywhere, and the BGL parser
-  here is ported from its `babylon_bgl` plugin. Thanks to
+  in `wudict` is ported from `pyglossary`'s `babylon_bgl` plugin. Thanks to
   **[@ilius](https://github.com/ilius)** and pyglossary's contributors for
   sustained, meticulous work on formats nobody else kept maintaining.
 - **[GoldenDict](http://goldendict.org/)** and the actively developed fork
