@@ -158,7 +158,18 @@ window.wudictShellBackground = function (color, image, imageName) {
 <button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">◐</button>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
+<!-- The panel's two windows. Both are windows for the same reason: the panel
+     navigates the collection, they edit it, and each edits a list far longer
+     than this drawer — a group's membership, and a card per installed
+     dictionary with its index chips, sizes, switches and Remove…
+     The cards used to be the panel's own tail, under the master switch that
+     scopes them, so the drawer ended in a hundred switches and a reader who
+     came for the folder paths or the search settings walked through all of
+     them. A window per subject is also what the group editor already was. -->
+<div class="facts">
 <button type="button" class="btn" id="editGroups">Edit dictionary groups</button>
+<button type="button" class="btn" id="editDictSettings">Edit dictionary settings</button>
+</div>
 <!-- The reading strip (D143). Two controls, admitted by one rule: nothing here
      spends disk, CPU or navigation. They are what a reader reaches for WHILE
      READING, so they are visible without opening anything; everything that
@@ -287,15 +298,28 @@ window.wudictShellBackground = function (color, image, imageName) {
        · <a href="https://github.com/wuweidict/wudict" target="_blank" rel="noopener">Source</a></p>
   </div>
 </details>
-<div class="allrow"><label for="enAll" id="enAllLabel">Enable all</label>
-<input type="checkbox" class="en" id="enAll" aria-label="Enable all dictionaries"></div>
-<div id="panelList"></div>
 </div>
 </div>
 </div>
 
-<!-- Hidden until asked for, and outside #panel deliberately: opening it
-     CLOSES the panel, because the article it restyles is behind both. -->
+<!-- Dictionary settings: the master switch and one card per installed
+     dictionary, in a window of their own, opened from the panel exactly as the
+     group editor is. What lives here is all of the same kind — how each
+     dictionary is prepared and whether it is searched — and none of it is what
+     the panel is for. The list keeps its id and its markup, so every renderer,
+     pointer handler and disclosure that already worked on it works here; only
+     the box it sits in changed. -->
+<dialog id="dictSettings" class="group-dialog panel-card" aria-labelledby="dictSettingsTitle">
+  <h2 id="dictSettingsTitle">Dictionary settings <button type="button" class="btn" id="closeDictSettings" aria-label="Close dictionary settings">✕</button></h2>
+  <div class="panel-scroll" id="dictSettingsScroll">
+    <div class="allrow"><label for="enAll" id="enAllLabel">Enable all</label>
+    <input type="checkbox" class="en" id="enAll" aria-label="Enable all dictionaries"></div>
+    <div id="panelList"></div>
+  </div>
+</dialog>
+
+<!-- Hidden until asked for, and #styler is outside #panel deliberately: opening
+     it CLOSES the panel, because the article it restyles is behind both. -->
 <div id="styler" role="dialog" aria-label="Appearance" aria-modal="false">
   <!-- The sheet's own head, so the closer is in the top-right corner whatever
        the sections below are doing: with the native window-background block
@@ -1529,38 +1553,72 @@ $("panelList").addEventListener("drop",e=>{
   let to=ids.indexOf(pd.dataset.id);if(after)to++;
   ids.splice(to,0,dragId);prefOrder=ids;savePrefs();clearDrop();dragId=null;renderPanel();
 });
-/* The panel is a full-height overlay OVER the results, and every switch in it
-   — enable/disable, the master switch, drag-reorder — changes what an "All
-   dictionaries" search answers with and in what order. Re-running per click
-   would fire one streaming search per toggle (up to `dicts.length` of them
-   during an "enable all" sweep), each aborting the last through searchSeq,
-   while the user sees none of it behind the overlay. So the query is re-issued
-   once, on close, and only if the enabled set or its order actually moved —
-   opening the panel to read an About card or check a path must not throw away
-   a finished answer, its scroll offset and its open <details>. Same rule the
-   bulk-FTS, ingest and mid-stream-load paths already follow: when the
-   searchable corpus changes under a live query, re-issue the query. */
-let panelSnap=null;
+/* The panel is a full-height overlay OVER the results, and the switches that
+   change what an "All dictionaries" search answers with and in what order —
+   enable/disable, the master switch, drag-reorder — sit in the Dictionary
+   settings window one layer further out. Re-running per click would fire one
+   streaming search per toggle (up to `dicts.length` of them during an "enable
+   all" sweep), each aborting the last through searchSeq, while the user sees
+   none of it behind the two overlays. So the query is re-issued once, when the
+   last of the two closes, and only if the enabled set or its order actually
+   moved — opening the panel to read an About card or check a path must not
+   throw away a finished answer, its scroll offset and its open <details>. Same
+   rule the bulk-FTS, ingest and mid-stream-load paths already follow: when the
+   searchable corpus changes under a live query, re-issue the query.
+
+   ONE snapshot serves both closers, taken when the panel opens (or, if the
+   window is ever reached without it, when the window opens): the window closes
+   first and re-issues the query, and the panel's own close then finds the
+   snapshot already level and has nothing left to re-run. */
+let panelSnap=null,dictListTop=0;
 function panelState(){return enabledOrderedIds().join("\u0000")}
+function reissueIfCorpusMoved(){
+  const was=panelSnap;panelSnap=panelState();
+  /* Only an "All dictionaries" answer is built from the enabled set. A view
+     scoped to one dictionary — by the selector, or one-shot by a bword:// link
+     (lastScope) — reads that dictionary whether or not it is enabled, so
+     neither overlay can have changed it; and re-running here would carry no
+     scopeOnce and silently widen a cross-reference view back to "all". */
+  if(!lastQuery||was===null||lastScope)return;
+  const sc=$("dict").value;
+  if(!(sc==="all"||sc.startsWith("g:")))return;
+  // an empty enabled set is a real answer here, not a no-op: doSearch renders
+  // "all dictionaries are disabled" rather than a zero-hit "not found"
+  if(was!==panelSnap)doSearch();
+}
 function showPanel(){panelSnap=panelState();$("panel").classList.add("show");loadFolders()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
   $("panel").classList.remove("show");
-  const was=panelSnap;panelSnap=null;
-  /* Only an "All dictionaries" answer is built from the enabled set. A view
-     scoped to one dictionary — by the selector, or one-shot by a bword:// link
-     (lastScope) — reads that dictionary whether or not it is enabled, so the
-     panel cannot have changed it; and re-running here would carry no scopeOnce
-     and silently widen a cross-reference view back to "all". */
-  const sc=$("dict").value;
-  if(!lastQuery||was===null||lastScope||!(sc==="all"||sc.startsWith("g:")))return;
-  // an empty enabled set is a real answer here, not a no-op: doSearch renders
-  // "all dictionaries are disabled" rather than a zero-hit "not found"
-  if(was!==panelState())doSearch();
+  reissueIfCorpusMoved();
+  panelSnap=null;
 }
 $("panelBtn").onclick=showPanel;
 $("closePanel").onclick=hidePanel;
 $("panel").onclick=e=>{if(e.target.id==="panel")hidePanel()};
+
+/* The panel's second window, wired the way the group editor is: opened from
+   the panel, modal over it, focus handed back to the button it came from. It
+   keeps no list of its own — #panelList lives inside it, so every renderer,
+   pointer handler and disclosure below reaches the elements it always did. */
+function showDictSettings(){
+  if(panelSnap===null)panelSnap=panelState();
+  $("dictSettings").showModal();
+  // The drawer remembered the reader's place by simply staying in the DOM.
+  // A window does not: its scroller has no box between visits, so the offset
+  // is recorded as it scrolls and put back before the list is on screen again
+  // — a hundred cards is a great deal to lose your place in.
+  $("dictSettingsScroll").scrollTop=dictListTop;
+}
+$("dictSettingsScroll").addEventListener("scroll",()=>{
+  dictListTop=$("dictSettingsScroll").scrollTop;
+},{passive:true});
+$("editDictSettings").onclick=showDictSettings;
+$("closeDictSettings").onclick=()=>$("dictSettings").close();
+$("dictSettings").addEventListener("close",()=>{
+  reissueIfCorpusMoved();
+  $("editDictSettings").focus();
+});
 $("rescanBtn").onclick=()=>{loadDicts(true).then(loadFolders)};
 
 /* Folders & configuration ------------------------------------------------ */

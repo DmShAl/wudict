@@ -55,6 +55,21 @@ Membership and group order belong to Go/state.json. The automatic All Dictionari
 
 The dictionary picker at the word field has a group dropdown above the existing All/Found list. Changing group reruns the current word, resets a single-dictionary selection, and clears old results; an empty group never falls through to a whole-library search. The live Android picker confirms its opening `window.prompt` immediately, then receives short update prompts while results stream. This avoids holding JavaScript blocked for the life of the dialog. Main and floating lookup windows both use the `Shell` bridge. Keep these flows in sync when editing picker behavior.
 
+### Dictionary settings window: current work
+
+| Concern | Entry points |
+| --- | --- |
+| Window markup, and the list that moved into it | `internal/server/web/index.html`: `<dialog id="dictSettings">` right after `#panel`; `#panelList` and the master switch (`#enAll`, `#enAllLabel`) are inside it; trigger button `#editDictSettings` beside `#editGroups` in the panel's action row |
+| Open/close, focus return, search refresh | `index.html`: `showDictSettings`, `#closeDictSettings`, the `close` handler, `reissueIfCorpusMoved`, `showPanel`/`hidePanel`, and `dictListTop` with the `scroll` listener on `#dictSettingsScroll` |
+| Card rendering, reorder, switches, Remove…, About | unchanged: `renderPanel` and every existing `#panelList` listener work on the same element, now inside the dialog |
+| Window chrome and switch styling | `web/group-editor.css`: `#dictSettings` height and overscroll; `:not(.en)` on the five checkbox rules, so the panel's 32×18 `.en` toggles keep their look inside a `.group-dialog` (the master switch has a mixed state a drawn-check square cannot express) |
+
+The panel keeps the job it is for — choosing what to search — and the collection's configuration moved one press out, beside the group editor: both buttons open a modal window about one subject each. Both halves of the enable question (master switch and per-card switch) are now only in the window, in one right-hand column.
+
+The query is re-issued when the WINDOW closes if the enabled set or its order moved; the panel's own close then finds the snapshot level, because `reissueIfCorpusMoved` keeps one snapshot per visit (taken in `showPanel`, or in `showDictSettings` when the panel was somehow bypassed). Toggling inside the window never searches per click — the results are behind two overlays. Closing the panel after the window therefore does not search twice, and opening either one without changing anything searches not at all. Scope rules are unchanged: a single-dictionary or `bword://` one-shot view is never re-run from here.
+
+Verified in the desktop browser against a throwaway server (`127.0.0.1:6899`, temp config, two stub `.dsl` files): the panel shows the two buttons and holds neither the list nor the switch; the window opens modal at 560×650 with the switch in the cards' right-hand column; switching beta off dims its card and leaves the master switch indeterminate ("1 of 2 enabled") with `searchSeq` unchanged; closing the window re-runs the query once (beta's section gone); reopening restores switch state and the scroll offset; the master switch goes mixed → all; Escape closes and returns focus to the button it came from; the file list, the Remove… confirmation and its Cancel still work in place; `About this dictionary` still lazy-loads; the group editor's own checkboxes are unchanged; 380×700 and 320×640 both fit, with the two panel buttons wrapping to a column at 320. NOT verified on a phone, and not in the dark/paper themes.
+
 ### Search field, history, and article lookup
 
 | Concern | Entry points |

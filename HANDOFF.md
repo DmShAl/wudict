@@ -24,6 +24,41 @@ the merge properly; nothing was lost.
 
 Older appearance/presets/review notes below are historical.
 
+## Dictionary settings window (2026-09-20, this session)
+
+Branch `Dictionary-settings`, cut from `dev` (`adb5507`, plus the HANDOFF
+commit); worktree clean before this change, nothing committed yet. The
+Dictionaries panel's master switch ("All enabled") and the per-dictionary card
+list left the drawer for a window of their own — `Dictionary settings`, opened
+by a new `Edit dictionary settings` button beside `Edit dictionary groups`, the
+same pattern as the group editor (modal `dialog.group-dialog.panel-card`,
+`showModal()`, focus back to the trigger on close).
+
+- `web/index.html`: `<dialog id="dictSettings">` sits right after `#panel` and
+  owns `#panelList` plus `#enAll`/`#enAllLabel`; the panel's action row is now
+  a `.facts` div holding the two buttons. New JS: `showDictSettings`, a
+  `dictListTop` scroll listener on `#dictSettingsScroll` (a closed dialog's
+  scroller loses its offset, and a hundred cards is a lot of place to lose),
+  and `reissueIfCorpusMoved`, which took over the re-issue `hidePanel` used to
+  do. ONE snapshot (`panelSnap`) now serves both closers: the window's close
+  searches once if the corpus moved, and the panel's close after it finds the
+  snapshot level and searches nothing.
+- `web/group-editor.css`: `#dictSettings` height/overscroll, and `:not(.en)`
+  on the five `.group-dialog input[type=checkbox]` rules — the window IS a
+  `.group-dialog`, and without that exclusion the panel's 32×18 toggles (and
+  the master switch's indeterminate state) would render as the editor's 20px
+  squares. `app.css` changed only in comments that described the switch as part
+  of the panel.
+- Verified in the desktop browser against a throwaway server (temp config, two
+  stub `.dsl`s, port 6899): panel holds the buttons and neither the list nor
+  the switch; modal open at 560×650 with the switch in the cards' column;
+  toggle → dimmed card, indeterminate master, no search; window close → exactly
+  one re-issue with the disabled section gone; reopen → state and scroll offset
+  restored; mixed → all; Escape and focus return; Remove…/About flows intact;
+  group editor unchanged; 380×700 and 320×640 layouts fit. `go build ./...` and
+  the three asset tests pass. No APK built, nothing on a phone, dark and paper
+  themes not checked.
+
 ## GitHub-facing identity (2026-09-20, this session)
 
 README.md reworked on `dev` (commit `80a8392`): H1 is now

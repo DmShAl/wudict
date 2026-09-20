@@ -1,6 +1,13 @@
 
 dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560px,94vw);height:fit-content;max-height:85vh;max-height:85dvh;padding:1em;border:1px solid var(--line);border-radius:12px;color:var(--fg);background-color:var(--bg);box-shadow:var(--shadow);overflow:auto}
 #groupEditor{height:min(650px,85vh);height:min(650px,85dvh)}
+/* The dictionary list is the long one — a real library is a hundred cards — so
+   Dictionary settings takes the same fixed height rather than fit-content, and
+   the list scrolls inside it with the master switch stuck to its top. */
+#dictSettings{height:min(650px,85vh);height:min(650px,85dvh)}
+/* Scrolling past the end of that list must not move the page under the modal:
+   the same guard the group rows carry. */
+#dictSettings .panel-scroll{overscroll-behavior:contain}
 dialog.group-dialog:not([open]){display:none}
 dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 .group-dialog::backdrop{background:rgba(0,0,0,.4)}
@@ -17,12 +24,16 @@ dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 .group-row.drop-before{box-shadow:inset 0 3px var(--accent)}
 .group-row.drop-after{box-shadow:inset 0 -3px var(--accent)}
 .group-row.group-other-first{border-top:1px solid var(--line);margin-top:.5em;padding-top:1em}
-.group-dialog input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:0 5px 0 0;border:1.5px solid var(--fg);border-radius:4px;background-color:var(--paper-bg,var(--bg));position:relative;vertical-align:middle;cursor:pointer}
-.group-dialog input[type=checkbox]:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--fg);border-width:0 2px 2px 0;transform:rotate(45deg)}
-.group-dialog input[type=checkbox]:disabled{background-color:var(--fg-soft);border-color:var(--fg-soft);opacity:.8;cursor:default}
-.group-dialog input[type=checkbox]:disabled:checked::after{border-color:var(--bg)}
+/* Every checkbox rule in this file is :not(.en) because Dictionary settings is
+   a .group-dialog too, and its switches are the panel's .en toggles, not the
+   editor's squares: the master switch has a MIXED state, and a 20px box with a
+   drawn check cannot say "some". */
+.group-dialog input[type=checkbox]:not(.en){appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:0 5px 0 0;border:1.5px solid var(--fg);border-radius:4px;background-color:var(--paper-bg,var(--bg));position:relative;vertical-align:middle;cursor:pointer}
+.group-dialog input[type=checkbox]:not(.en):checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--fg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.group-dialog input[type=checkbox]:not(.en):disabled{background-color:var(--fg-soft);border-color:var(--fg-soft);opacity:.8;cursor:default}
+.group-dialog input[type=checkbox]:not(.en):disabled:checked::after{border-color:var(--bg)}
 .group-control-disabled{color:var(--fg-soft)}
-.group-dialog input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.group-dialog input[type=checkbox]:not(.en):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .group-error{color:var(--danger);margin:0;overflow-wrap:anywhere}
 #groupHint{color:var(--fg-soft);margin:0}
 #newGroupForm{display:flex;flex-direction:column;gap:.8em}
