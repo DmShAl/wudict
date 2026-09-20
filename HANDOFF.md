@@ -57,6 +57,12 @@ stays the literal `%LOCALAPPDATA%\Android\Sdk` and fails. Fix: pass
 `set ANDROID_HOME=C:\Users\shepe\AppData\Local\Android\Sdk&&` in front of
 the script call (no space before `&&`).
 
+CHANGELOG.md added on `dev` (2026-09-20): one `wudict2-…` section per
+release, newest first, relative to the upstream fork point (v0.1.0's
+baseline: upstream `223b990`, between v3.7.4 and v3.7.5-alpha.1). Update
+it with every future release; the release body mirrors the same text
+under `## Changes`.
+
 ## What remains from the review (with the reasons for leaving each)
 
 - **Ingest is not cancellable** — deferred on purpose. Plumbing ctx through
