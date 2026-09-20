@@ -20,6 +20,18 @@ body{margin:0;background:var(--bg);color:var(--fg);
   line-height:1.618;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:1em}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
   box-shadow:0 4px 20px rgba(0,0,0,.08);max-width:560px;width:100%;padding:1.618em}
+/* The page's own closer, at the right end of the title row — where the app's
+   windows put theirs. A row rather than an overlay on the card: the titles are
+   long enough to wrap on a phone (measured: "wuDict Configuration" runs under
+   an absolutely-placed ✕ at 360px), and a flex row lets the heading take what
+   is left instead of printing under it. Both pages wear this, so it lives here
+   rather than twice inline. */
+.top{display:flex;align-items:flex-start;gap:.5em}
+.top h1{flex:1 1 auto;min-width:0}
+button.x{flex:none;margin:.25em 0 0;padding:.1em .45em;
+  background:transparent;color:var(--soft);border:1px solid var(--line);
+  border-radius:8px;font-size:15px;line-height:1.3;cursor:pointer}
+button.x:hover{color:var(--fg);border-color:var(--faint)}
 h1{margin:0 0 .382em;font-size:22px}h1 b{color:var(--accent)}
 h2{margin:0 0 .2em;font-size:16px}
 p{margin:.382em 0;color:var(--soft);font-size:14px}

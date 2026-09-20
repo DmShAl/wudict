@@ -21,6 +21,9 @@ android/local.properties
 /build-android.local.bat
 /CLAUDE.local.md
 code-review/
+# Local corpus for manual checks (real dictionaries: too big to ship, and not
+# ours to license). Point DICT_DIR at it for a representative preview.
+/test_data/
 
 # Play release (fastlane). The lanes and the listing ARE tracked -
 # fastlane/metadata/android/ is also the layout F-Droid reads. What must never

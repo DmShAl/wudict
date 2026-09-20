@@ -49,7 +49,7 @@ window.wudictShellBackground = function (color, image) {
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wudict Setup</title>
+<title>Edit Folders</title>
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="stylesheet" href="/assets/setup.css?v={{CSS}}">
 <style>
@@ -103,7 +103,6 @@ html[data-shell-tone="dark"] {
      before validation has written a status. */
   .frow .rm{margin-left:auto;font-size:18px;padding:.15em .35em}
 }
-#save~.btn{margin-left:.5em}
 label.keep{display:flex;gap:.5em;align-items:flex-start;font-size:13.5px;color:var(--soft);margin-top:.618em}
 label.keep input{width:auto;margin:.25em 0 0}
 label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
@@ -157,7 +156,15 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
 </head>
 <body>
 <div class="card">
-<h1><b>wu</b>Dict Configuration</h1>
+<!-- The page's closer (@see setup.css). It goes back rather than to "/": the
+     page behind is restored as it was, and the entry this page took is spent,
+     so the phone's back gesture does not reopen what was just closed.
+     A first run has nothing behind it — the server sends an empty registry
+     straight here, so this page IS the app — and the ✕ is hidden for it. -->
+<div class="top">
+<h1>Edit Folders</h1>
+<button type="button" class="x" id="closePage" aria-label="Close">✕</button>
+</div>
 <p>{{INTRO}}</p>
 
 <h2>Point wuDict at your dictionaries</h2>
@@ -213,15 +220,6 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
 <hr class="sep">
 <div id="msg"></div>
 <button id="save" disabled>Use this folder</button>
-<a id="cancel" class="btn ghost hidden" href="/">Back to dictionaries</a>
-<!-- A control, not a footnote: installing word-form data is a thing the user
-     DOES on this page, like choosing a folder, so it stands with the other
-     two rather than reading as prose about them. -->
-<a id="lemmas" class="btn ghost" href="/lemmas"
-   title="Install the word-form data that lets an inflected word find its dictionary entry">🔤 Lemmatization</a>
-
-<p class="formats">Lemmatization installs the word-form data that lets
-   <i>understood</i> find <i>understand</i>.</p>
 
 <p class="formats">Supported: MDict (.mdx + .mdd) · StarDict (.ifo) · Aard2 (.slob) · Lingvo DSL (.dsl, .dsl.dz) · Babylon (.bgl) · ZIM (.zim) · prepared dictionary folders</p>
 <!-- First run is the one moment the app has the user's full attention and
@@ -664,7 +662,6 @@ async function start(){
   inUse=!!(cfg&&cfg.total>0);
   const dirs=(cfg&&cfg.roots||[]).map(r=>r.path);
   if(dirs.length)dirs.forEach(d=>addRow(d)); else addRow("");
-  if(cfg&&cfg.total>0)$("cancel").classList.remove("hidden");
   if(cfg&&cfg.dictDirEditable===false){
     const how=cfg.dictDirOrigin==="flag"?"the --dict-dir command-line flag":"the DICT_DIR environment variable";
     $("origin").textContent="⚠ These folders come from "+how+
@@ -682,6 +679,13 @@ async function start(){
 // config first: the library checkbox's default depends on whether anything is
 // already in use, which only /api/config knows
 start().then(loadLibrary);
+
+/* The ✕ closes the page the way the back gesture does: no navigation to "/"
+   (which would load the app from scratch and stack an entry the back gesture
+   would then walk back into this page), just history. A first run — where the
+   server serves THIS page for "/" — has nothing behind it, and offers no ✕. */
+if(history.length>1)$("closePage").onclick=()=>history.back();
+else $("closePage").hidden=true;
 </script>
 </body>
 </html>

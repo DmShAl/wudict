@@ -1597,6 +1597,58 @@ $("dictSettings").addEventListener("close",()=>{
 });
 $("rescanBtn").onclick=()=>{loadDicts(true).then(loadFolders)};
 
+/* Coming back from `Lemmatization…` or `Edit folders…` puts the reader back in
+   the window they left — and the page can return in either of two shapes, which
+   is why this is two mechanisms and not one.
+
+   (1) The WebView hands the document back as the DOM it left: the drawer still
+   `.show`, the window still carrying `open`. What does NOT come with it is the
+   TOP LAYER a modal <dialog> lives in, so the window arrives non-modal — no
+   backdrop, no Escape, painted under the drawer it was opened from (measured:
+   half of it behind the panel, the ✕ and the right end of the toolbar covered;
+   the z-index in group-editor.css keeps it on top until this runs). A restored
+   page is the only case where `persisted` is true, and there the fix is to
+   close and re-show the window: the top layer is re-entered before anything
+   moves on screen. The drawer needs nothing — a class survives on its own.
+
+   (2) The WebView reloads the page instead: same URL, same results, no
+   overlays, and the reader lands on the word cards with the window they were
+   working in simply gone. Nothing in the DOM can tell the two apart, but the
+   navigation can: a fresh launch or an F5 is not the same as a return through
+   history. So the overlays are written down on the way out (pagehide) and put
+   back only on a `back_forward` load. The note is refreshed every time the page
+   is left, so it cannot resurrect a window the reader has since closed. */
+const OVERLAY_KEY="wudict_overlays";
+function rememberOverlays(){
+  const open=["panel","dictSettings","groupEditor","newGroupDialog"].filter(id=>{
+    const el=$(id);
+    return el&&(id==="panel"?el.classList.contains("show"):el.open);
+  });
+  try{sessionStorage.setItem(OVERLAY_KEY,JSON.stringify(open))}catch(_){}
+}
+function reopenOverlays(){
+  let want=[];
+  try{want=JSON.parse(sessionStorage.getItem(OVERLAY_KEY)||"[]")}catch(_){}
+  if(!want.length)return;
+  // the real open paths, not a class and an attribute: both fetch what the
+  // window shows, and the panel's snapshot goes with them
+  if(want.includes("panel"))showPanel();
+  if(want.includes("dictSettings"))showDictSettings();
+  else if(want.includes("groupEditor"))$("editGroups").click();
+}
+window.addEventListener("pagehide",rememberOverlays);
+window.addEventListener("pageshow",e=>{
+  if(e.persisted){
+    for(const id of["dictSettings","groupEditor","newGroupDialog"]){
+      const d=$(id);
+      if(d&&d.open){d.close();d.showModal()}
+    }
+    return;
+  }
+  const nav=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0];
+  if(nav&&nav.type==="back_forward")reopenOverlays();
+});
+
 /* Folders & configuration ------------------------------------------------ */
 let cfgInfo=null;
 

@@ -24,6 +24,39 @@ the merge properly; nothing was lost.
 
 Older appearance/presets/review notes below are historical.
 
+## Configuration and Lemmatization pages (2026-09-20, this session)
+
+Same branch, after the settings window. The two pages the window's toolbar opens
+were given the closer they lacked, and lost the two navigation buttons they had.
+
+- **The ✕ that "closes the window" is `history.back()`, not a link to "/"**
+  (checked first, on the user's question: neither page has any special handling
+  — both carried a plain `<a href="/">`, and `Shell.openExternal` lets
+  same-origin URLs load in the WebView, so there is no shell channel involved).
+  A link to "/" loads the app from scratch AND leaves the page's own entry in
+  the history, so the phone's back gesture walks straight back into the page
+  that was just closed. Back consumes that entry. Verified: ✕ on /setup →
+  "/" again, and the next back gesture lands on an earlier entry, never on
+  /setup. A first run (the server serves /setup for "/", so `history.length`
+  is 1) has nothing behind it and hides the ✕.
+- `web/setup.css`: `.card` gained `position:relative` and a shared `button.x`
+  rule — the closer both pages wear, in the card's top-right where the app's
+  windows put theirs. `web/setup.html` and `web/lemmas.html`: the ✕ markup
+  (`#closePage`) and its handler; removed "Back to dictionaries" (and the JS
+  line that un-hid `#cancel`, plus the now-dead `#save~.btn` rule) and the
+  "🔤 Lemmatization" link with its one-line footnote; on the lemmas page,
+  "Back to dictionaries" and "Folders…".
+- `web/lemmas.html` also gained setup.html's shell-background hook
+  (`wudictShellBackground`, `data-shell-image`/`-custom`/`-tone` and the
+  transparent-body rules): the Android host calls that hook on every
+  `onPageFinished` (Shell.applyBackground), so the page was being told about the
+  wallpaper and ignoring it. Both pages now tint identically over the shell
+  background — verified by calling the hook with `#f4ecd8`, image on: same
+  attributes (`custom`+`image`+`tone=light`), same `rgba(0,0,0,0)` body and
+  `rgba(255,255,255,.14)` card on both, and the same light-tone palette.
+- Not verified on a phone; the ✕ position/behaviour and the wallpaper on the
+  lemmas page still want a device pass.
+
 ## Dictionary settings window (2026-09-20, this session)
 
 Branch `Dictionary-settings`, cut from `dev` (`adb5507`, plus the HANDOFF
@@ -58,6 +91,43 @@ cards.
   and `#ftsAllBox` pinned (`flex:none`). The earlier `:not(.en)` exclusion on the
   checkbox rules was reverted — with the switches gone, no `.en` element lives
   inside a `.group-dialog` any more.
+- **Overlays must survive a trip to another page** (reported from the phone three
+  times: first the window came back broken behind the drawer, then — after a fix
+  that closed everything on the way out — the reader landed on the word cards,
+  and the same again on a build where the page was not restored at all).
+  `Lemmatization…` / `Edit folders…` are ordinary navigations, and the page can
+  come back in two shapes, which is why there are two mechanisms in index.html:
+  - **restored document** (`pageshow` with `persisted`): the DOM comes back with
+    the drawer still `.show` and the window still carrying `open`, but NOT the
+    TOP LAYER a modal `<dialog>` lives in — so the window arrives non-modal and
+    painted under the panel (half of it hidden on a phone, ✕ behind the drawer).
+    The handler closes and re-shows it, which re-enters the layer.
+  - **reloaded document** (what the phone actually does): no overlays at all, so
+    `rememberOverlays` writes them to `sessionStorage.wudict_overlays` on
+    `pagehide` and `reopenOverlays` puts them back on a `back_forward` load
+    (navigation type; verified end-to-end in the desktop browser, where the
+    debugger disables the page cache and the back navigation is therefore a real
+    reload — the window came back open and modal over the drawer). The note is
+    rewritten on every pagehide, so a window closed after the return cannot come
+    back, and `reload`/`navigate` loads reopen nothing.
+  - `dialog.group-dialog.panel-card` keeps `z-index:300`, so a window is on top
+    even before either mechanism runs.
+  An earlier attempt closed everything on `pagehide`; the user rejected it.
+- **The dialog is a framed card, and the two pages were renamed** (the user's
+  screenshots settled what three rounds of wording had muddled: the window that
+  went edge to edge was the Dictionary settings DIALOG, and the reference is the
+  frame the Edit Folders/Lemmatization pages draw). So the
+  `@media (max-width:600px)` block in group-editor.css that made the dialogs
+  full screen on phones is REVERTED — the dialog is the centred
+  `min(560px,94vw) × min(650px,85dvh)` card with a 12px radius at every width
+  (measured at 360×780: 322×650, 19px margins — the pages' cards have 1em, i.e.
+  16px). The ☰ drawer went back to its side sheet the same day: for one round it
+  had been turned into a card too, on a previous message whose window names the
+  user then corrected ("это мой косяк") — a `sheet vs card` question that no one
+  asked, and one `git checkout` away if it is wanted after all.
+  `setup.html`: `<h1>` and `<title>` are "Edit Folders" (were "wuDict
+  Configuration"/"wudict Setup"); `lemmas.html`: "Lemmatization" (was "wuDict
+  Lemmatization"). No test asserted either string.
 - Verified in the desktop browser against a throwaway server (temp config, two
   stub `.dsl`s, port 6899): panel holds the two buttons and none of the four
   actions; window modal at 560×650, toolbar above the cards, zero checkboxes in
@@ -160,6 +230,10 @@ under `## Changes`.
 
 ## Windows verification recipes (this machine)
 
+- Real dictionaries for manual checks: `test_data/` (three `.dsl.dz` — Asperger
+  En-En 6.8k entries, Oxford En-Ru 35.8k, Zimmerman Ru-En 15.9k, ~5.4 MB, now
+  git-ignored). Point a throwaway `DICT_DIR` at it to see the UI with real
+  sizes, chips and index estimates instead of stub dictionaries.
 - Go: `go build ./...`; targeted `go test ./internal/<pkg> -run '...' -count=1`.
 - Android Java: from `android/`,
   `ANDROID_HOME="$LOCALAPPDATA/Android/Sdk" ./gradlew.bat :app:compileFossDebugJavaWithJavac --offline`.
