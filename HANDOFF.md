@@ -7,23 +7,26 @@ records what an agent session changed, what it verified, and what it left.
 
 ## Branch state (verify with git before trusting)
 
-Branch `fix/review-hardening`, based on `dev`. Six review items committed,
-then a second-tier hardening batch (zim Close race, rows.Err diagnostics,
-replacer hoisting, dead gomdict range-tree removal, intake http.Client
-reuse, plainArchive map) committed on top — see `git log` for the exact
-hashes; it was uncommitted at the time of this edit.
+Branch `dev`, clean and pushed to `origin/dev`. The review items below and
+the appearance/presets work described further down are all committed on
+`dev` (the appearance rounds landed as `Move windows background Color…`,
+`CSS Presets`, `Appearence dialog fix`; the hardening batch up to
+`Close the intake archive before disposing of its source`). This file's
+older "uncommitted on `fix/review-hardening`" notes are historical.
 
-| Commit | What it is |
-| --- | --- |
-| `0854ec5` | Setup page: native folder-picker button (Android shell bridge) |
-| `d3ea6c4` | Item 1: frontLimit defer, `n=` clamp, intake job race snapshot |
-| `2675563` | Item 2: release prepared DBs before an ingest renames over them (Windows) |
-| `c0aca2c` | Item 3: cap every allocation a dictionary file can name + bounds tests |
-| `bd1e415` | Item 4: `/res/` and `Library()` answer without SQLite |
-| `9288f37` | Item 5: stream large packed media (blobReader, 4 MiB threshold) |
-| `23377f8` | Item 6: abandon wedged queries on cancel; atomic config write |
+## GitHub-facing identity (2026-09-20, this session)
 
-Nothing has been pushed or merged into `dev`; that is the user's call.
+README.md reworked on `dev` (commit `80a8392`): H1 is now
+"wuDict2 — an Android fork of WuWeiDict" with a what-differs block (app ID,
+port 6889, Android UI work, license) at the very top; the mid-file
+"wuDict2 for Android" section was folded into it. Repo settings changed via
+the GitHub API (no `gh` CLI on this machine; token came from
+`git credential fill`): default branch `master` → `dev` (so the landing page
+shows the fork README), About description now names wuDict2, topics set
+(android, dictionary, golang, mdx, stardict, slob, dsl, bgl, zim,
+offline-dictionary). Homepage still points at the upstream docs site —
+deliberately kept. `master` stays upstream-sync-only per AGENTS.md; it was
+not touched.
 
 ## What remains from the review (with the reasons for leaving each)
 
