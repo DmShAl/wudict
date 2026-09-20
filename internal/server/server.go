@@ -44,18 +44,6 @@ import (
 //go:embed web/index.html
 var indexHTML []byte
 
-//go:embed web/presets/background/background_image_app.css
-var backgroundAppCSS string
-
-//go:embed web/presets/background/background_image_article.css
-var backgroundArticleCSS string
-
-//go:embed web/presets/background/sepia_app.css
-var sepiaAppCSS string
-
-//go:embed web/presets/background/sepia_article.css
-var sepiaArticleCSS string
-
 //go:embed web/setup.html
 var setupHTML string
 
@@ -374,10 +362,15 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	// (style.go). It resolves to the same bytes as "no stylesheet at all", so
 	// it costs no second cache entry.
 	tag := ""
+	links := ""
 	if !styleOff(r) {
 		tag = s.appStyleTag()
+		// ?style=off drops the whole chrome, presets included: they are the
+		// same surface as the stylesheet it already omits, and the way back
+		// in must not depend on any of it.
+		links = s.presetLinksHTML()
 	}
-	page, etag := s.pageFor(tag)
+	page, etag := s.pageFor(tag, links)
 	w.Header().Set("ETag", etag)
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(page))
 }
@@ -397,11 +390,6 @@ func (s *Server) basePage() []byte {
 		page = strings.ReplaceAll(page, "{{HISTORYJS}}", assetTag(historyJS))
 		page = strings.ReplaceAll(page, "{{GROUPCSS}}", assetTag(groupEditorCSS))
 		page = strings.ReplaceAll(page, "{{GROUPJS}}", assetTag(groupEditorJS))
-		// JSON escapes CSS safely for the inline script, including </script>.
-		background, _ := json.Marshal(map[string]string{"app": backgroundAppCSS, "article": backgroundArticleCSS})
-		page = strings.ReplaceAll(page, "{{BACKGROUND_PRESET}}", string(background))
-		sepia, _ := json.Marshal(map[string]string{"app": sepiaAppCSS, "article": sepiaArticleCSS})
-		page = strings.ReplaceAll(page, "{{SEPIA_PRESET}}", string(sepia))
 		// The role stylesheet for articles wudict writes itself
 		// (internal/artmark). It is a floor under BOTH article surfaces, so
 		// it is substituted once here and index.html hands it to the shadow
@@ -412,28 +400,31 @@ func (s *Server) basePage() []byte {
 	return s.indexBase
 }
 
-// pageFor finishes the page for one user stylesheet, identified by its content
-// hash ("" for none). The link is render-blocking and last in <head>, which is
-// two decisions in one element: last so the user's rules win ties against the
-// app's own <style>, and a <link> rather than an inlined <style> so a sepia
-// reader never sees a white flash on load - and so no CSS ever has to be
-// escaped into an HTML document.
+// pageFor finishes the page for one user stylesheet ("" for none) plus the
+// preset layers the server attaches under it. The links are render-blocking
+// and last in <head>, which is two decisions in one element: the PRESET
+// links come first so the user's rules win every tie against them, the user
+// link comes last so it wins ties against the app's own <style>, and links
+// rather than inlined styles so a sepia reader never sees a white flash on
+// load - and so no CSS ever has to be escaped into an HTML document.
 //
 // The ETag is computed from the finished bytes - the version stamp, the asset
-// hashes AND the stylesheet hash are all part of what the browser is holding,
-// so a change to any of them must invalidate.
-func (s *Server) pageFor(tag string) ([]byte, string) {
+// hashes, the preset set AND the stylesheet hash are all part of what the
+// browser is holding, so a change to any of them must invalidate. The cache
+// key is therefore both parts, not just the stylesheet's.
+func (s *Server) pageFor(tag, presetLinks string) ([]byte, string) {
 	s.styleMu.Lock()
 	defer s.styleMu.Unlock()
-	if s.styledPage != nil && s.styledTag == tag {
+	key := tag + "\x00" + presetLinks
+	if s.styledPage != nil && s.styledTag == key {
 		return s.styledPage, s.styledETag
 	}
-	link := ""
+	links := ""
 	if tag != "" {
-		link = `<link rel="stylesheet" href="/style/` + appCSSName + `?v=` + tag + `">`
+		links = `<link rel="stylesheet" href="/style/` + appCSSName + `?v=` + tag + `">`
 	}
-	page := []byte(strings.ReplaceAll(string(s.basePage()), "{{USERCSS}}", link))
-	s.styledTag, s.styledPage, s.styledETag = tag, page, `"`+assetTag(page)+`"`
+	page := []byte(strings.ReplaceAll(string(s.basePage()), "{{USERCSS}}", presetLinks+links+"\n"))
+	s.styledTag, s.styledPage, s.styledETag = key, page, `"`+assetTag(page)+`"`
 	return s.styledPage, s.styledETag
 }
 

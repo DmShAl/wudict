@@ -1,0 +1,7 @@
+/* Dark mode only, warmer than the default grey. Hue survives the article
+   flip described in True black, so a warm off-white lands as a warm
+   near-black. */
+html[data-dark]{
+  --bg:#1c1a17; --bg-card:#252220; --bg-bar:rgba(28,26,23,.92);
+  --wd-article-bg:#faf6ef; --wd-article-fg:#1a1a1a;
+}

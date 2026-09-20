@@ -1216,6 +1216,66 @@ paths:
         '500':
           description: A file could not be written.
 
+  /api/presets:
+    get:
+      tags: [internal]
+      operationId: listPresets
+      x-internal: true
+      summary: The built-in style presets and which are enabled
+      description: >
+        The presets the Appearance sheet offers as ready-made layers: a
+        background look, palettes, layout and text tweaks, article roles.
+        Each preset carries its CSS inline (`app` and/or `article`, the two
+        scopes a stylesheet can reach), because the page composes the article
+        layer itself and must not fetch preset files one by one.
+
+
+        The groups are the conflict model: presets inside one group claim the
+        same surfaces, so at most ONE of them can be enabled - enabling one
+        switches its group-mates off, radio-style. A preset that conflicts
+        with nothing lives in a group of its own and behaves as a plain
+        toggle. `writable` is false when there is no config directory, and
+        the pane says so instead of offering switches that cannot stick.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s 'http://127.0.0.1:6888/api/presets' | jq -r '.enabled[]'
+      responses:
+        '200':
+          description: All presets, grouped, with contents.
+    put:
+      tags: [internal]
+      operationId: savePreset
+      x-internal: true
+      summary: Enable or disable one preset
+      description: >
+        Switching a preset on inside a conflict group switches its
+        group-mates off; the fresh state comes back, so a client never has to
+        guess what the radio rule did. The choice is remembered in the config
+        folder beside the stylesheets it composes with.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, on]
+              properties:
+                id: { type: string, description: The preset's id. }
+                on: { type: boolean, description: Enable (true) or disable (false). }
+      responses:
+        '200':
+          description: The presets, as stored after the change.
+        '400':
+          description: The body is not valid JSON, or the id names no preset.
+        '409':
+          description: >
+            There is no config directory, so there is nowhere to remember the
+            choice.
+        '500':
+          description: The state file could not be written.
+
   /api/files:
     get:
       tags: [internal]

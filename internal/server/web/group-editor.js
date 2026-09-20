@@ -185,3 +185,8 @@ $("newGroupForm").onsubmit=async event=>{
 };
 $("newGroupDialog").addEventListener("cancel",event=>{if($("createGroup").disabled)event.preventDefault()});
 Promise.all([loadPrefs(),loadConfig(),loadUserCSS(),loadPickerGroups()]).then(loadDicts).then(applyURL);
+// The preset layers are independent of the boot chain: their app halves are
+// server-injected <link>s and their article halves join the article sheet
+// whenever this answer lands, which is why this is fire-and-forget rather
+// than a gate on the first search.
+presetsLoad();

@@ -1,0 +1,47 @@
+/* Two jobs, in this order: give back the side space a dictionary reserved for
+   a desktop window, then make what is left FIT — a compact article that still
+   drags sideways is not compact.
+   Only the article's ROOT needs a prefix - :host for a plain article,
+   :root > body for one that came with scripts. Everything below it can be
+   named plainly: this box only ever reaches article markup, so a bare "div"
+   here cannot touch the app.
+   Two lines to know: drop div from the second rule if a coloured box in an
+   entry ends up cramped, and 1.1em on lists is what keeps the bullet inside
+   the article instead of clipped off its edge - use 0 together with
+   list-style-position:inside to go flush. Raise 700px to apply all of it on
+   wider screens too. */
+@media (max-width: 700px){
+  :host, :root > body { margin-inline:0 !important; padding-inline:0 !important }
+  div, section, article, main, header, footer, aside, nav,
+  p, h1, h2, h3, h4, h5, h6, figure, blockquote, pre, dl, dt, table
+    { margin-inline:0 !important; padding-inline:0 !important }
+  ul, ol, dd, menu
+    { margin-inline:0 !important; padding-inline-start:1.1em !important }
+  td, th { padding-inline:.25em !important }
+
+  /* The fit half. A stylesheet written for a desktop page states widths the
+     phone does not have - and states them in em as often as in px, which is
+     why the sideways drag GROWS as you raise the font size: 40em of column is
+     40em wide whatever the screen is. So: nothing may declare its own width,
+     nothing may exceed the space it is in, and text breaks rather than pushes.
+     box-sizing is what makes the two agree, since a padded 100% box is wider
+     than 100% under the content-box default a dictionary may have set. */
+  :host, :root > body { width:auto !important; max-width:100% !important;
+    overflow-x:hidden }
+  :host *, :root > body *
+    { max-width:100% !important; min-width:0 !important;
+      box-sizing:border-box !important; overflow-wrap:break-word }
+  div, section, article, main, header, footer, aside, nav,
+  p, h1, h2, h3, h4, h5, h6, figure, blockquote, dl, dt, dd, ul, ol
+    { width:auto !important; float:none !important }
+  /* The two things that must keep their own width, and so scroll inside
+     themselves instead: a table of forms, and a block of code. The table's
+     own box stays 100% - it is the window; the cells are let back out of the
+     clamp above, or a ten-column table would be ten slivers rather than a
+     table you can push sideways. */
+  table { display:block !important; overflow-x:auto !important;
+    border-collapse:collapse }
+  table * { max-width:none !important }
+  pre { overflow-x:auto !important; white-space:pre-wrap }
+  img, video, svg { height:auto !important }
+}

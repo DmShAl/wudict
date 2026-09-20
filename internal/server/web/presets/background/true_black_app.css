@@ -1,0 +1,11 @@
+/* Black chrome for OLED, white text in articles. The article pair looks
+   backwards and is not: dark articles are rendered LIGHT and then inverted,
+   so what you set here is the value BEFORE the flip — #fff becomes the near
+   black behind the text, #000 becomes the text. (A hair off pure black: the
+   flip carries a contrast pass with it.) */
+html[data-dark]{
+  --bg:#000; --bg-card:#0a0a0a; --bg-bar:rgba(0,0,0,.94);
+  --fg:#ededed; --fg-soft:#a8a8a8; --fg-faint:#7a7a7a;
+  --line:#242424; --line-soft:#161616;
+  --wd-article-bg:#fff; --wd-article-fg:#000;
+}

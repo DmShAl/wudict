@@ -1,0 +1,8 @@
+/* A dictionary's own font-family wins inside its own markup, so reaching it
+   takes a separate rule and !important. Code stays mono, as in the other
+   font presets. */
+:host, :root > body, :host *, :root > body * {
+  font-family:"Segoe UI Light","Helvetica Neue","Roboto Light",
+    "sans-serif-light",Helvetica,Arial,sans-serif !important }
+:host :is(code,kbd,pre,samp), :root > body :is(code,kbd,pre,samp) {
+  font-family:ui-monospace,Menlo,Consolas,monospace !important }

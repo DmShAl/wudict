@@ -517,20 +517,16 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 #styler .btn{flex:0 0 auto}
 #styler .tab{flex:0 .01 auto;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
-#stylerPreset{flex:5 20 9em;min-width:2.6em;max-width:14em}
-/* One chrome for the whole toolbar row: tabs, buttons and the preset menu
-   share type, height, palette and radius, so the row reads as one strip of
-   controls. Left to their own defaults they split in two - and on Android
-   the preset <select> wears the platform's own select face on top, which is
-   the loudest of the mismatches; appearance:none strips it. Distinctions
-   stay only where they teach: the selected tab's accent, the hover border. */
-#styler .tab,#styler .btn,#stylerPreset{
+/* One chrome for the whole toolbar row: tabs and buttons share type, height,
+   palette and radius, so the row reads as one strip of controls.
+   Distinctions stay only where they teach: the selected tab's accent, the
+   hover border. */
+#styler .tab,#styler .btn{
   font:inherit;font-size:12.5px;line-height:1.2;padding:.34em .55em;
   color:var(--fg-soft);background:var(--bg-card);
   border:1px solid var(--line);border-radius:8px;cursor:pointer}
-#stylerPreset{appearance:none;-webkit-appearance:none}
 #styler .tab{padding:.34em .7em}
-#styler .tab:hover,#styler .btn:hover,#stylerPreset:hover{color:var(--fg);
+#styler .tab:hover,#styler .btn:hover{color:var(--fg);
   border-color:var(--fg-faint)}
 #styler .tab[aria-selected="true"]{color:var(--fg);border-color:var(--accent);
   background:var(--styler-active-bg,color-mix(in srgb,var(--accent) 18%,var(--bg)))}
@@ -579,6 +575,27 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 #stylerFiles .n s{display:block;text-decoration:none;font-size:11px;color:var(--fg-faint)}
 #stylerFiles .n:hover b{color:var(--accent)}
 #stylerFiles .btn{flex:0 0 auto;font-size:12px;padding:.25em .55em}
+/* The presets pane wears the Files pane's box, because they are the same
+   kind of thing - a list of rows in the textarea's place - and the reader
+   should not have to learn a second surface. The rows differ in what leads
+   them: a switch, not a thumbnail, since a preset's whole body is the
+   description under its name. */
+#stylerPresetsPane{flex:1 1 auto;min-height:0;width:100%;margin-top:.5em;
+  overflow:auto;background:var(--bg-card);border:1px solid var(--line);
+  border-radius:8px}
+#stylerPresetsPane .empty{padding:1.2em .8em;text-align:center;
+  color:var(--fg-faint);font-size:12px}
+#stylerPresetsPane .ph{padding:.55em .6em .2em;font-size:11px;font-weight:600;
+  color:var(--fg-soft);text-transform:uppercase;letter-spacing:.04em}
+#stylerPresetsPane .pr{display:flex;align-items:center;gap:.6em;padding:.4em .6em;
+  border-bottom:1px solid var(--line-soft)}
+#stylerPresetsPane .pr:last-child{border-bottom:0}
+#stylerPresetsPane .n{flex:1 1 auto;min-width:0;font-size:12.5px}
+#stylerPresetsPane .n b{display:block;font-weight:500;color:var(--fg)}
+#stylerPresetsPane .n s{display:block;text-decoration:none;font-size:11px;
+  color:var(--fg-faint);overflow-wrap:anywhere}
+#stylerPresetsPane .n u{ text-decoration:none;color:var(--accent);font-size:11px}
+#stylerPresetsPane .btn{flex:0 0 auto;font-size:12px;padding:.25em .55em}
 
 /* ── dictionaries panel ────────────────────────────────────────────── */
 #panel{position:fixed;inset:0;z-index:200;display:none;background:color-mix(in srgb,var(--fg) 24%,transparent)}
@@ -1054,5 +1071,5 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
      what keeps it from ever having to use it. */
   #styler{padding-left:var(--sp-1);padding-right:var(--sp-1)}
   #styler .row{gap:.25em}
-  #styler .tab,#styler .btn,#stylerPreset{font-size:11.5px;padding:.32em .5em}
+  #styler .tab,#styler .btn{font-size:11.5px;padding:.32em .5em}
 }

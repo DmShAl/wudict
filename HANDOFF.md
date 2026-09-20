@@ -254,3 +254,88 @@ arrow and fades only across its last 1.4em. Same-day tweak to that tweak:
 the fade was still ending at the hit box's boundary, so the mask now runs to
 1.8em — a whisker short of the box's center (1.6em, where the chevron's apex
 sits) — and the picture holds until it is essentially under the arrow.
+
+## Presets as toggleable layers (2026-09-20, evening)
+
+Uncommitted, on top of the appearance rounds. First shipped BROKEN — the user
+reported "articles gone, top-bar buttons dead" — then debugged live on a
+throwaway local server (built the binary, ran it, drove the page in the
+browser; the standing "don't build/run" rule was suspended for that
+diagnosis). Two real bugs were found and fixed, and the whole feature is now
+verified end-to-end in the browser against a temp config and a one-entry
+.dsl:
+
+- **TDZ crash killed the whole page.** `frameCSS()` reads
+  `presetArticleCSS`, but the variable was declared in the styler let-chain
+  ~2800 lines below the line where `applyTheme()` runs and calls
+  `pushFrameCSS()` → `frameCSS()`. Every handler after that point never
+  bound — hence no articles, dead buttons. Fix: `presetArticleCSS` is
+  declared beside the article plumbing (`let userArticleCSS`), where the
+  comment explains WHY the placement is load-bearing.
+- **`ContainsAny(name, "..\\")` 404'd every preset file.** The dot in
+  "file.css" is a member of that rune set, so
+  `GET /assets/presets/<g>/<f>` 404'd everything while the injected links
+  looked fine. Fix: two `strings.Contains` checks (".." and `\`) plus the
+  existing `//` check. Verified: files 200, manifest.json and traversal 404.
+
+Also fixed along the way: the two `s.pageFor("")` call sites in
+assets_test.go (signature grew a second parameter); go vet passes for the
+whole module. E2E verified: search renders articles; presets pane renders
+17 rows in 13 groups with radio groups marked "pick one"; Background hidden
+without a shell image; Sepia on → its link injected before the user's, its
+article half composed under the user text, state written to
+style/presets.json; True black switches Sepia off (radio); reload → server
+injects the enabled preset's link and the stylesheet parses (`sheet !==
+null`); Insert-as-text lands both halves with the view following; toggling
+off cleans links and the state file.
+
+The Examples menu is gone. Presets were text pasted into the user's two
+stylesheets, and un-applying one meant hand-deleting lines out of two boxes.
+Now each preset is a file pair under `internal/server/web/presets/<group>/`
+and a LAYER the page attaches and detaches around the user's own CSS; the
+editor's App/Article boxes hold only what the user owns.
+
+- Layout on disk IS the conflict model (the user's design): each
+  subdirectory is a group of presets that exclude each other —
+  `background/` holds Background image, Sepia, True black, Warm dark
+  (one or none), `fonts/` holds the font choices Serif, Condensed, Light
+  (one or none — a face is picked, not stacked); every other preset got a
+  directory of its own and behaves as a free toggle. `manifest.json` in the
+  same folder carries order, titles, descriptions and each preset's
+  app/article file names.
+- Server (`internal/server/presets.go`): embedded registry parsed once;
+  `GET /api/presets` (full list with inline contents + enabled set),
+  `PUT /api/presets` ({id,on}; radio enforced per group), state in
+  `<StyleDir>/presets.json` (temp+rename), and `GET /assets/presets/<g>/<f>`
+  serving the app halves immutably (content-hashed URLs; `manifest.json`
+  itself answers 404; backslash/.. rejected — the FS is forward-slash even
+  on Windows). Routes registered in routes.go; `/api/presets` documented in
+  openapi.yaml (Spec field set, so TestOpenAPICoversEveryRoute stays honest).
+- Page injection: `pageFor(tag, presetLinks)` — the preset `<link
+  data-preset>`s are spliced at `{{USERCSS}}` BEFORE the user's link, so the
+  user wins every tie; the page cache key is both parts, and `?style=off`
+  omits presets with everything else.
+- Client: fourth tab "Presets" in the sheet (pane reuses the Files pane's
+  look; switches are the panel's `.en`). `presetApplyAll()` syncs app links
+  + `presetArticleCSS`, and `articleRefresh()` is now the one place the
+  article sheet is built (presets under user text); `frameCSS()` composes
+  the same way. `stylerInsertPreset` = the old apply-as-text (Files→Insert
+  uses it too; handles both payload and legacy shapes), `presetRemovePasted`
+  + exact-text detection migrate old pastes (commit BEFORE mutate — a
+  textarea still holding old text would reinstall the block via
+  stylerShowTab's commit). `?style=off` blocks the whole preset path.
+- Startup: `presetsLoad()` is called fire-and-forget from group-editor.js's
+  boot line — which is ALSO where the boot chain lives now; `loadUserCSS`
+  had been left uncalled there since the "Search history" commit dropped the
+  old `Promise.all` line (pre-existing bug: user article CSS never applied
+  until the sheet was opened — fixed by wiring presetsLoad alongside it).
+- Removed: STYLER_PRESETS, ART_THROUGH, stylerFillPresets, stylerApplyPreset,
+  the `stylerPreset` select (and its dead CSS), the four server embeds and
+  the `{{BACKGROUND_PRESET}}/{{SEPIA_PRESET}}` substitutions. Shell.java's
+  picker list still names `stylerPreset` but null-guards it — no Java change.
+
+Verified in the desktop browser as listed above; NOT verified on a phone.
+On-device checks: preset toggling feels instant on a real dictionary set,
+radio switching in background/, cold-start injection order with several
+presets enabled, migration of old pastes, `?style=off` interplay, and the
+fonts group (Condensed/Light) against the system font-size setting.

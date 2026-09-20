@@ -1,0 +1,200 @@
+{
+  "groups": [
+    {
+      "dir": "background",
+      "title": "Background",
+      "presets": [
+        {
+          "id": "background",
+          "title": "Background image",
+          "desc": "The shell's background image and paper colour behind the app and every article.",
+          "requiresImage": true,
+          "app": "background_image_app.css",
+          "article": "background_image_article.css"
+        },
+        {
+          "id": "sepia",
+          "title": "Sepia",
+          "desc": "Warm sepia paper everywhere: #f4ecd8 in the app, lighter paper in articles.",
+          "app": "sepia_app.css",
+          "article": "sepia_article.css"
+        },
+        {
+          "id": "true_black",
+          "title": "True black",
+          "desc": "OLED black chrome; in dark mode articles flip to white on black.",
+          "app": "true_black_app.css"
+        },
+        {
+          "id": "warm_dark",
+          "title": "Warm dark",
+          "desc": "Dark mode in warm browns instead of grey.",
+          "app": "warm_dark_app.css"
+        }
+      ]
+    },
+    {
+      "dir": "contrast",
+      "title": "Contrast",
+      "presets": [
+        {
+          "id": "high_contrast",
+          "title": "High contrast",
+          "desc": "Light mode without the blinding white: near-black text on warm off-white.",
+          "app": "high_contrast_app.css",
+          "article": "high_contrast_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "wider_column",
+      "title": "Wider column",
+      "presets": [
+        {
+          "id": "wider_column",
+          "title": "Wider column",
+          "desc": "The wide reading column on every launch, not just for one session.",
+          "app": "wider_column_app.css",
+          "article": "wider_column_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "compact",
+      "title": "Compact",
+      "presets": [
+        {
+          "id": "compact",
+          "title": "Compact",
+          "desc": "Phone fit: the app's side gutters go, and articles give back their desktop margins and stop dragging sideways.",
+          "app": "compact_app.css",
+          "article": "compact_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "quieter_results",
+      "title": "Quieter results",
+      "presets": [
+        {
+          "id": "quieter_results",
+          "title": "Quieter results",
+          "desc": "Less furniture around the results: no card borders, result counts or provenance block.",
+          "app": "quieter_results_app.css"
+        }
+      ]
+    },
+    {
+      "dir": "roomier_lines",
+      "title": "Roomier lines",
+      "presets": [
+        {
+          "id": "roomier_lines",
+          "title": "Roomier lines",
+          "desc": "Articles set like prose: taller lines and air between paragraphs.",
+          "article": "roomier_lines_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "fonts",
+      "title": "Fonts",
+      "presets": [
+        {
+          "id": "serif",
+          "title": "Serif font",
+          "desc": "A serif face (Georgia) for the app and for dictionary text.",
+          "app": "serif_app.css",
+          "article": "serif_article.css"
+        },
+        {
+          "id": "condensed",
+          "title": "Condensed",
+          "desc": "A narrow face - more of a long entry per line, at the same size.",
+          "app": "condensed_app.css",
+          "article": "condensed_article.css"
+        },
+        {
+          "id": "light",
+          "title": "Light",
+          "desc": "The light cut of the system font: thinner strokes, a quieter page.",
+          "app": "light_app.css",
+          "article": "light_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "bolder_text",
+      "title": "Bolder text",
+      "presets": [
+        {
+          "id": "bolder_text",
+          "title": "Bolder text",
+          "desc": "A hair of extra weight for screens where the type looks washed out.",
+          "app": "bolder_text_app.css",
+          "article": "bolder_text_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "justified_text",
+      "title": "Justified text",
+      "presets": [
+        {
+          "id": "justified_text",
+          "title": "Justified text",
+          "desc": "Articles justified, hyphenated where the dictionary declares a language.",
+          "article": "justified_text_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "wide_tables",
+      "title": "Wide tables",
+      "presets": [
+        {
+          "id": "wide_tables",
+          "title": "Wide tables",
+          "desc": "Conjugation tables scroll inside themselves instead of widening the article.",
+          "article": "wide_tables_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "dictionary_roles",
+      "title": "Dictionary roles",
+      "presets": [
+        {
+          "id": "dictionary_roles",
+          "title": "Dictionary roles",
+          "desc": "Colour and style for the parts wudict labels in DSL and XDXF articles: parts of speech, examples, transcriptions.",
+          "article": "dictionary_roles_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "quiet_examples",
+      "title": "Quiet examples",
+      "presets": [
+        {
+          "id": "quiet_examples",
+          "title": "Quiet examples",
+          "desc": "Examples in the text colour instead of blue, one size down.",
+          "article": "quiet_examples_article.css"
+        }
+      ]
+    },
+    {
+      "dir": "tighter_indents",
+      "title": "Tighter indents",
+      "presets": [
+        {
+          "id": "tighter_indents",
+          "title": "Tighter indents",
+          "desc": "DSL nesting indents at half depth.",
+          "article": "tighter_indents_article.css"
+        }
+      ]
+    }
+  ]
+}

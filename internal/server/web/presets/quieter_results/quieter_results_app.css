@@ -1,0 +1,4 @@
+/* Less furniture around the definitions. Delete a line to keep that one. */
+details.dict{border:0;background:none}
+details.dict>summary .count{display:none}
+details.prov{display:none}

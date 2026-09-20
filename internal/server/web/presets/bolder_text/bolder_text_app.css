@@ -1,0 +1,4 @@
+/* For screens where the type looks washed out. Synthetic weight rather than
+   a heavier face, so it works with whatever font is in use and keeps bold
+   distinguishable from regular. WebKit and Blink only. */
+body{-webkit-text-stroke:.2px currentColor}

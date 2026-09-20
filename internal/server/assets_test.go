@@ -19,7 +19,7 @@ import (
 func TestScriptsAreContentAddressed(t *testing.T) {
 	s := newTestServer(t)
 	s.Version = "1.2.3"
-	page, _ := s.pageFor("")
+	page, _ := s.pageFor("", "")
 	pageStr := string(page)
 
 	if want := "/assets/frame.js?v=" + assetTag(frameJS); !strings.Contains(pageStr, want) {
@@ -136,7 +136,7 @@ func TestIndexRevalidatesWithoutResending(t *testing.T) {
 	// holds: a rebuild that changes only the version must invalidate.
 	other := newTestServer(t)
 	other.Version = "9.9.9"
-	if _, otherETag := other.pageFor(""); otherETag == etag {
+	if _, otherETag := other.pageFor("", ""); otherETag == etag {
 		t.Error("ETag ignores the version stamped into the page")
 	}
 	// No Last-Modified: these bytes are embedded and have no meaningful date,

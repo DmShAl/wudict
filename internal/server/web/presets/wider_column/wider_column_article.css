@@ -1,0 +1,3 @@
+/* A dictionary that caps its own width would keep the text narrow inside the
+   wider column, which is why this half exists. */
+:host, :root > body { max-width:none !important; width:auto !important }

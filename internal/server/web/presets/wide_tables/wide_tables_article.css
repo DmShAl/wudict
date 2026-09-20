@@ -1,0 +1,5 @@
+/* Conjugation and declension tables are the usual cause of sideways scroll.
+   This lets a table scroll inside itself instead of widening the article. */
+:host table, :root > body table {
+  display:block; max-width:100%; overflow-x:auto; border-collapse:collapse }
+:host :is(td,th), :root > body :is(td,th) { padding:.2em .4em }

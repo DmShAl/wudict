@@ -1,0 +1,3 @@
+/* DSL articles indent by level. Halve it, or set the multiplier to 0 to
+   flatten the article completely. */
+.wu-m { padding-left:calc(var(--wd-m,0)*.5em) }

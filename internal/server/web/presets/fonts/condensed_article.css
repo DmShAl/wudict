@@ -1,0 +1,8 @@
+/* A dictionary's own font-family wins inside its own markup, so reaching it
+   takes a separate rule and !important. The code exception is the same trade
+   the Serif preset makes: mono stays mono where mono means "verbatim". */
+:host, :root > body, :host *, :root > body * {
+  font-family:"Arial Narrow","Liberation Sans Narrow","Roboto Condensed",
+    "sans-serif-condensed",Arial,sans-serif !important }
+:host :is(code,kbd,pre,samp), :root > body :is(code,kbd,pre,samp) {
+  font-family:ui-monospace,Menlo,Consolas,monospace !important }

@@ -1,0 +1,9 @@
+/* A dictionary's own font-family wins inside its own markup, so reaching it
+   takes a separate rule and !important. Caveat worth knowing: this also
+   overrides a phonetic face a dictionary ships for its IPA — if the
+   pronunciations turn to boxes, add that element's class to the second rule
+   alongside code and kbd. */
+:host, :root > body, :host *, :root > body * {
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif !important }
+:host :is(code,kbd,pre,samp), :root > body :is(code,kbd,pre,samp) {
+  font-family:ui-monospace,Menlo,Consolas,monospace !important }

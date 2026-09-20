@@ -99,6 +99,12 @@ func (s *Server) routes() []route {
 		// reports a path on the user's disk and the PUT writes to it.
 		{"GET", "/api/style", s.handleStyle, "/api/style", false},
 		{"PUT", "/api/style", s.handleSaveStyle, "/api/style", false},
+		// the built-in style presets (presets.go): the pane's list with each
+		// preset's contents, and the switch that enables or disables one.
+		// Never CORS: the PUT writes into the config folder, and the list is
+		// the reader's own styling state.
+		{"GET", "/api/presets", s.handlePresets, "/api/presets", false},
+		{"PUT", "/api/presets", s.handlePresetSave, "/api/presets", false},
 		// "I picked this one": prepare it now, before a query exists
 		// (demand.go). Never CORS - it starts work and writes to the library.
 		{"POST", "/api/demand", s.handleDemand, "/api/demand", false},
@@ -156,6 +162,11 @@ func (s *Server) routes() []route {
 		{"GET", "/files/", s.handleUserFile, "", false},
 		{"GET", "/assets/frame.js", serveAsset("application/javascript; charset=utf-8", frameJS), "", false},
 		{"GET", "/assets/app.css", serveAsset("text/css; charset=utf-8", appCSS), "", false},
+		// The preset layers' app halves, one file each (presets.go). Same
+		// immutable cache as the assets above - each URL carries its own
+		// content hash - but under their own prefix, because they are a SET
+		// looked up in an embedded folder rather than one file per route.
+		{"GET", "/assets/presets/", s.handlePresetFile, "", false},
 		{"GET", "/assets/history.css", serveAsset("text/css; charset=utf-8", historyCSS), "", false},
 		{"GET", "/assets/history.js", serveAsset("application/javascript; charset=utf-8", historyJS), "", false},
 		{"GET", "/assets/group-editor.css", serveAsset("text/css; charset=utf-8", groupEditorCSS), "", false},

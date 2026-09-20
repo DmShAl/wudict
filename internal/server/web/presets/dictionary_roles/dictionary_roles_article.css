@@ -1,0 +1,24 @@
+/* Lingvo DSL and XDXF articles are built by wudict itself, so every part of
+   one is labelled with what it IS. Restyle a label here and every dictionary
+   of that kind follows. Delete the lines you do not want.
+   The parts with no rule of their own are listed at the bottom. */
+.wu-p   { color:#2e7d32; font-style:italic }   /* label, part of speech */
+.wu-ex  { color:#4682b4 }                      /* example */
+.wu-ipa { font-family:"Charis SIL","Doulos SIL",serif }  /* transcription */
+.wu-sec { opacity:.85 }                        /* secondary, optional */
+.wu-com { opacity:.8 }                         /* editorial comment */
+.wu-gr  { font-style:italic; opacity:.75 }     /* grammar note */
+.wu-acc { text-decoration:underline }          /* stress mark */
+.wu-k   { font-weight:600 }                    /* headword */
+
+/* The dictionary author's own colour and indent. These override nothing:
+   write a plain rule and yours wins, no !important needed. */
+.wu-c { color:var(--wd-c,green) }
+.wu-m { padding-left:calc(var(--wd-m,0)*1em) }
+
+/* No look of their own — give them one if you want it:
+   .wu-def  definition body
+   .wu-trn  translation      .wu-trn-not  everything that is not translation
+   .wu-trs  transcription    .wu-trs-not  everything that is not transcription
+   .wu-lang a foreign-language passage; [lang="ru"] and [data-lang="Russian"]
+            select one particular language */

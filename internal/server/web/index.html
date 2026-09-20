@@ -33,7 +33,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   try { sessionStorage.setItem('wudict_shell_image_name', file); } catch (_) {}
   // Existing iframe articles must receive Settings changes as well.
   if (document.readyState === 'complete' && typeof pushFrameCSS === 'function') pushFrameCSS();
-  if (document.readyState === 'complete' && typeof stylerFillPresets === 'function') stylerFillPresets();
+  if (document.readyState === 'complete' && typeof presetsPaneRefresh === 'function') presetsPaneRefresh();
 };
 (function () {
   var params = new URLSearchParams(location.search);
@@ -70,10 +70,11 @@ window.wudictShellBackground = function (color, image, imageName) {
 <link rel="stylesheet" href="/assets/app.css?v={{APPCSS}}">
 <link rel="stylesheet" href="/assets/history.css?v={{HISTORYCSS}}">
 <!-- The user's own stylesheet for the app itself, injected by the server as a
-     <link> only when the file exists. Last in <head> on purpose: it wins every
-     tie against the sheet above, and being render-blocking it is already in
-     force at first paint, so a reader who chose sepia never sees a white
-     flash. /?style=off omits it. -->
+     <link> only when the file exists. Last in <head> on purpose: the enabled
+     presets (spliced in at this same spot, ahead of it) and the app's own
+     sheet sit above it, and it wins every tie against them all. Being
+     render-blocking it is already in force at first paint, so a reader who
+     chose sepia never sees a white flash. /?style=off omits it and them. -->
 {{USERCSS}}
 </head>
 <body>
@@ -317,8 +318,11 @@ window.wudictShellBackground = function (color, image, imageName) {
          two can point at. Same sheet, because a file is uploaded in order to
          be referenced, and the reference is written one tab away. -->
     <button type="button" class="tab" id="tabFiles" role="tab" aria-selected="false" aria-controls="stylerFiles">Files</button>
+    <!-- The fourth tab is not a stylesheet at all: these are LAYERS the page
+         attaches and detaches around whatever is written in the other two
+         tabs. A switch here never touches the boxes. -->
+    <button type="button" class="tab" id="tabPresets" role="tab" aria-selected="false" aria-controls="stylerPresetsPane">Presets</button>
     <span class="grow"></span>
-    <select id="stylerPreset" aria-label="Insert a preset"></select>
     <!-- Hidden while the box is empty: an action that would do nothing is a
          control you have to read and dismiss on every visit. -->
     <button type="button" class="btn" id="stylerClear" hidden title="Empty this box — Save then removes the file">Clear</button>
@@ -329,6 +333,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   </div>
   <textarea id="stylerCSS" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Custom CSS"></textarea>
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
+  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
   <div id="stylerNote"></div>
 </div>
@@ -685,6 +690,12 @@ applyFS(FS_DEF,false);   // paints --wd-fs and the .lim state before any load
    that would undo it, and the way back must not itself depend on CSS. */
 const STYLE_OFF=new URLSearchParams(location.search).get("style")==="off";
 let userArticleCSS="";
+// The preset layer that sits UNDER the user's article text, as enabled at
+// /api/presets. Declared HERE, next to the article plumbing that reads it:
+// applyTheme runs at the top of the script, calls pushFrameCSS, and
+// frameCSS() reads this - a declaration further down would be a TDZ
+// ReferenceError that kills the whole script before anything binds.
+let presetArticleCSS="";
 // Constructable stylesheets are the mechanism; on a browser too old for them
 // articles simply keep the dictionary's own styling rather than the page
 // failing to script at all.
@@ -701,11 +712,20 @@ function articleTokens(){
          ";--paper-bg:"+v("--paper-bg",v("--bg","transparent"))+
          ";--paper-bk-image:"+v("--paper-bk-image","none")+"}\n";
 }
-function frameCSS(){return articleTokens()+userArticleCSS}
+function frameCSS(){return articleTokens()+presetArticleCSS+userArticleCSS}
 function pushFrameCSS(){
   const css=frameCSS();
   for(const f of document.querySelectorAll("iframe.article"))
     f.contentWindow&&f.contentWindow.postMessage({t:"css",css},"*");
+}
+/* The one place the article sheet is built: enabled preset halves first, the
+   user's text after it - user wins every tie. Toggling a preset re-runs this
+   with the user text UNCHANGED, which is the whole point of layers: nothing
+   in the box moves when a switch flips. */
+function articleRefresh(){
+  if(userSheet)try{userSheet.replaceSync(presetArticleCSS+userArticleCSS)}
+  catch(e){console.warn("custom article CSS:",e)}
+  pushFrameCSS();
 }
 function applyArticleCSS(css){
   userArticleCSS=STYLE_OFF?"":String(css||"");
@@ -719,9 +739,7 @@ function applyArticleCSS(css){
   // while one declared in the App box reaches shadow content. The catch is
   // kept for what replaceSync CAN raise - a sheet already being modified -
   // which is our bug to see, not the user's CSS.
-  if(userSheet)try{userSheet.replaceSync(userArticleCSS)}
-  catch(e){console.warn("custom article CSS:",e)}
-  pushFrameCSS();
+  articleRefresh();
 }
 async function loadUserCSS(){
   if(STYLE_OFF)return;
@@ -3549,20 +3567,19 @@ $("q").addEventListener("blur",()=>setTimeout(()=>{
    make that leak structurally impossible, and the rule fits on one line —
    App is the page, Article is what dictionaries render.
 
-   Presets INSERT TEXT rather than being switches. A switch would be a second
-   place the answer lives, needing reconciliation with whatever was typed by
-   hand; inserted text is just text, and it teaches the vocabulary at the one
-   moment the user is looking for it.
+   Presets are LAYERS, not text. Each is a file pair the server attaches and
+   detaches around whatever is written here, so switching one on or off never
+   touches these boxes and nothing needs reconciling with hand-typed CSS.
+   The editor therefore shows only what the user owns; the Presets tab is
+   switches. Anyone who DOES want to customise a preset copies it into a box
+   ("insert as text"), and from there it is just text again - Save and all.
 
    Preview is live and debounced; saving is explicit. A half-typed rule is
    not a state anyone wants written to disk — which is the opposite of the
    font stepper, where every value along the way is a value. */
-/* Presets are text, not switches: picking one inserts CSS you can then edit,
-   so there is no hidden state to reconcile with what was typed by hand. Each
-   preset also knows which box it belongs in, which is why ONE menu serves
-   both tabs — deciding App vs Article is our job, not the reader's, and a
-   menu that changed under the tab hid half the examples from whoever needed
-   them. The placement rule, stated once:
+/* The placement rule survives from the days when presets were pasted, and it
+   still governs where a hand-written rule goes - and where "insert as text"
+   puts a preset's halves:
      · a --token goes in App. Custom properties are the only thing that
        crosses into a shadow root, so one declaration recolours the page and
        every article together.
@@ -3574,195 +3591,12 @@ $("q").addEventListener("blur",()=>setTimeout(()=>{
        dictionary caps — is ONE preset with two halves, not two entries the
        reader has to know belong together. */
 
-/* Shared, byte-for-byte, by every colour preset: inserting a second one that
-   needs it is then a no-op rather than a duplicate. */
-const ART_THROUGH=
-`/* Let the app's colours through: some dictionaries paint their own white
-   background over them. Two levels deep only, so a coloured box inside an
-   entry keeps its colour — widen to ":host *" if one still shows white. */
-:host, :root > body,
-:host > *, :root > body > * { background:none !important }`;
-
 const BOXNAME={app:"App",article:"Article"};
 /* The wallpapers the Android shell unpacks into the files folder when they
    are absent. Deleting one from here would only make the next start copy it
    back, so the manager offers no Delete for them - the row says so instead. */
 const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg"];
 
-const STYLER_PRESETS=[
-  {n:"Background",g:"Colour",append:true,...{{BACKGROUND_PRESET}}},
-  {n:"Sepia",g:"Colour",append:true,...{{SEPIA_PRESET}}},
-  {n:"High contrast",g:"Colour",article:ART_THROUGH,app:
-`/* Contrast without the blinding white: near-black on a warm off-white, with
-   the hairlines darkened so the structure stays visible at any font size.
-   Push --fg to #000 and --bg to #fff if you want the maximum. */
-html:not([data-dark]){
-  --bg:#f1f0ed; --bg-card:#fbfaf8; --bg-bar:rgba(241,240,237,.94);
-  --fg:#0f0f0f; --fg-soft:#3a3a3a; --fg-faint:#5c5c5c;
-  --line:#b9b5ad; --line-soft:#d6d2ca; --link:#1c4f7c;
-  --wd-article-bg:#fbfaf8; --wd-article-fg:#0f0f0f;
-}`},
-  {n:"True black",g:"Colour",app:
-`/* Black chrome for OLED, white text in articles. The article pair looks
-   backwards and is not: dark articles are rendered LIGHT and then inverted,
-   so what you set here is the value BEFORE the flip — #fff becomes the near
-   black behind the text, #000 becomes the text. (A hair off pure black: the
-   flip carries a contrast pass with it.) */
-html[data-dark]{
-  --bg:#000; --bg-card:#0a0a0a; --bg-bar:rgba(0,0,0,.94);
-  --fg:#ededed; --fg-soft:#a8a8a8; --fg-faint:#7a7a7a;
-  --line:#242424; --line-soft:#161616;
-  --wd-article-bg:#fff; --wd-article-fg:#000;
-}`},
-  {n:"Warm dark",g:"Colour",app:
-`/* Dark mode only, warmer than the default grey. Hue survives the article
-   flip described above, so a warm off-white lands as a warm near-black. */
-html[data-dark]{
-  --bg:#1c1a17; --bg-card:#252220; --bg-bar:rgba(28,26,23,.92);
-  --wd-article-bg:#faf6ef; --wd-article-fg:#1a1a1a;
-}`},
-  {n:"Wider column",g:"Layout",app:
-`/* The reading column, permanently. The ⇔ button in the top bar does the same
-   for one session; this is how the app opens. */
-.col{max-width:1100px}
-body.wide .col{max-width:min(1600px,98vw)}`,article:
-`/* A dictionary that caps its own width would keep the text narrow inside the
-   wider column, which is why this half exists. */
-:host, :root > body { max-width:none !important; width:auto !important }`},
-  {n:"Compact",g:"Layout",app:
-`/* The app's own frame around an article, on a phone: the column gutter, the
-   list's gutter, the card's padding and the dictionary header's indent.
-   The column gutter goes entirely — the card edge IS the screen edge — and
-   what is left is the smallest inset that still reads as a margin rather than
-   as clipping: 4px between the card border and a headword, 3px more inside
-   the article's own panel. Set both to 0 to put the text against the border. */
-@media (max-width: 700px){
-  .col{padding-left:0;padding-right:0}
-  dl{padding-inline:4px}
-  .article{padding-inline:3px}
-  details.dict>summary{padding-left:.3rem;padding-right:.3rem}
-}`,article:
-`/* Two jobs, in this order: give back the side space a dictionary reserved for
-   a desktop window, then make what is left FIT — a compact article that still
-   drags sideways is not compact.
-   Only the article's ROOT needs a prefix - :host for a plain article,
-   :root > body for one that came with scripts. Everything below it can be
-   named plainly: this box only ever reaches article markup, so a bare "div"
-   here cannot touch the app.
-   Two lines to know: drop div from the second rule if a coloured box in an
-   entry ends up cramped, and 1.1em on lists is what keeps the bullet inside
-   the article instead of clipped off its edge - use 0 together with
-   list-style-position:inside to go flush. Raise 700px to apply all of it on
-   wider screens too. */
-@media (max-width: 700px){
-  :host, :root > body { margin-inline:0 !important; padding-inline:0 !important }
-  div, section, article, main, header, footer, aside, nav,
-  p, h1, h2, h3, h4, h5, h6, figure, blockquote, pre, dl, dt, table
-    { margin-inline:0 !important; padding-inline:0 !important }
-  ul, ol, dd, menu
-    { margin-inline:0 !important; padding-inline-start:1.1em !important }
-  td, th { padding-inline:.25em !important }
-
-  /* The fit half. A stylesheet written for a desktop page states widths the
-     phone does not have - and states them in em as often as in px, which is
-     why the sideways drag GROWS as you raise the font size: 40em of column is
-     40em wide whatever the screen is. So: nothing may declare its own width,
-     nothing may exceed the space it is in, and text breaks rather than pushes.
-     box-sizing is what makes the two agree, since a padded 100% box is wider
-     than 100% under the content-box default a dictionary may have set. */
-  :host, :root > body { width:auto !important; max-width:100% !important;
-    overflow-x:hidden }
-  :host *, :root > body *
-    { max-width:100% !important; min-width:0 !important;
-      box-sizing:border-box !important; overflow-wrap:break-word }
-  div, section, article, main, header, footer, aside, nav,
-  p, h1, h2, h3, h4, h5, h6, figure, blockquote, dl, dt, dd, ul, ol
-    { width:auto !important; float:none !important }
-  /* The two things that must keep their own width, and so scroll inside
-     themselves instead: a table of forms, and a block of code. The table's
-     own box stays 100% - it is the window; the cells are let back out of the
-     clamp above, or a ten-column table would be ten slivers rather than a
-     table you can push sideways. */
-  table { display:block !important; overflow-x:auto !important;
-    border-collapse:collapse }
-  table * { max-width:none !important }
-  pre { overflow-x:auto !important; white-space:pre-wrap }
-  img, video, svg { height:auto !important }
-}`},
-  {n:"Quieter results",g:"Layout",app:
-`/* Less furniture around the definitions. Delete a line to keep that one. */
-details.dict{border:0;background:none}
-details.dict>summary .count{display:none}
-details.prov{display:none}`},
-  {n:"Roomier lines",g:"Text",article:
-`/* Definitions set closer to prose than to a table. The second rule is the
-   air between paragraphs, which most dictionaries set to zero. */
-:host, :root > body { line-height:1.75 !important }
-:host p, :root > body p { margin-block:.6em }`},
-  {n:"Serif font",g:"Text",app:
-`/* The app's own font. Name families you actually have; the last entry is the
-   fallback the system is guaranteed to resolve. */
-:root{--font:Georgia,"Iowan Old Style","Times New Roman",serif}`,article:
-`/* A dictionary's own font-family wins inside its own markup, so reaching it
-   takes a separate rule and !important. Caveat worth knowing: this also
-   overrides a phonetic face a dictionary ships for its IPA — if the
-   pronunciations turn to boxes, add that element's class to the second rule
-   alongside code and kbd. */
-:host, :root > body, :host *, :root > body * {
-  font-family:Georgia,"Iowan Old Style","Times New Roman",serif !important }
-:host :is(code,kbd,pre,samp), :root > body :is(code,kbd,pre,samp) {
-  font-family:ui-monospace,Menlo,Consolas,monospace !important }`},
-  {n:"Bolder text",g:"Text",app:
-`/* For screens where the type looks washed out. Synthetic weight rather than
-   a heavier face, so it works with whatever font is in use and keeps bold
-   distinguishable from regular. WebKit and Blink only. */
-body{-webkit-text-stroke:.2px currentColor}`,article:
-`:host, :root > body { -webkit-text-stroke:.2px currentColor }`},
-  {n:"Justified text",g:"Text",article:
-`/* Justification without hyphenation opens rivers of white space in a narrow
-   column. Hyphenation follows the lang the dictionary declares; where it
-   declares none, the browser will not hyphenate. */
-:host, :root > body {
-  text-align:justify; -webkit-hyphens:auto; hyphens:auto }`},
-  {n:"Wide tables",g:"Text",article:
-`/* Conjugation and declension tables are the usual cause of sideways scroll.
-   This lets a table scroll inside itself instead of widening the article. */
-:host table, :root > body table {
-  display:block; max-width:100%; overflow-x:auto; border-collapse:collapse }
-:host :is(td,th), :root > body :is(td,th) { padding:.2em .4em }`},
-  {n:"Dictionary roles",g:"Roles",article:
-`/* Lingvo DSL and XDXF articles are built by wudict itself, so every part of
-   one is labelled with what it IS. Restyle a label here and every dictionary
-   of that kind follows. Delete the lines you do not want.
-   The parts with no rule of their own are listed at the bottom. */
-.wu-p   { color:#2e7d32; font-style:italic }   /* label, part of speech */
-.wu-ex  { color:#4682b4 }                      /* example */
-.wu-ipa { font-family:"Charis SIL","Doulos SIL",serif }  /* transcription */
-.wu-sec { opacity:.85 }                        /* secondary, optional */
-.wu-com { opacity:.8 }                         /* editorial comment */
-.wu-gr  { font-style:italic; opacity:.75 }     /* grammar note */
-.wu-acc { text-decoration:underline }          /* stress mark */
-.wu-k   { font-weight:600 }                    /* headword */
-
-/* The dictionary author's own colour and indent. These override nothing:
-   write a plain rule and yours wins, no !important needed. */
-.wu-c { color:var(--wd-c,green) }
-.wu-m { padding-left:calc(var(--wd-m,0)*1em) }
-
-/* No look of their own — give them one if you want it:
-   .wu-def  definition body
-   .wu-trn  translation      .wu-trn-not  everything that is not translation
-   .wu-trs  transcription    .wu-trs-not  everything that is not transcription
-   .wu-lang a foreign-language passage; [lang="ru"] and [data-lang="Russian"]
-            select one particular language */`},
-  {n:"Quiet examples",g:"Roles",article:
-`/* Examples in the text colour instead of blue, one size down. */
-.wu-ex { color:inherit; opacity:.8; font-size:.94em }`},
-  {n:"Tighter indents",g:"Roles",article:
-`/* DSL articles indent by level. Halve it, or set the multiplier to 0 to
-   flatten the article completely. */
-.wu-m { padding-left:calc(var(--wd-m,0)*.5em) }`},
-];
 let stylerTab="app",
     stylerText={app:"",article:""},
     // What is actually on disk. Closing without saving must put the page back
@@ -3771,10 +3605,10 @@ let stylerTab="app",
     stylerDir="",
     stylerLoaded=false,
     stylerTimer=null,
-    // "css" (either stylesheet) or "files". A third TAB, but not a third
-    // box: stylerTab stays the stylesheet the editor is on, so coming back
-    // from Files lands where you left, and stylerCommit never has to know
-    // that a pane without a textarea exists.
+    // "css" (either stylesheet), "files", or "presets". Tabs, but the extra
+    // two are not extra boxes: stylerTab stays the stylesheet the editor is
+    // on, so coming back from either pane lands where you left, and
+    // stylerCommit never has to know that a pane without a textarea exists.
     stylerView="css",
     // null until the folder has been read once, which is what lets the dot
     // on the Files tab mean "there are files" rather than "not looked yet".
@@ -3792,7 +3626,13 @@ let stylerTab="app",
     // True between a tap on the strip's "+" tile and the upload it starts.
     // The one <input type=file> serves both that tile and the Files tab, and
     // only a pick made for the strip may promote its image to the background.
-    stylerPickForBackground=false;
+    stylerPickForBackground=false,
+    // The preset registry, as /api/presets answered it: groups with their
+    // presets and inline contents, plus what is enabled. The app half of an
+    // enabled preset is a <link> the server injected at page render; the
+    // article half is composed on the page - its text lives in
+    // presetArticleCSS, declared beside the article plumbing above.
+    PRESETS=null;
 
 /* The app half of the preview, and it has to OWN the app layer, not merely
    sit on top of it. Winning on order is enough to ADD a rule and nowhere near
@@ -3838,7 +3678,7 @@ function stylerSync(){
   // Files is never dirty: an upload and a delete are already on disk when the
   // row appears or goes, so there is nothing there for Save to do.
   stylerMark($("tabFiles"),stylerFileRows&&stylerFileRows.length,false);
-  $("stylerClear").hidden=stylerView==="files"||!$("stylerCSS").value;
+  $("stylerClear").hidden=stylerView!=="css"||!$("stylerCSS").value;
 }
 /* Unsaved is the text differing from what was read back from disk, computed
    rather than latched: typing a line and deleting it again leaves nothing to
@@ -3859,14 +3699,15 @@ function stylerMark(tab,has,dirty){
    that writes there. */
 function stylerSetView(v){
   stylerView=v;
-  const files=v==="files";
-  $("stylerCSS").hidden=files;
+  const files=v==="files",presets=v==="presets";
+  $("stylerCSS").hidden=files||presets;
   $("stylerFiles").hidden=!files;
-  $("stylerPreset").hidden=files;
-  $("stylerSave").hidden=files;
+  $("stylerPresetsPane").hidden=!presets;
+  $("stylerSave").hidden=files||presets;
   $("stylerAdd").hidden=!files;
   $("tabFiles").setAttribute("aria-selected",String(files));
-  if(files){
+  $("tabPresets").setAttribute("aria-selected",String(presets));
+  if(files||presets){
     $("tabApp").setAttribute("aria-selected","false");
     $("tabArticle").setAttribute("aria-selected","false");
   }
@@ -4046,7 +3887,7 @@ function stylerFileExt(f){
   const d=f.name.lastIndexOf(".");
   return d>0?f.name.slice(d+1).toLowerCase():"";
 }
-/* A preset in the shape stylerApplyPreset already routes, or null to fall
+/* A preset in the shape stylerInsertPreset already writes, or null to fall
    back to the bare reference. */
 function stylerFileRule(f){
   const ext=stylerFileExt(f), url='url("'+f.url+'")', fmt=FONT_FORMAT[ext];
@@ -4112,7 +3953,7 @@ function stylerFileInsert(f){
     return;
   }
   const rule=stylerFileRule(f);
-  if(rule){stylerApplyPreset(rule);return}
+  if(rule){stylerInsertPreset(rule);return}
   stylerShowTab(stylerTab);
   stylerEdit('url("'+f.url+'")');
   stylerNote("Inserted into "+BOXNAME[stylerTab]);
@@ -4219,45 +4060,218 @@ async function stylerUpload(list){
     setTimeout(stylerNote,1600);
   }
 }
-/* One menu for both tabs, refreshed when the host background changes. Grouped, because a reader arrives
-   wanting a RESULT — sepia, a wider column — and not knowing which of our two
-   files it is spelled in; that is the placement rule's job, above. */
-function stylerFillPresets(){
-  const sel=$("stylerPreset");
-  sel.replaceChildren();
-  const head=document.createElement("option");
-  head.value="";head.textContent="Examples…";sel.appendChild(head);
-  const groups={};
-  for(const p of STYLER_PRESETS){
-    if(p.n==="Background"&&!document.documentElement.hasAttribute("data-shell-image"))continue;
-    const g=groups[p.g]||(groups[p.g]=Object.assign(document.createElement("optgroup"),{label:p.g}));
-    const o=document.createElement("option");o.value=p.n;o.textContent=p.n;g.appendChild(o);
+/* ── the preset layers ───────────────────────────────────────────────
+   A preset is a file pair the page attaches and detaches AROUND the user's
+   two stylesheets; nothing here ever edits what the boxes hold. The app
+   half of an enabled preset is a <link> the server injected at page render,
+   and a switch on a live page adds or removes that element - no refetch, no
+   reload. The article half is composed on the page (articles always were),
+   so the registry travels with its contents inline and a toggle re-runs the
+   one place the article sheet is built.
+
+   The conflict rule is the server's, because it is the one rule: presets in
+   the same manifest group claim the same surfaces, so switching one on
+   switches its group-mates off, and the fresh payload that comes back is
+   the truth the pane re-renders from. */
+async function presetsLoad(){
+  if(STYLE_OFF)return false;
+  try{
+    const r=await fetch("/api/presets");
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    PRESETS=await r.json();
+    presetApplyAll();
+    return true;
+  }catch(e){
+    console.warn("could not load presets:",e);
+    return false;
   }
-  for(const k in groups)sel.appendChild(groups[k]);
-  sel.value="";
 }
-/* A preset lands in the box or boxes it was written for, and the view follows
-   it so that no half arrives unseen. Re-picking one is a no-op rather than a
-   second copy — the halves shared between presets are one exact string, so
-   "already there" is a substring test and not a guess.
-   Undo stays the textarea's own, and it belongs to the box on screen: for a
-   two-part preset, Ctrl/⌘-Z takes back the half you are looking at. The other
-   half is one tab away, its tab is dotted, and Clear empties it. */
-function stylerApplyPreset(p){
+/* Every place an enabled preset touches the page, applied from the current
+   registry. Inserted before the user's own link, so the user's sheet - and
+   the live preview element after it - win every tie. A preset switched off
+   elsewhere (another window) loses its element here too, because the sync
+   prunes by the enabled set, not by what this page remembers touching. */
+function presetApplyAll(){
+  if(STYLE_OFF){presetArticleCSS="";return}
+  const enabled=new Set(PRESETS?PRESETS.enabled:[]);
+  const article=[];
+  for(const g of (PRESETS?PRESETS.groups:[]))for(const p of g.presets){
+    if(!enabled.has(p.id))continue;
+    if(p.article)article.push(p.article.css);
+    let link=document.querySelector('link[data-preset="'+p.id+'"]');
+    if(p.app){
+      if(!link){
+        link=document.createElement("link");
+        link.rel="stylesheet";link.dataset.preset=p.id;link.href=p.app.url;
+        const userLink=document.querySelector('link[href^="/style/app.css"]');
+        if(userLink)userLink.before(link);
+        else document.head.appendChild(link);
+      }
+    }else if(link)link.remove();
+  }
+  for(const link of document.querySelectorAll("link[data-preset]"))
+    if(!enabled.has(link.dataset.preset))link.remove();
+  presetArticleCSS=article.join("\n");
+  articleRefresh();
+}
+async function presetToggle(id,on){
+  if(STYLE_OFF){
+    stylerNote("Preview is off (?style=off). You can still edit and save; reload without it to see the result.");
+    return;
+  }
+  if(PRESETS&&!PRESETS.writable){
+    stylerNote("No configuration folder, so there is nowhere to remember preset choices.");
+    return;
+  }
+  try{
+    const r=await fetch("/api/presets",{method:"PUT",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({id,on})});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    PRESETS=await r.json();
+    presetApplyAll();
+    presetsPaneRender();
+  }catch(e){
+    // The switch on screen has already flipped; re-rendering from the last
+    // known payload puts it back, because a switch that lies is worse than
+    // a note alone.
+    presetsPaneRender();
+    stylerNote("Could not switch the preset: "+e.message);
+  }
+}
+/* The pane. Groups in manifest order; a group of more than one is a
+   conflict group and says so, because two switches that silently undo each
+   other are worse than a label. The Background preset only shows while the
+   shell actually has an image - it has nothing to show otherwise, which is
+   the same rule the old menu lived by. "Pasted" marks a preset whose text
+   somebody once inserted the old way and is still carrying in a box; the
+   button removes that copy so the switch can be the single source. */
+function presetsPaneRender(){
+  const pane=$("stylerPresetsPane");
+  pane.textContent="";
+  if(!PRESETS){
+    pane.appendChild(Object.assign(document.createElement("div"),
+      {className:"empty",textContent:"Loading…"}));
+    return;
+  }
+  if(!PRESETS.writable){
+    pane.appendChild(Object.assign(document.createElement("div"),
+      {className:"empty",
+       textContent:"No configuration folder, so there is nowhere to remember preset choices."}));
+    return;
+  }
+  const hasImage=document.documentElement.hasAttribute("data-shell-image");
+  for(const g of (PRESETS.groups||[])){
+    const head=document.createElement("div");head.className="ph";
+    head.textContent=g.title+(g.presets.length>1?" — pick one":"");
+    pane.appendChild(head);
+    for(const p of g.presets){
+      if(p.requiresImage&&!hasImage)continue;
+      const row=document.createElement("div");row.className="pr";
+      const sw=document.createElement("input");
+      sw.type="checkbox";sw.className="en";sw.checked=!!p.enabled;
+      sw.setAttribute("aria-label",p.title);
+      sw.onchange=()=>presetToggle(p.id,sw.checked);
+      row.appendChild(sw);
+      const n=document.createElement("div");n.className="n";
+      const b=document.createElement("b");b.textContent=p.title;
+      n.appendChild(b);
+      const s=document.createElement("s");
+      s.textContent=p.desc+(p.enabled?" — on":"");
+      n.appendChild(s);
+      // Legacy pastes, detected by their exact text in a box: the switch
+      // and the pasted copy would apply the same rules twice, and the copy
+      // would win by being later. The removal is confirmed because it rewrites
+      // the box and spends its undo history.
+      const pasted=stylerLoaded&&(p.app&&stylerText.app.includes(p.app.css)
+        ||p.article&&stylerText.article.includes(p.article.css));
+      if(pasted){
+        const tag=document.createElement("u");
+        tag.textContent="pasted in your CSS — ";
+        n.appendChild(tag);
+        const rm=document.createElement("button");
+        rm.type="button";rm.className="btn";rm.textContent="remove";
+        rm.title="Delete the pasted copy from your App/Article text, so this switch is the only copy";
+        rm.onclick=()=>{
+          if(!confirm("Remove "+p.title+"'s text from your stylesheets?"+
+            " The switch stays as it is; press Save afterwards to keep the removal."))return;
+          presetRemovePasted(p);
+        };
+        n.appendChild(rm);
+      }
+      row.appendChild(n);
+      const ins=document.createElement("button");
+      ins.type="button";ins.className="btn";ins.title="Copy this preset into your App/Article text to customise it";
+      ins.textContent="Insert";
+      ins.onclick=()=>stylerInsertPreset(p);
+      row.appendChild(ins);
+      pane.appendChild(row);
+    }
+  }
+}
+/* The shell re-reports the background while the sheet is open; the pane must
+   follow, because the Background preset's visibility hangs on it. */
+function presetsPaneRefresh(){
+  if(stylerView==="presets")presetsPaneRender();
+}
+async function stylerShowPresets(){
+  stylerSetView("presets");
+  if(!PRESETS){
+    presetsPaneRender();
+    await presetsLoad();
+  }
+  presetsPaneRender();
+}
+/* One door for "I want to customise this": the preset's halves are copied
+   into the user's own boxes, where the editor's whole machinery - editing,
+   saving, undo - already works. The view follows the halves so none lands
+   unseen, and re-inserting is a no-op rather than a second copy, the same
+   exact-string test the old menu used. If the preset is ALSO switched on,
+   the note says so: two copies apply twice, and the pasted one wins. */
+function stylerInsertPreset(p){
   const put=[],had=[];
   for(const box of ["app","article"]){
-    const css=p[box];
+    const half=p[box];
+    if(!half)continue;
+    const css=half.css||half;
     if(!css)continue;
     if(stylerText[box].includes(css)){had.push(BOXNAME[box]);continue}
-    if(stylerTab!==box)stylerShowTab(box);
+    stylerShowTab(box);
     const ta=$("stylerCSS");
-    if(p.append)ta.setSelectionRange(ta.value.length,ta.value.length);
+    ta.setSelectionRange(ta.value.length,ta.value.length);
     stylerEdit((ta.value&&!ta.value.endsWith("\n")?"\n\n":"")+css+"\n");
     put.push(BOXNAME[box]);
   }
-  stylerNote(p.n+" — "+[put.length?"inserted into "+put.join(" and "):"",
-    had.length?"already in "+had.join(" and "):""].filter(Boolean).join("; "));
+  const stillOn=p.enabled?" — the preset is still switched on; turn it off to avoid doubling":"";
+  stylerNote((p.title||p.n)+" — "+[put.length?"inserted into "+put.join(" and "):"",
+    had.length?"already in "+had.join(" and "):""].filter(Boolean).join("; ")+stillOn);
   setTimeout(stylerNote,2600);
+}
+/* The pasted copy comes out of the boxes by its exact text, everywhere it
+   occurs, and the squeeze afterwards is what keeps three blank lines from
+   being the monument to it. The textarea is refilled from the pair, which
+   spends the box's undo history - hence the confirm at the call site. */
+function presetRemovePasted(p){
+  // Commit FIRST, mutate second: stylerShowTab below folds the textarea back
+  // into the pair, and a textarea still holding the old text would quietly
+  // reinstall what this function just removed.
+  stylerCommit();
+  for(const box of ["app","article"]){
+    const half=p[box];
+    if(!half)continue;
+    const css=half.css||half;
+    let v=stylerText[box];
+    while(true){
+      const i=v.indexOf(css);
+      if(i<0)break;
+      v=v.slice(0,i)+v.slice(i+css.length);
+    }
+    v=v.replace(/\n{3,}/g,"\n\n").replace(/^\n+/,"");
+    stylerText[box]=v;
+  }
+  stylerShowTab(stylerTab);
+  stylerSync();stylerPreview();
+  stylerNote(p.title+" removed from your CSS — press Save to keep it that way");
+  if(stylerView==="presets")presetsPaneRender();
 }
 function appearanceRequest(request){
   if(!window.wudictNativeShell)return null;
@@ -4397,7 +4411,6 @@ async function stylerOpen(){
   hidePanel();
   $("styler").classList.add("show");
   appearanceRead();
-  stylerFillPresets();
   document.body.classList.add("styling");
   if(!stylerLoaded){
     stylerNote("Loading…");
@@ -4570,21 +4583,13 @@ $("stylerClear").onclick=()=>{
   stylerCommit();stylerSync();stylerPreview();
   stylerNote("Cleared — press Save to remove the file, or ⌘Z / Ctrl-Z to undo");
 };
-/* Inserted at the caret, not appended: a preset is a starting point that
-   belongs where you are working, and appending would silently drop it inside
-   whatever block the caret happens to be in the middle of. */
-$("stylerPreset").onchange=e=>{
-  const name=e.target.value;
-  e.target.value="";
-  const p=STYLER_PRESETS.find(x=>x.n===name);
-  if(p)stylerApplyPreset(p);
-};
 $("styler").addEventListener("keydown",e=>{
   if(e.key==="Escape"){e.stopPropagation();stylerCloseSheet();return}
   // Save from the keyboard, because the editor is a text field and reaching
   // for a button costs the caret position.
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();stylerSave()}
 });
+$("tabPresets").onclick=stylerShowPresets;
 
 // settings first: they decide the panel's order and the search set, and the
 // fetch is a local file read — a millisecond, not a stall worth splitting the

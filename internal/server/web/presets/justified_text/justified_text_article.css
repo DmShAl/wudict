@@ -1,0 +1,5 @@
+/* Justification without hyphenation opens rivers of white space in a narrow
+   column. Hyphenation follows the lang the dictionary declares; where it
+   declares none, the browser will not hyphenate. */
+:host, :root > body {
+  text-align:justify; -webkit-hyphens:auto; hyphens:auto }

@@ -1,0 +1,3 @@
+/* The app's own font. Name families you actually have; the last entry is the
+   fallback the system is guaranteed to resolve. */
+:root{--font:Georgia,"Iowan Old Style","Times New Roman",serif}

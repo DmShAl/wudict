@@ -1,0 +1,12 @@
+/* The app's own frame around an article, on a phone: the column gutter, the
+   list's gutter, the card's padding and the dictionary header's indent.
+   The column gutter goes entirely — the card edge IS the screen edge — and
+   what is left is the smallest inset that still reads as a margin rather than
+   as clipping: 4px between the card border and a headword, 3px more inside
+   the article's own panel. Set both to 0 to put the text against the border. */
+@media (max-width: 700px){
+  .col{padding-left:0;padding-right:0}
+  dl{padding-inline:4px}
+  .article{padding-inline:3px}
+  details.dict>summary{padding-left:.3rem;padding-right:.3rem}
+}

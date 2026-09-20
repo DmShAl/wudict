@@ -1,0 +1,6 @@
+/* The light cut of the system face: thinner strokes, a quieter page. Best
+   with the article text size a step up - light at small sizes goes pale.
+   "sans-serif-light" is the generic a phone resolves; the named faces cover
+   the desktop. */
+:root{--font:"Segoe UI Light","Helvetica Neue","Roboto Light",
+  "sans-serif-light",Helvetica,Arial,sans-serif}

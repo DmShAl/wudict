@@ -1,0 +1,4 @@
+/* Definitions set closer to prose than to a table. The second rule is the
+   air between paragraphs, which most dictionaries set to zero. */
+:host, :root > body { line-height:1.75 !important }
+:host p, :root > body p { margin-block:.6em }

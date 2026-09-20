@@ -1,0 +1,4 @@
+/* The reading column, permanently. The ⇔ button in the top bar does the same
+   for one session; this is how the app opens. */
+.col{max-width:1100px}
+body.wide .col{max-width:min(1600px,98vw)}

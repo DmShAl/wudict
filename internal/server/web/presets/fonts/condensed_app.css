@@ -1,0 +1,6 @@
+/* A narrow face fits more of a long entry on one line at the same size.
+   The Android generic is named ahead of Arial on purpose: a phone resolves
+   "sans-serif-condensed" and has no Arial, a desktop is the other way
+   round - the stack serves both without either pretending to be the other. */
+:root{--font:"Arial Narrow","Liberation Sans Narrow","Roboto Condensed",
+  "sans-serif-condensed",Arial,sans-serif}

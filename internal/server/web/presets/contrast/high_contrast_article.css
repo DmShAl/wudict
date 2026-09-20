@@ -1,0 +1,5 @@
+/* Let the app's colours through: some dictionaries paint their own white
+   background over them. Two levels deep only, so a coloured box inside an
+   entry keeps its colour — widen to ":host *" if one still shows white. */
+:host, :root > body,
+:host > *, :root > body > * { background:none !important }
