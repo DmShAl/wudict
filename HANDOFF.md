@@ -54,7 +54,10 @@ Nothing has been pushed or merged into `dev`; that is the user's call.
   zim `Close()`/`c.zr` race, `rows.Err()` in `Keywords`/`Media.Names`,
   per-call `strings.NewReplacer` in stardict/slob/bgl, dead record-range
   tree in gomdict, per-call `http.Client` in intake fetch/probe, O(n²)
-  name scans in `plainArchive`.
+  name scans in `plainArchive`, and the intake dispose ordering
+  (`install()` now closes the archive before the tail removes the source —
+  on Windows the remove over the open reader silently kept the file; the
+  two intake tests that caught it are green again).
 
 ## Windows verification recipes (this machine)
 
@@ -77,7 +80,11 @@ Nothing has been pushed or merged into `dev`; that is the user's call.
   - `internal/format/dsl`: TestMediaSourcesEveryZipSpelling.
   - Flaky everywhere: TestFailedDemandIsRetried (TempDir cleanup races the
     ingest goroutine; failed 4/5 on clean HEAD once).
-  - `internal/intake`: TestJobDisposesSource, TestSpooledSourceIsAlwaysRemoved.
+  - `internal/intake`: TestJobDisposesSource and
+    TestSpooledSourceIsAlwaysRemoved USED to fail here (dispose ran before
+    the archive reader closed, so Windows kept the "delete the source"
+    file); fixed in the second-tier batch — if they come back, look at the
+    archive Close ordering in `install()`.
   - Seven server tests used to fail on Windows at the rename step before
     item 2 (`2675563`) fixed it — if they regress, look at
     `internal/server/registry_windows.go`.
