@@ -172,6 +172,15 @@ under `## Changes`.
 - `config.SaveKeyRaw`: the WHOLE read-modify-write holds `saveMu`; the
   write is temp-in-same-dir + Sync + rename (`writeFileAtomic`). Nested
   locking would deadlock — `writeFileAtomic` takes no lock itself.
+- Merge workflow aid (NOT in the repo; excluded via `.git/info/exclude`):
+  `merge-work/index.full.html` — the fork's index.html with all extracted
+  assets (app.css, history, pick.js, group editor) inlined back, regenerated
+  by `go run merge-work/inline.go`. On an upstream sync, diff the new
+  upstream index.html against it: hunks outside fork-customized regions
+  port mechanically, hunks inside them are manual ports (to index.html or
+  to the external asset that feature now lives in). Procedure in
+  `merge-work/README.txt`; regenerate before every merge — a stale full
+  page hides exactly the changes being merged.
 
 ## Not verified on a device
 
