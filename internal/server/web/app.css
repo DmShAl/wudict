@@ -890,91 +890,115 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
   font-size:11.5px;color:var(--fg-faint);text-decoration:none}
 .pd .acts a.browse:hover{color:var(--accent)}
 .pd .acts a.browse svg{width:13px;height:13px;flex:none}
-/* Folders & configuration: a quiet disclosure under the dictionary cards.
-   It answers "where is it looking?", "where did my prepared data go?" and
-   "which config file is in effect?" — otherwise only visible on the terminal
-   at startup, which someone who opened the app in a browser never sees. */
-/* Settings live one line under the master switch, not at the foot of a
-   55-card list where nobody scrolls. The cog carries the meaning (show, don't
-   tell) while title/aria-label keep the name for tooltips and screen readers;
-   the counts double as the panel's scope, so the line earns its place even
-   when it is never clicked. An inline SVG rather than ⚙️: emoji renders as a
-   colour blob on one platform and flat on another, sits on its own baseline,
-   and cannot inherit currentColor. */
-#folders{margin:0 var(--sp-2) var(--sp-1);padding-bottom:var(--sp-1);
+/* ── the drawer's sections ───────────────────────────────────────────
+   One heading per subject, a hairline between neighbours. The drawer answers a
+   handful of unrelated questions — what is in the collection, how an answer is
+   shown, how it looks, the search box's memory, what this app is — and it used
+   to answer all of them as one column of controls under a single <details>.
+   The headings are static; the markup says why nothing folds here. --line is
+   the faintest rule in the system, which is what this drawer already separated
+   its blocks with. */
+.sect{margin:0 var(--sp-2) var(--sp-1);padding-bottom:var(--sp-1);
   border-bottom:1px solid var(--line)}
-#folders>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:.5em;
-  color:var(--fg-faint);font-size:12px;padding:.15em 0;border-radius:6px}
-#folders>summary::-webkit-details-marker{display:none}
-#folders>summary:hover,#folders[open]>summary{color:var(--fg-soft)}
-#folders>summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-#folders .cog{width:14px;height:14px;flex:none;transition:transform .2s}
-#folders>summary:hover .cog{transform:rotate(30deg)}
-#folders[open] .cog{transform:rotate(60deg)}
-/* Takes the slack so the stepper is always hard right, and truncates rather
-   than wrapping: this line must stay ONE line at 320px, and the count is the
-   half that can afford to lose its tail. */
-#folders .fsum{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;color:var(--fg-faint)}
+.sect:last-child{border-bottom:0;margin-bottom:0}
+.sect-h{margin:0;font-size:13px;font-weight:600;color:var(--fg-soft)}
+/* One door per row: label on the left, chevron on the right, and the WHOLE row
+   is the target. Same chrome as .facts .act — the faintest border over the card
+   colour, because colour in this system means "on" and is not spent on edges —
+   but at a row's height rather than a button's, and full width whatever it
+   shares a .facts container with. */
+.facts .mrow{display:flex;align-items:center;gap:.5em;width:100%;
+  box-sizing:border-box;text-align:left;text-decoration:none;cursor:pointer;
+  font-family:inherit;font-size:12.5px;line-height:1.25;padding:.5em .65em;margin:0;
+  color:var(--fg-soft);background:var(--bg-card);
+  border:1px solid var(--line);border-radius:8px;
+  transition:color .12s,border-color .12s}
+.facts .mrow:hover{color:var(--fg);border-color:var(--fg-faint)}
+.facts .mrow:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.facts .mrow svg{width:14px;height:14px;flex:none;color:var(--fg-faint)}
+.facts .mrow:hover svg{color:var(--fg-soft)}
+/* The chevron says "this leads somewhere" — a page, a window, a sheet. The one
+   row that ACTS where it stands (Rescan folders) carries no chevron and its own
+   glyph instead: a chevron over work that stays put would spend the distinction
+   every other row here depends on. */
+.facts .mrow.door::after{content:"›";margin-left:auto;color:var(--fg-faint);
+  font-size:15px;line-height:1;flex:none}
+.facts .mrow.door:hover::after{color:var(--fg-soft)}
+/* A label for the control on its row, in the register the segs' labels use. */
+.facts .rowlabel{font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
+/* The collection's count, on its own line under the heading: the answer to "is
+   it looking where I think?", and the number a reader opens this drawer to
+   check. Text and nothing else — it is not a control, so it is not drawn as one
+   (no cog, no disclosure, no target), and WHERE those folders are is reference
+   material that lives in Info with the rest of it.
+   The count truncates rather than wrapping: this line must stay ONE line at
+   320px, and the count is the half that can afford to lose its tail. */
+.counts{display:flex;align-items:center;gap:.5em;padding:.15em 0 var(--sp-2);
+  color:var(--fg-faint);font-size:12px}
+.counts .fsum{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
 /* ── article text size ──────────────────────────────────────────────
-   On the settings LINE, not inside the drawer it opens: this is adjusted
-   while reading, and a control you must first open a configuration panel to
-   reach is a control that stops being used. No "Font size" label either —
-   "17px" already says what the number is, and a word here would cost the
-   row the ~50px it needs to survive a 320px phone beside a count like
-   "12 folders · 1613 dictionaries".
-   The buttons are never `disabled` at the bounds, only dimmed: a disabled
-   button receives no pointer event, so the press would fall through to the
-   <summary> and toggle the whole panel — a dead control that does something
-   else instead is worse than one that does nothing. Clamping in applyFS is
-   what actually holds the range; .lim only says so. */
-#folders .fs{flex:none;display:flex;align-items:center;gap:2px}
-#folders .fs button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
+   On the panel, not behind the Appearance door: this is adjusted while reading,
+   and a control you must first open a window to reach is a control that stops
+   being used. It owns a row now, so it can carry the label the old layout could
+   not afford — there it shared a line with a count like "12 folders · 1613
+   dictionaries", and "17px" had to say what the number was by itself.
+   The buttons are never `disabled` at the bounds, only dimmed. Clamping in
+   applyFS is what holds the range and .lim is what says so; a control that
+   stops taking presses reads as broken, and the bound is two presses away. */
+#fsCtl{flex:none;display:flex;align-items:center;gap:2px}
+#fsCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   color:var(--fg-soft);background:var(--bg-card);border:1px solid var(--line);
   border-radius:6px;transition:color .12s,border-color .12s,opacity .12s}
-#folders .fs button:hover{color:var(--fg);border-color:var(--fg-faint)}
-#folders .fs button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#folders .fsbtn{width:22px;height:22px;font-size:13px}
-#folders .fsbtn.lim{opacity:.3}
+#fsCtl button:hover{color:var(--fg);border-color:var(--fg-faint)}
+#fsCtl button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#fsCtl .fsbtn{width:22px;height:22px;font-size:13px}
+#fsCtl .fsbtn.lim{opacity:.3}
 /* min-width holds "32px" — the widest value — so the two buttons never move
    as the number changes; tabular-nums holds the digits still within it. */
-#folders .fsval{height:22px;min-width:34px;padding:0 3px;font-size:11px;
+#fsCtl .fsval{height:22px;min-width:34px;padding:0 3px;font-size:11px;
   color:var(--fg-faint);font-variant-numeric:tabular-nums}
-#folders .grp{margin:.5em 0 .2em;color:var(--fg-faint);font-size:11px;
-  text-transform:uppercase;letter-spacing:.05em}
+/* A group's name over the rows it heads — "Dictionary folders", "Library",
+   "Config file". Sentence case and a heavier weight, NOT the uppercase+tracking
+   this used to wear: those headings are read as labels here, and a shouted line
+   in a section made of quiet reference text reads as a different kind of thing.
+   Weight is what separates it from the paths below, which are the same size and
+   colour. */
+#folderBody .grp{margin:.7em 0 .15em;color:var(--fg-soft);font-size:11.5px;
+  font-weight:600}
+#folderBody>.grp:first-child{margin-top:0}
 /* One row = a path (long, variable) beside its facts (short, fixed). The old
    layout let ONLY the path shrink, so the path always lost and broke mid-word.
    Here the path refuses to go under 24ch and the facts travel as ONE unit, so
    when the row runs out of room that unit drops to a line of its own and the
    path takes the full width. One line when it fits, two when it must — no
    media query, and no doubled height on rows that never needed it. */
-#folders .frow{display:flex;flex-wrap:wrap;align-items:baseline;
+#folderBody .frow{display:flex;flex-wrap:wrap;align-items:baseline;
   column-gap:.6em;padding:.15em 0}
-#folders .frow .p{flex:1 1 auto;min-width:min(24ch,100%);overflow-wrap:break-word;
+#folderBody .frow .p{flex:1 1 auto;min-width:min(24ch,100%);overflow-wrap:break-word;
   color:var(--fg-soft);font-size:11.5px;cursor:pointer}
-#folders .frow .meta{margin-left:auto;display:flex;align-items:baseline;gap:.9em;
+#folderBody .frow .meta{margin-left:auto;display:flex;align-items:baseline;gap:.9em;
   white-space:nowrap}
-#folders .frow .n{color:var(--fg-faint);font-size:11px}
-#folders .frow .n.bad{color:#c0564f}
-#folders .rv{color:var(--fg-faint);font-size:11px;cursor:pointer}
-#folders .rv:hover{color:var(--link);text-decoration:underline}
-#folders .frow:hover .rv{color:var(--fg-soft)}
-/* Not peers, and no longer drawn as peers. These three are frequent controls
-   and wear a bounded hit region: on the web an affordance is a BOUNDARY, not a
-   pictograph beside a word — a border is what says "aim here", which is the one
-   thing the emoji that used to sit here never said. Quietest possible bounding
-   in this system: --line (the faintest rule) over --bg-card, which on --bg is
-   barely a tint, so the edge does all the work and no colour is spent — and
-   colour is load-bearing here (--accent means "on"), so a row of saturated
-   glyphs was spending the one pre-attentive channel the design reserves.
-   font-family:inherit is not optional: #rescanBtn is a real <button> now, and a
+#folderBody .frow .n{color:var(--fg-faint);font-size:11px}
+#folderBody .frow .n.bad{color:#c0564f}
+#folderBody .rv{color:var(--fg-faint);font-size:11px;cursor:pointer}
+#folderBody .rv:hover{color:var(--link);text-decoration:underline}
+#folderBody .frow:hover .rv{color:var(--fg-soft)}
+/* The rows. An affordance on the web is a BOUNDARY, not a pictograph beside a
+   word — a border is what says "aim here", which is the one thing the emoji
+   that used to sit in these rows never said. Quietest possible bounding in this
+   system: --line (the faintest rule) over --bg-card, which on --bg is barely a
+   tint, so the edge does all the work and no colour is spent — and colour is
+   load-bearing here (--accent means "on"), so a row of saturated glyphs would
+   spend the one pre-attentive channel the design reserves.
+   font-family:inherit is not optional: these controls are real <button>s, and a
    button that does not ask for it renders in the UA stack, not var(--font). */
 .facts{display:flex;flex-wrap:wrap;gap:.45em;align-items:center;margin-top:.7em}
-/* The reading strip's row. Same left edge as the drawer beneath it (#folders'
-   own inline margin), so the two lines read as one block and not as a control
-   floating above a section. */
-.facts.reading{margin:.6em var(--sp-2) var(--sp-1)}
+/* The reading strip's row. Same left edge as the section that holds it (its
+   .sect's own inline margin), so the row reads as part of the section and not
+   as a control floating above one. */
+.facts.reading{margin:.6em 0 var(--sp-1)}
 .facts .act{display:inline-flex;align-items:center;gap:.4em;
   font-family:inherit;font-size:11.5px;line-height:1.2;padding:.28em .6em;margin:0;
   color:var(--fg-soft);background:var(--bg-card);
@@ -989,8 +1013,6 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
 .facts .seg{display:inline-flex;align-items:center;justify-content:flex-start;gap:.4em}
-#dictionaryPickerMode{flex-basis:100%}
-#dictionaryPickerMode.hidden{display:none}
 .facts .seg>span{font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
 .facts .seg .act{position:relative;border-radius:0}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
@@ -1008,8 +1030,8 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 .facts .act:hover svg{color:var(--fg-soft)}
 /* It belongs with the other things you came to this drawer to DO, so it wears
    the row's chrome — but it still reveals a choice rather than performing one,
-   and it keeps the ▸/▾ every other disclosure in this app uses (#folders,
-   .prov, .pd .about) to say so. Chrome answers "aim here", the marker answers
+   and it keeps the ▸/▾ every other disclosure in this app uses (.prov,
+   .pd .about) to say so. Chrome answers "aim here", the marker answers
    "and then you will be asked": the two are not the same promise, and this
    control needs both. The marker is driven by aria-expanded, which
    openFtsAll/closeFtsAll already maintain, so there is no second source of
@@ -1039,16 +1061,20 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 .bulkbox p:last-child{margin-bottom:0}
 .bulkbox .cost{color:var(--fg-faint)}
 .bulkbox .btn{font-size:11.5px;padding:.25em .6em;margin-right:.4em}
-#folders .warn{color:#c0564f;font-size:11.5px;margin:.3em 0}
-/* About: quiet by construction — one accent word, everything else the muted
-   text colour, separated from the controls above by a hairline rather than a
-   heading. It is an identity card, not a call to action. */
-#folders .about{margin-top:.9em;padding-top:.7em;border-top:1px solid var(--line-soft)}
-#folders .about .brand{font-size:13px;margin-right:.4em}
-#folders .about .ver{font-size:10.5px;color:var(--fg-faint);font-variant-numeric:tabular-nums}
-#folders .about p{margin:.35em 0 0;font-size:11.5px;color:var(--fg-faint);line-height:1.45}
-#folders .about a{color:var(--fg-soft);text-decoration:none;border-bottom:1px solid var(--line)}
-#folders .about a:hover{color:var(--link);border-bottom-color:currentColor}
+#folderBody .warn{color:#c0564f;font-size:11.5px;margin:.3em 0}
+/* Info: quiet by construction — one accent word, everything else the muted
+   text colour. It is an identity card, not a call to action, and it is the last
+   section in the drawer, so the hairline between sections and its own heading
+   are all the separation it needs.
+   Scoped to .sect on purpose: `.about` is ALSO the class of a card's "About this
+   dictionary" disclosure further down, which carries its own rules — a bare
+   `.about a` here would restyle that card's links. */
+.sect .about{margin-top:.2em}
+.sect .about .brand{font-size:13px;margin-right:.4em}
+.sect .about .ver{font-size:10.5px;color:var(--fg-faint);font-variant-numeric:tabular-nums}
+.sect .about p{margin:.35em 0 0;font-size:11.5px;color:var(--fg-faint);line-height:1.45}
+.sect .about a{color:var(--fg-soft);text-decoration:none;border-bottom:1px solid var(--line)}
+.sect .about a:hover{color:var(--link);border-bottom-color:currentColor}
 .pd .prov,.pd .prov1{font-size:10.5px;color:var(--fg-faint);overflow-wrap:break-word;margin-top:.15em}
 /* The whole summary toggles, so the whole summary is the affordance: hover
    the row, not a fragment of it. Nothing in here is underlined — on the web an

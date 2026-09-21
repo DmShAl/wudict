@@ -717,3 +717,88 @@ address as text under the switch and offer nothing.
 The switch is for *TESTING ONLY* with its limits stated in the hint; nothing was built to
 prolong a session or to advertise the address. Reopen only together with §3 of that
 document — server-side authentication — since every larger version of this depends on it.
+
+---
+
+## O11 — Choosing a single dictionary as a search scope — **CLOSED (2026-09-21): the jump is the answer, plus a derived picker entry**
+
+Raised 2026-09-21, the same day the dictionary picker lost its **All** mode and became a
+list of the dictionaries that answered. What that removal took away is narrower than
+"searching one dictionary": it took away the ability to *choose* one dictionary **from the
+picker**. The scope itself is alive and first-class, so the design question was only where a
+choice of one dictionary should come from — and it was left with a two-way question: is the
+jump from a dictionary's own word list enough (then nothing is built), or must the picker
+itself offer a single dictionary?
+
+**Answered by the user (2026-09-21), and it is the first branch**: "При щелчке по слову должно
+открываться стандартное окно отображения словарей и там отобразится" — the jump out of the word
+list IS the requirement. The jump needed no code: it existed, and the whole round trip was
+verified instead (desktop Chromium against a throwaway server, `test_data/`'s three dictionaries —
+facts and method in `docs/ANDROID-UI-HANDOFF.md`, "Dictionary word list → article"):
+`card → Browse → word` lands on `/?q=<word>&dict=<id>&mode=exact`, the scope selector and the
+chip name that one dictionary, only its section renders (the same word searched unscoped renders
+two), a Cyrillic headword round-trips, and Back from the article returns to the word list.
+
+**Then the second half was asked for after all, in a narrower form** — the same message: the
+picker's dropdown should name the dictionary being searched instead of the group the reader
+picked earlier ("в список груп добавлять словарь в котором ищем слово… но он не должен
+фигурировать в редакторе групп"). It is built, and built DERIVED: see the last section. That
+also surfaced one real defect next to it, fixed in the same pass — the picker's rows were
+filtered by the reader's group, so a view scoped to a dictionary outside it rendered its article
+while the window said "No results in this group".
+
+**The two things this leaves, and why neither is done now.** The browse page's own magnifier
+("Back to search") is an `<a href="/">` that loads the app with no query and leaves the word list
+on the history stack — the same shape the user rejected on `/setup` and `/lemmas`, but here the
+phone's Back gesture is the returning path and the magnifier says what it does, so it is left
+alone until it is reported. And the word list does not wear the shell background the other two
+pages do (it is a reading page with its own palette and its own dark-mode handling); that is a
+cosmetic sibling-inconsistency, not a gap in this flow.
+
+### What already exists (do not rebuild it)
+
+- A single-dictionary scope is spelled `dict=<id>`: the URL (`?q=…&dict=<id>`), the `#dict`
+  select's value, the chip label (`#dictLbl` via `syncChips`), and `searchFor(term,{scope})`
+  for anything that sets it programmatically (cross-dictionary links already do).
+- **The window described in the request exists**: `Browse A–Z…` (`#browseLink`,
+  `index.html:253`) opens `/browse`, and a dictionary's card carries its own `Browse` link
+  (`index.html:1548`). `browse.html` lists one dictionary's whole headword list, paged by
+  `?dict=<id>&p=<n>`, and **every word is already a link to the scoped view**:
+  `/?q=<word>&dict=<id>&mode=exact` (`browse.html:217`). Clicking a word therefore already
+  "shows this word in this dictionary", with no group involved.
+- Groups are **not** a server-side concept: the client resolves a scope to a LIST of ids and
+  sends it as the same comma-separated `dict=` parameter "All dictionaries" uses
+  (`index.html:2823-2848`; `groupIds()` at `index.html:623` for the non-persisted
+  `g:<facet>:<value>` spelling). A scope is a list of ids, and a one-id list is already a
+  valid one.
+
+### Why a stored "fake group" is the expensive answer
+
+The proposal was a group named after a dictionary, holding that one dictionary, added on
+demand. It buys nothing the URL cannot already say, and it costs a persisted entity: groups
+live in `state.json` (`DictPref.Groups`), are served by `GET /api/groups`, and are editable
+in the group editor — so a transient one would appear in the picker's group spinner (rebuilt
+from `/api/groups` on every open), raise "who deletes it, and when", and duplicate a scope
+that is already addressable. It is worth building only if such a group must be **stored** —
+visible in the editor, kept across restarts, hand-edited — which is a different feature from
+"show this word in this dictionary".
+
+### The picker entry, as built (and how it differs from the sketch below)
+
+Built 2026-09-21, derived rather than scoped: `scopedDictionary()` (`index.html`) reads the
+standing scope and, when it is one dictionary, contributes `{id:"d:<id>", name:<dictionary
+label>}` to the picker payload's `groups`, spliced under "All dictionaries" and used as the
+payload's current `group`. Nothing else changes: no `state.json`, no `/api/groups`, no group
+editor, nothing in localStorage, and — this is the correction to the sketch — **no `d:` case in
+`doSearch`'s `dictSel` branch**. The sketch assumed the picker would need to *set* a one-dictionary
+scope, which would have required resolving `d:<id>` to `[id]`; but the entry only ever exists
+while that dictionary IS the scope, so it can never be selected, and no resolver is reachable.
+The removal question ("when do we take it out") is answered the same way: nothing removes it,
+because it is recomputed from the scope on every open — it is gone the moment the scope is
+anything else, which is exactly when the reader picks another entry in the dropdown
+(`wudictPickerGroupChanged` resets the scope to all, the pre-existing behaviour).
+
+The general shape, kept for reference if a *stored* or *selectable* one-dictionary scope is ever
+wanted: a `d:<id>` spelling beside `g:<facet>:<value>`, resolved by the same `dictSel` branch to
+`[id]`, with the picker offering it only while the current scope is a single dictionary. That is
+the version that needs the resolver; the built one does not.

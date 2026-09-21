@@ -158,24 +158,60 @@ window.wudictShellBackground = function (color, image, imageName) {
 <button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">◐</button>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
-<!-- The panel's two windows. Both are windows for the same reason: the panel
-     navigates the collection, they edit it, and each edits a list far longer
-     than this drawer — a group's membership, and a card per installed
-     dictionary with its index chips, sizes, switches and Remove…
-     The cards used to be the panel's own tail, so the drawer ended in a
-     hundred of them and a reader who came for the folder paths or the search
-     settings walked through every one. A window per subject is also what the
-     group editor already was. -->
-<div class="facts">
-<button type="button" class="btn" id="editGroups">Edit dictionary groups</button>
-<button type="button" class="btn" id="editDictSettings">Edit dictionary settings</button>
-</div>
-<!-- The reading strip (D143). Two controls, admitted by one rule: nothing here
-     spends disk, CPU or navigation. They are what a reader reaches for WHILE
-     READING, so they are visible without opening anything; everything that
-     configures the machine is one click down, in the drawer below. No heading
-     over them — the controls name themselves (D102), and a third line of chrome
-     would cost more than it explains. -->
+<!-- Five sections, one subject each, in the order a reader arrives: what the
+     collection is and the doors that change it, how an answer is shown, how it
+     looks, the search box's memory, then the app's own identity.
+
+     A heading per section is what this drawer lacked. Everything used to hang
+     off ONE <details> called "Folders & setup", whose summary also carried the
+     text-size stepper — so the machine's doors, the reading controls, the folder
+     paths and the About block read as one undifferentiated column, and the
+     paths (reference material) were the only thing folded.
+
+     The headings are static, not foldable: the drawer is short enough to read
+     whole, and a fold would charge a tap for every setting behind it. The
+     Appearance sheet folds because a stylesheet editor and a thumbnail strip
+     are long; nothing here is. -->
+
+<section class="sect">
+  <h3 class="sect-h">Dictionaries</h3>
+  <!-- The collection's state, in numbers the server counted (/api/config's roots
+       and total): a count is the honest progress line everywhere else in this
+       app (D30), and it is what a reader opens this drawer to check. It is a
+       line of text and nothing else — no cog, no disclosure, no target — and
+       WHERE those folders are is reference material that lives in Info with the
+       rest of it. The doors that change the collection follow. -->
+  <div class="counts"><span class="fsum" id="folderSummary"></span></div>
+  <!-- One door per row, and the WHOLE row is the target: a label on the left, a
+       chevron on the right. Two open a window of this app (dictionary settings,
+       groups — each edits a list far longer than this drawer), two navigate to
+       a page of their own (folders, word-form data) and one acts in place
+       (Rescan). That is why Rescan is the only row without a chevron and the
+       only one with a glyph: a chevron promises a place, this promises work.
+       Its glyph, like every glyph in this panel, is inline SVG and never emoji:
+       emoji renders as a colour blob on one platform and flat on another, sits
+       off its own baseline, and cannot inherit currentColor — so it could not
+       follow the theme or the muted register these rows sit in.
+
+       Edit folders… and Rescan folders live here rather than in the settings
+       window for the reason the pair exists at all: adding a folder is how new
+       dictionaries arrive, so what appears afterwards is configured one row
+       above, not in another window behind another door. -->
+  <div class="facts">
+    <button type="button" class="mrow door" id="editDictSettings">Edit dictionary settings</button>
+    <button type="button" class="mrow door" id="editGroups">Edit dictionary groups</button>
+    <a class="mrow door" id="editFolders" href="/setup">Edit folders…</a>
+    <button type="button" class="mrow" id="rescanBtn" title="Re-scan every folder and re-open the dictionaries found (takes a moment)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.3 8a5.3 5.3 0 1 1-1.7-3.9"/><path d="M13.6 2v3h-3"/></svg>Rescan folders</button>
+    <a class="mrow door" id="lemmaLink" href="/lemmas" title="Install the word-form data that lets an inflected word find its dictionary entry">Lemmatization…</a>
+  </div>
+</section>
+
+<section class="sect">
+  <h3 class="sect-h">Results</h3>
+  <!-- The reading strip (D143), now under the heading it was denied when the
+       drawer had only one. Two controls, admitted by one rule: nothing here
+       spends disk, CPU or navigation. They are what a reader reaches for WHILE
+       READING, so they are visible without opening anything. -->
 <div class="facts reading">
   <!-- Not in the top bar: a control that only bites in ONE search mode has no
        business taking width away from the four that are used constantly (D102).
@@ -208,29 +244,48 @@ window.wudictShellBackground = function (color, image, imageName) {
     <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
     <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
   </span>
-  <span class="seg hidden" id="dictionaryPickerMode" role="group" aria-label="Dictionary picker mode">
-    <span>Dictionary picker</span>
-    <button type="button" class="act" id="pickerAll" aria-pressed="true" title="Choose which dictionaries to search">All</button>
-    <button type="button" class="act" id="pickerFound" aria-pressed="false" title="Show dictionaries with results and jump to their articles">Found</button>
-  </span>
 </div>
-<details id="folders">
-  <summary title="Folders &amp; setup" aria-label="Folders and setup">
-    <svg class="cog" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M6.56 1.05L9.44 1.05L9.07 2.81L10.91 3.57L11.90 2.07L13.93 4.10L12.43 5.09L13.19 6.93L14.95 6.56L14.95 9.44L13.19 9.07L12.43 10.91L13.93 11.90L11.90 13.93L10.91 12.43L9.07 13.19L9.44 14.95L6.56 14.95L6.93 13.19L5.09 12.43L4.10 13.93L2.07 11.90L3.57 10.91L2.81 9.07L1.05 9.44L1.05 6.56L2.81 6.93L3.57 5.09L2.07 4.10L4.10 2.07L5.09 3.57L6.93 2.81ZM5.50 8.00a2.50 2.50 0 1 0 5.00 0a2.50 2.50 0 1 0 -5.00 0Z"/></svg>
-    <span class="fsum" id="folderSummary"></span>
-    <!-- Inside the <summary> on purpose. Every handler below calls
-         preventDefault(), which is what actually stops the details from
-         toggling: the toggle is the click's DEFAULT ACTION, so cancelling it
-         is the fix, and stopPropagation alone would not have worked. -->
-    <span class="fs" id="fsCtl">
+  <!-- Reading the library instead of asking it something. It is a destination,
+       not a mode of the search: the search box answers a question, and this
+       opens a dictionary at a page. No dictionary in the href on purpose;
+       /browse with none asks which, and only the indexed ones can answer. -->
+  <div class="facts">
+    <a class="mrow door" id="browseLink" href="/browse" title="Read a dictionary A–Z, page by page">Browse A–Z…</a>
+  </div>
+</section>
+
+<section class="sect">
+  <h3 class="sect-h">Appearance</h3>
+  <!-- The size stepper is adjusted WHILE reading, so it stays on the panel
+       rather than behind the Appearance door — the promise the old layout made
+       by keeping it in the summary. Now that it owns a line instead of sharing
+       one with a count like "12 folders · 1613 dictionaries", the label fits
+       and the row says what the number is.
+
+       The buttons are never `disabled` at the bounds, only dimmed: clamping in
+       applyFS is what holds the range, and a control that stops taking presses
+       reads as broken. -->
+  <div class="facts">
+    <span class="rowlabel">Font size</span>
+    <span id="fsCtl">
       <button type="button" class="fsbtn" id="fsDown" aria-label="Smaller article text">&#8722;</button>
       <button type="button" class="fsval" id="fsVal" title="Article text size — click to reset" aria-label="Article text size; click to reset">15px</button>
       <button type="button" class="fsbtn" id="fsUp" aria-label="Larger article text">+</button>
-    </span></summary>
-  <!-- Monochrome inline SVG, never emoji, for the reason already stated on the
-       cog above: a colour blob on one platform and flat on another, off its own
-       baseline, and unable to inherit currentColor — so it cannot follow the
-       theme or the muted hierarchy this row is supposed to sit in. -->
+    </span>
+  </div>
+  <!-- The rest of the look lives one door down: the sheet holds the screen
+       edges, the window background and the user's own CSS, and it is long
+       enough to fold its own sections. -->
+  <div class="facts">
+    <button type="button" class="mrow door" id="stylerLink" title="Background, screen edges and custom styles">Appearance…</button>
+  </div>
+</section>
+
+<section class="sect">
+  <h3 class="sect-h">History</h3>
+  <!-- The search box's memory, which is neither a look nor a result: its own
+       section because it is the one setting that belongs to the field you type
+       in. -->
   <div class="facts">
     <span class="history-controls">
       <label class="history-setting">History length:
@@ -238,71 +293,54 @@ window.wudictShellBackground = function (color, image, imageName) {
       </label>
       <button type="button" class="act" id="clearHistory" disabled>Clear</button>
     </span>
-    <!-- Reading the library instead of asking it something. It is in this row
-         and not in the top bar because it is a destination, not a mode of the
-         search: the search box answers a question, and this opens a dictionary
-         at a page. A thumb index - a page with the cut tabs down its edge -
-         rather than the book from the dictionary chip above: that book already
-         means "a dictionary", and one glyph cannot mean two things without
-         meaning neither. No dictionary in the href on purpose; /browse with
-         none asks which, and only the indexed ones can answer. -->
-    <a class="act" id="browseLink" href="/browse" title="Read a dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse A–Z…</a>
-    <!-- Reading appearance lives in this row, beside the size stepper in the
-         summary above it. A brush, not a cog: the cog on the summary already
-         means "folders and setup", and one glyph cannot mean two things
-         without meaning neither. -->
-    <button type="button" class="act" id="stylerLink" title="Background and custom styles"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.6 1.9l2.5 2.5-7 7-3.2.7.7-3.2z"/><path d="M9.9 3.6l2.5 2.5"/></svg>Appearance…</button>
   </div>
-  <!-- The paths themselves, each with its own reveal button. The actions that
-       change them (Edit folders…, Rescan folders) live one window over in
-       Dictionary settings, with the cards those paths belong to — a reader
-       opens this drawer to read where the dictionaries are, not to move the
-       collection. -->
+</section>
+
+<section class="sect">
+  <h3 class="sect-h">Info</h3>
+  <!-- Where the app keeps things: the folders it scans, the prepared library and
+       the config file in effect. Reference material — read when a dictionary is
+       missing, or when a path has to be copied — so it belongs with the identity
+       card and not beside the doors that change it. It is a plain block, not a
+       disclosure: a path you have to unfold to read is a path you will not
+       check. loadFolders() fills it whenever the drawer opens. -->
   <div id="folderBody"></div>
-  <!-- About: last row of the only chrome panel the app has. Users already open
-       this for their folder paths, so the identity/version/links live where
-       they will be looked for, without spending room in the search UI. -->
+  <!-- The app's identity, last. -->
   <div class="about">
     <span class="brand">wu<small>Dict</small></span> <span class="ver">{{VERSION}}</span>
     <p>Search every dictionary you own, from one browser tab.</p>
     <p><a href="https://wuweidict.github.io/wudict" target="_blank" rel="noopener">Website</a>
        · <a href="https://github.com/wuweidict/wudict" target="_blank" rel="noopener">Source</a></p>
   </div>
-</details>
+</section>
 </div>
 </div>
 </div>
 
-<!-- Dictionary settings: everything that configures the collection — where its
-     files are found, re-reading them, the word-form data, bulk indexing — and
-     one card per installed dictionary, in a window of their own, opened from
-     the panel exactly as the group editor is. The buttons act on the cards
-     under them, which is why they are one surface, and why the panel no longer
-     carries them: a reader opens that drawer to consult a path or a search
-     setting, not to reconfigure a machine.
+<!-- Dictionary settings: one card per installed dictionary, in a window of
+     their own, opened from the panel exactly as the group editor is. What is
+     per-dictionary lives here — which index it has, its size, Remove…, About —
+     and so does the one bulk action that flips a switch ON those cards.
+     What is per-COLLECTION (the folders, re-scanning them, the word-form data)
+     lives in the panel's Dictionaries section instead: those are not properties
+     of any card, and adding a folder is how new cards arrive, so the door and
+     the thing it produces belong on the same screen.
      The list keeps its id and its markup, so every renderer, pointer handler
      and disclosure that already worked on it works here; only the box it sits
      in changed. -->
 <dialog id="dictSettings" class="group-dialog panel-card" aria-labelledby="dictSettingsTitle">
   <h2 id="dictSettingsTitle">Dictionary settings <button type="button" class="btn" id="closeDictSettings" aria-label="Close dictionary settings">✕</button></h2>
-  <!-- Outside the scroller, so the machine's actions stay reachable however far
-       down a hundred cards the reader has gone. -->
+  <!-- Outside the scroller, so the one action stays reachable however far down
+       a hundred cards the reader has gone. It is the only one left here: it is
+       the bulk form of the per-dictionary switches on the cards below, so it
+       belongs with them. Everything else that used to sit in this row — the
+       folders, the rescan, the word-form data — belongs to the COLLECTION
+       rather than to a card, and moved to the panel's Dictionaries section,
+       where a reader who has just added a folder can see what arrived. -->
   <div class="facts configbar">
-    <a class="act" id="editFolders" href="/setup"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.6 4a1 1 0 0 1 1-1h3.3l1.5 1.7h6a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1z"/></svg>Edit folders…</a>
-    <!-- A real <button>, not a <span>: as a span with no tabindex this action
-         could not be reached by keyboard at all. -->
-    <button type="button" class="act" id="rescanBtn" title="Re-scan every folder and re-open the dictionaries found (takes a moment)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.3 8a5.3 5.3 0 1 1-1.7-3.9"/><path d="M13.6 2v3h-3"/></svg>Rescan folders</button>
-    <!-- Word-form data is installed long after first run, and it is part of what
-         makes a dictionary answer, so it belongs beside the dictionaries — the
-         setup page it is also linked from is a place nobody visits twice.
-         One stem, two forms: not a conventional glyph, which is why it keeps
-         its label and its title. Nothing conventional means "inflection", and
-         borrowing the book from the top bar would make that glyph mean two
-         things, which is to say neither. -->
-    <a class="act" id="lemmaLink" href="/lemmas" title="Install the word-form data that lets an inflected word find its dictionary entry"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.2 8h2.6"/><path d="M4.8 8V5a1.4 1.4 0 0 1 1.4-1.4h4.4"/><path d="M4.8 8v3a1.4 1.4 0 0 0 1.4 1.4h4.4"/></svg>Lemmatization…</a>
-    <!-- Last, and the only one in the row that opens something instead of
-         doing something — the ▸ says so, and .act.disc is what gives it the
-         row's chrome without taking that distinction away.
+    <!-- The only control in the row that opens something instead of doing
+         something — the ▸ says so, and .act.disc is what gives it the row's
+         chrome without taking that distinction away.
          The shouted version ("ENABLE … GLOBALLY!") gave the least-used action
          its loudest voice, which is the hierarchy upside down; every word it
          was shouting is stated precisely, one click away, in the box this
@@ -698,13 +736,11 @@ function applyFS(px,save){
   // Debounced inside savePrefs, so holding + costs one PUT and not twenty.
   if(save&&moved)savePrefs();
 }
-/* Suppression on the CONTAINER, action on the buttons. Toggling is the
-   click's default action, so preventDefault is the whole fix — and putting it
-   on the wrapper also catches the 2px gaps between the three buttons, which
-   are still inside the <summary> and would otherwise open the panel. It runs
-   on the way back up, which is in time: the default action is taken after
-   dispatch, not during it. */
-$("fsCtl").addEventListener("click",e=>{e.preventDefault();e.stopPropagation()});
+/* The stepper's clicks used to be swallowed on the container: it sat inside a
+   <summary>, whose toggle is a click's DEFAULT action, so every press — and
+   every 2px gap between the three buttons — had to be cancelled or it folded
+   the drawer's old details. The row is a plain div now, with nothing to cancel.
+   Action on the buttons, and only there. */
 /* Full-text match marking (?hl=). Server-side: the words you searched for come
    back already wrapped in <mark class="wu-hl">, so nothing walks the article
    here — no mark.js, no DOM pass, no work at all on the phone that has to
@@ -967,9 +1003,21 @@ function setPhase(p){
 
      Two conditions, and they carry the whole rule. `activeElement===body`
      means the user has not already gone somewhere else during the load, and
-     an empty field means there is nothing on screen to read: a deep link that
-     arrived carrying ?q= has its answer coming and must not be retyped. */
-  if(wasBoot&&document.activeElement===document.body&&!$("q").value)$("q").focus();
+     an empty field means there is nothing on screen to read.
+
+     The third condition is the URL, and it is not the field, because of WHEN
+     this runs: the dictionary list becoming usable is what hands the caret
+     back, and applyURL — which fills the field and runs the search — is
+     chained AFTER that, so at this instant a deep link's field is still empty
+     and "empty means nothing to read" hands the caret to a word the reader
+     came here to READ. On a ?q= arrival that costs the reading position twice:
+     the caret brings history.js's own dropdown with it (focus is its trigger),
+     which lands over the article — the word-list jump made that the whole
+     screen. Nothing else sets the field without asking (a double-clicked word,
+     every programmatic search), and a ?q= load is meant to behave like those:
+     the word is on screen and the field waits to be touched. */
+  const arriving=new URLSearchParams(location.search).get("q");
+  if(wasBoot&&document.activeElement===document.body&&!$("q").value&&!arriving)$("q").focus();
 }
 
 /* Waiting messages. Cook Ding (庖丁解牛) — the cook whose blade never dulls
@@ -1030,56 +1078,69 @@ $("out").addEventListener("click",e=>{if(e.target.id==="retryBtn")loadDicts()});
    aim at --barh (via scroll-margin-top) rather than the momentarily-zero
    --stick. */
 const lessMotion=matchMedia("(prefers-reduced-motion: reduce)");
-// Navigation over the rendered answer, not a new search scope. Inspect at open
-// time so streaming results, deferred loads and rescans cannot leave a stale list.
-window.wudictFoundDictionaryPicker=function(){
-  const sections=[],rows=[],seen=new Set();
-  for(const det of $("out").querySelectorAll("details.dict")){
+let livePickerOpen=false,livePickerOpening=false,livePickerTimer=null,liveSearchBoxes=null,livePickerSearching=false;
+/* What the picker lists: the dictionaries that ANSWERED the current search, in
+   the order their sections appear, and a tap jumps to that section. It is the
+   only list there is — navigation over the rendered answer, never a second way
+   to choose a search scope. Inspected at open time, so streaming results,
+   deferred loads and rescans cannot leave a stale list.
+
+   NO filter by the picker's group, and dropping it was a fix rather than a
+   simplification: a row is here because its section is ON SCREEN, and which
+   dictionaries those are was already decided by the scope before the search
+   was sent (a scope of "all" or of a group is resolved to that group's members
+   in doSearch). Filtering by the reader's group could therefore only ever
+   REMOVE a dictionary that is being displayed — which is what a view scoped to
+   one dictionary did whenever that dictionary was not a member of the group:
+   the article rendered and the window said "No results in this group". */
+function livePickerRows(){
+  const rows=[],seen=new Set();
+  const roots=liveSearchBoxes||[$("out")];
+  for(const root of roots)for(const det of root.querySelectorAll("details.dict")){
+    if(!det.isConnected)continue;
     const article=det.querySelector(":scope > dl > dd[data-dict]");
     if(!article||seen.has(article.dataset.dict))continue;
     seen.add(article.dataset.dict);
     const summary=det.querySelector(":scope > summary");
     const label=Array.from(summary.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE)
       .map(n=>n.textContent).join("").trim();
-    rows.push({label:label||article.dataset.dict,index:sections.length,disabled:false});
-    sections.push(det);
+    rows.push({id:article.dataset.dict,label:label||article.dataset.dict});
   }
-  const answer=window.prompt("wudict:dictionary-picker",JSON.stringify({rows,selected:-1,found:true}));
-  if(answer===null)return;
-  const index=Number(answer),det=sections[index];
-  if(!Number.isInteger(index)||!det||!det.isConnected)return;
-  det.open=true;
-  openedIdx=-1;
-  clearTimeout(barrier);barrier=null;
-  if(markedAnswer)navAttach(det);
-  requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
-};
-let livePickerOpen=false,livePickerOpening=false,livePickerTimer=null,liveSearchBoxes=null,livePickerSearching=false;
-function livePickerRows(){
-  const ids=new Set(activeUserGroupIds());
-  if(window.wudictFoundDictionaryMode){
-    const rows=[],seen=new Set();
-    const roots=liveSearchBoxes||[$("out")];
-    for(const root of roots)for(const det of root.querySelectorAll("details.dict")){
-      if(!det.isConnected)continue;
-      const article=det.querySelector(":scope > dl > dd[data-dict]");
-      if(!article||!ids.has(article.dataset.dict)||seen.has(article.dataset.dict))continue;
-      seen.add(article.dataset.dict);
-      const summary=det.querySelector(":scope > summary");
-      const label=Array.from(summary.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE)
-        .map(n=>n.textContent).join("").trim();
-      rows.push({id:article.dataset.dict,label:label||article.dataset.dict});
-    }
-    return rows;
-  }
-  return userGroupOrderedDicts().map(d=>({id:d.id,label:dictLabel(d)}));
+  return rows;
+}
+/* The standing scope, when it is ONE dictionary, as an entry for the picker's
+   own dropdown. A word list's jump and a `?dict=` link land there, and the
+   dropdown then has to say so instead of naming the group the reader picked
+   earlier: that group is still what a later scope of "all" resolves to, but it
+   is not what is being searched, and a spinner claiming otherwise is a label
+   for the wrong thing — the list under it holds that one dictionary.
+
+   DERIVED, never stored: this entry exists only in the payload of the open
+   window — not in state.json, not in /api/groups, and so not in the group
+   editor, which is the list the reader actually edits. That is also what
+   removes it: nothing has to, because it is recomputed from the scope every
+   time the window opens. Picking anything else in the dropdown resets the
+   scope to all (wudictPickerGroupChanged), which is the moment the entry stops
+   existing; a load without `dict=` in the URL never has one. `d:` is only a
+   marker that cannot collide with a group id (those are random hex), and
+   nothing resolves it — the scope was already set when the reader arrived. */
+function scopedDictionary(){
+  const v=$("dict").value;
+  if(!v||v==="all"||v.startsWith("g:"))return null;
+  const d=dicts.find(x=>x.id===v);
+  return d?{id:"d:"+v,name:dictLabel(d)}:null;
 }
 function livePickerPayload(kind){
-  return {kind,groups:userGroups.map(g=>({id:g.id,name:g.name})),group:pickerGroup,
-    found:!!window.wudictFoundDictionaryMode,selected:$("dict").value,
-    rows:livePickerRows(),empty:window.wudictFoundDictionaryMode
-      ?(livePickerSearching?"Searching…":"No results in this group")
-      :"No dictionaries in this group"};
+  /* found:true is a statement about this list, not a mode: these rows are
+     dictionaries that answered, so the native window draws them as plain rows
+     (no radio circles, no chosen one) and a tap is a jump. There is no other
+     kind of picker left to tell it apart from. */
+  const scoped=scopedDictionary();
+  const groups=userGroups.map(g=>({id:g.id,name:g.name}));
+  if(scoped)groups.splice(1,0,scoped); // under "All dictionaries": the same axis, narrower
+  return {kind,groups,group:scoped?scoped.id:pickerGroup,
+    found:true,rows:livePickerRows(),
+    empty:livePickerSearching?"Searching…":scoped?"No results in this dictionary":"No results in this group"};
 }
 function refreshLivePicker(){
   if(!livePickerOpen)return;
@@ -1101,7 +1162,17 @@ window.wudictNativeDictionaryPicker=async function(){
 };
 window.wudictPickerClosed=()=>{livePickerOpen=false;clearTimeout(livePickerTimer)};
 window.wudictPickerGroupChanged=id=>{
-  if(!userGroups.some(g=>g.id===id)||id===pickerGroup)return;
+  /* Compared against what the SPINNER is showing, not against pickerGroup: in
+     a view scoped to one dictionary the spinner shows that dictionary
+     (scopedDictionary), and its group is a stored fallback that the reader can
+     still be in the middle of leaving. Measuring the tap against pickerGroup
+     would swallow exactly that tap — the standing group equals the chosen id,
+     the function returns, and the next payload puts the spinner back on the
+     dictionary the reader just deselected. A `d:` id fails the membership test
+     below and returns, which is right twice over: it can never be a stale
+     selection, and the scope it names is the one already in force. */
+  const scoped=scopedDictionary();
+  if(!userGroups.some(g=>g.id===id)||id===(scoped?scoped.id:pickerGroup))return;
   pickerGroup=id;localStorage.setItem("wudict_picker_group",id);
   $("dict").value="all";localStorage.setItem("wudict_dict","all");
   scopeOnce=null;syncChips();
@@ -1111,18 +1182,12 @@ window.wudictPickerGroupChanged=id=>{
   if($("q").value.trim())doSearch();
 };
 window.wudictPickerDictionarySelected=id=>{
-  if(window.wudictFoundDictionaryMode){
-    const det=(liveSearchBoxes||[$("out")]).flatMap(root=>[...root.querySelectorAll("details.dict")]).find(d=>
-      d.querySelector(":scope > dl > dd[data-dict]")?.dataset.dict===id);
-    if(!det)return;
-    det.open=true;openedIdx=-1;clearTimeout(barrier);barrier=null;
-    if(markedAnswer)navAttach(det);
-    requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
-  }else{
-    const select=$("dict"),option=[...select.options].find(o=>o.value===id);
-    if(!option)return;
-    select.value=id;select.dispatchEvent(new Event("change",{bubbles:true}));
-  }
+  const det=(liveSearchBoxes||[$("out")]).flatMap(root=>[...root.querySelectorAll("details.dict")]).find(d=>
+    d.querySelector(":scope > dl > dd[data-dict]")?.dataset.dict===id);
+  if(!det)return;
+  det.open=true;openedIdx=-1;clearTimeout(barrier);barrier=null;
+  if(markedAnswer)navAttach(det);
+  requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
 };
 $("out").addEventListener("click",e=>{
   const sum=e.target.closest("details.dict:not(.noindex)>summary");
@@ -1337,34 +1402,6 @@ $("dict").onchange=e=>{const v=e.target.value;localStorage.setItem("wudict_dict"
    submit button, so picking a mode would have appeared to do nothing at all.
    Made symmetric with #dict — re-run if there is something to re-run. */
 $("mode").onchange=()=>{syncChips();if($("q").value.trim())doSearch()};
-// Entering result navigation must release the search scope left by the picker.
-// Update all restore sources too, so a reload or streamed list cannot revive it.
-window.wudictSetDictionaryMode=function(found){
-  $("dictionaryPickerMode").classList.remove("hidden");
-  $("pickerAll").setAttribute("aria-pressed",String(!found));
-  $("pickerFound").setAttribute("aria-pressed",String(!!found));
-  const entering=found&&!window.wudictFoundDictionaryMode;
-  window.wudictFoundDictionaryMode=found;
-  refreshLivePicker();
-  if(!entering)return;
-  const select=$("dict"),url=new URL(location.href);
-  const scoped=(select.value&&select.value!=="all")||
-    (url.searchParams.has("dict")&&url.searchParams.get("dict")!=="all")||!!scopeOnce;
-  select.value="all";
-  try{localStorage.setItem("wudict_dict","all")}catch(_){}
-  scopeOnce=null;
-  url.searchParams.delete("dict");
-  url.searchParams.delete("from");
-  history.replaceState(history.state,"",url.pathname+url.search+url.hash);
-  syncChips();
-  if(scoped&&$("q").value.trim())doSearch();
-};
-for(const [id,mode] of [["pickerAll","all"],["pickerFound","found"]]){
-  $(id).addEventListener("click",()=>{
-    const saved=window.prompt("wudict:dictionary-mode",mode);
-    if(saved===mode)window.wudictSetDictionaryMode(mode==="found");
-  });
-}
 syncChips(); // the markup ships empty chips; JS stays the single authority
 
 /* provenance: the collapsed line says where the dictionary came from (its
@@ -1799,7 +1836,7 @@ async function loadFolders(){
     b.appendChild(d);
   };
   const grp=t=>{const g=document.createElement("div");g.className="grp";g.textContent=t;b.appendChild(g)};
-  grp("dictionary folders");
+  grp("Dictionary folders");
   for(const r of c.roots||[]){
     let note=`${r.count} dictionar${r.count===1?"y":"ies"}`,bad=false;
     if(!r.exists){note="folder not found";bad=true}
@@ -1817,23 +1854,14 @@ async function loadFolders(){
   // "(library)" was the heading explaining itself, and "prepared dictionaries"
   // is restated one line down by the row's own note — the same rule that keeps
   // the format prefix off a file name ending in ".mdx" (see provenance above).
-  grp("library");
+  grp("Library");
   row(c.libDir,`${c.prepared} prepared`+(c.useCached?" · in use":c.prepared?" · not in use":""),false);
   // Likewise "file": the row shows a path ending in ".toml".
-  if(c.configPath){grp("config file");row(c.configPath,"",false)}
+  if(c.configPath){grp("Config file");row(c.configPath,"",false)}
 }
-// cfgInfo is fetched at boot now, so "have we loaded?" is no longer the same
-// question as "has this section been drawn?" — ask the one that is meant.
-//
-// Whether the setup drawer is open is view state for THIS browser, like the
-// wide toggle and the theme: it is not a property of the person or of the
-// collection, so it does not belong in state.json (D143). Default closed — a
-// reader who never opens it never sees it again.
-if(localStorage.getItem("wudict_folders")==="1")$("folders").open=true;
-$("folders").addEventListener("toggle",()=>{
-  if($("folders").open&&!$("folderBody").childNodes.length)loadFolders();
-  localStorage.setItem("wudict_folders",$("folders").open?"1":"");
-});
+// The paths are drawn when the drawer opens (showPanel calls loadFolders), not
+// on a disclosure's toggle: they are part of the Info section now, so there is
+// no open state to remember and no "have we drawn it yet" to ask.
 $("folderBody").addEventListener("click",e=>{
   const p=e.target.closest(".path");if(!p)return;
   // The absolute path, not the ~-shortened text on screen.

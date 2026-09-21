@@ -22,7 +22,331 @@ manual merge attempt (10 files deleted in the working tree, index
 intact) was found and recovered with `git merge --abort` before redoing
 the merge properly; nothing was lost.
 
+**Rechecked 2026-09-21 (later session):** `dev` is at `653c36a` ("Merge
+branch 'master' into dev"). The appearance-sheet work below is no longer
+uncommitted — it is `f72bf04` "Appearence tab" on `Dictionary-Settings2`, and
+`dev` contains it. The working tree is **not** clean, and what is in it is the
+two newest pieces of work, each with its own section below: the Settings
+drawer's five sections (stage 1) and the picker's single mode. Their files are
+`internal/server/web/{index.html,app.css}`, `android/.../{Shell,ShellPrefs}.java`
+and the two `docs/` UI notes — nothing else. One untracked directory is not
+this work and was left alone: `.zcode/` (agent tooling — a plan file). It is not
+ours to ship or delete.
+Everything below those two sections is a historical snapshot, not current state.
+
 Older appearance/presets/review notes below are historical.
+
+## Dictionary word list → article, and the picker it lands in (2026-09-21, this session)
+
+The user's task: in the Dictionary settings window every dictionary has a
+**Browse** link, which opens that dictionary's word list, and **clicking a word
+must open the standard view with that word shown**. What it turned out to be is
+the answer to `docs/OPEN.md` **O11**, whose open question was exactly "is the
+jump out of the word list enough (then nothing is built), or must the picker
+itself offer a single dictionary". The jump was already there and was verified
+rather than written; the picker half then came back — in the same message — in a
+narrower form, and THAT is what this session changed: three edits in
+`internal/server/web/index.html`, all of them about what the picker window says
+and lists. No Java, no Go, no CSS, no `browse.html`.
+
+- **What the path is**: the card's `/browse?dict=<id>` (`index.html:1548`, drawn
+  only while the dictionary is indexed) → `browse.html`, whose every word is
+  `/?q=<word>&dict=<id>&mode=exact` (`browse.html:217`) → `applyURL`
+  (`index.html:3621`) sets `#mode`, sets `#dict` to that id and runs the search
+  through the normal `doSearch`, so the scope is the app's own `dict=` scope.
+- **Verified** (throwaway server on 127.0.0.1:6899, temp config + db dir,
+  `test_data/`'s three dictionaries, desktop Chromium; server killed and the
+  temp dir deleted afterwards), each step read off the live page:
+  - all three cards carry a `Browse` link whose id is the one `/api/dicts` and
+    `/api/browse` use;
+  - the word list's anchors are `/?q=…&dict=…&mode=exact`, 300 per page;
+  - clicking a word lands on `/?q=act&mode=exact&dict=56c232b0aaa1` with
+    `#mode`=exact, `#dict`=that id and the chip naming that dictionary;
+  - **the scope is real, not cosmetic**: the same word searched unscoped
+    (`dict=all`) renders **two** sections (Asperger + Oxford), and the
+    jump renders **one** — that dictionary's;
+  - a Cyrillic headword survives the round trip
+    (`а вместе с ним и` → `Zimmerman (Ru-En)`, 1 result);
+  - Back from the article returns to the word list with its page
+    (`/browse?dict=…&p=1`), because the jump records itself with `replaceState`
+    and the word list's own page turn pushed.
+- **Not verified on the phone, and the reason is a rule, not an oversight**: the
+  installed APK (`wudict2-v0.1.0-25-g653c36a-dirty`, i.e. built from this tree,
+  installed 2026-09-21 22:12) is a **release** build, so `setWebContentsDebuggingEnabled(BuildConfig.DEBUG)`
+  leaves no `webview_devtools_remote_*` socket to attach to, and installing a
+  debug build needs the user's word. The phone's server also answers 401
+  without its access key, which is not ours to read. So the device pass is owed,
+  and it is listed in `docs/ANDROID-UI-HANDOFF.md`.
+- **Two observations left alone on purpose** (both written up in O11): the
+  browse page's magnifier is `<a href="/">` — it loads the app with no query and
+  leaves the word list on the history stack, the shape the user rejected on
+  `/setup` and `/lemmas`, but here Back is the returning path and the magnifier
+  says "Back to search"; and `browse.html` is the one page that does not wear
+  the shell background (its own palette, its own dark-mode handling), which the
+  other two pages do. Neither is a gap in the flow that was asked for.
+- **One defect found in code that was already there, and then FIXED on the
+  user's word** (all of it in `internal/server/web/index.html`): `livePickerRows()`
+  filtered the answered dictionaries by the picker's own group
+  (`new Set(activeUserGroupIds())`), so a view scoped to a dictionary that is
+  **not a member of that group** rendered its article while the native picker
+  received `rows: []` and `empty: "No results in this group"`. Reproduced on the
+  throwaway server with a one-dictionary user group ("Russian only", holding
+  Zimmerman) and `localStorage.wudict_picker_group` set to it: the jump to
+  `/?q=act&mode=exact&dict=56c232b0aaa1` (Asperger, not a member) rendered **one**
+  section, `#dict`/`#dictLbl` named Asperger, and `livePickerRows()` returned `[]`.
+  The filter was redundant wherever the scope is chosen from the page (a scope of
+  `all` or of a group is already resolved to that group's members *before* the
+  search is sent), so all it could do was hide a row that was on screen — the
+  filter is gone, and the comment in `livePickerRows` says why it must not come
+  back.
+- **The picker's dropdown now names the dictionary being searched** (the user's
+  second ask in the same message): `scopedDictionary()` contributes
+  `{id:"d:<id>", name:<dict label>}` to the payload's `groups`, spliced under
+  "All dictionaries", and it is the payload's current `group` whenever the
+  standing scope is one dictionary. **Derived, never stored** — no `state.json`,
+  no `/api/groups`, no group editor, nothing in localStorage — so "when do we
+  take it out" needs no mechanism: it is recomputed from the scope on every open
+  and is gone the moment the scope is anything else. `wudictPickerGroupChanged`
+  had to change with it: its "already current, do nothing" guard compared the tap
+  against `pickerGroup`, which is a *stored fallback* in this state, so picking
+  the reader's own standing group out of a scoped view would have been swallowed
+  and the next payload would have put the spinner back on the dictionary — it now
+  compares against what the spinner SHOWS (`scopedDictionary()`). `empty` also
+  branches: "No results in this dictionary" when scoped, "No results in this
+  group" otherwise. A `d:` id is unreachable as a selection (it is only ever the
+  current entry) and fails the membership guard, so no `doSearch` resolver was
+  added — `docs/OPEN.md` O11 carries that correction to its original sketch.
+- **The caret no longer lands in the search field when a page arrives with `?q=`**
+  (the user's follow-up: `history.js` opens its dropdown on the field's `focus`,
+  so a word opened from the word list came up with the history drawn over the
+  article — "this history must show only on manual input"). The cause was the
+  boot focus rule inside `setPhase` (`index.html`), and neither of the two
+  obvious suspects was involved: the `autofocus` attribute is dropped by the
+  browser because the input is `disabled` while the page parses (measured:
+  `activeElement` is BODY at `domcontentloaded`), and the shell's
+  `wantAutoFocus` is armed only for a cold start with no query. The rule ran
+  when the dictionary list became usable, where a deep link's field is still
+  EMPTY — `applyURL`, which fills it and searches, is chained after that — so
+  "an empty field means nothing to read" handed the caret to the word the reader
+  had come to READ. It now has a third condition, checked on the URL rather than
+  on the field: `!new URLSearchParams(location.search).get("q")`.
+- **Verified after the fix**, read off the live page: `?q=act&mode=exact&dict=…`
+  leaves `activeElement` at BODY with the article rendered and no dropdown —
+  for a fresh load, for a click on a word in the word list, and for a Cyrillic
+  word; an empty start and a `?dict=`-only start still take the caret (that is
+  the "just type" intent); a hand-typed word still opens the dropdown with its
+  matches; and `searchFor` — the path a double-clicked word takes, which the
+  user pointed at as the model — leaves the caret alone, which is now what a
+  `?q=` arrival does too.
+- **The picker changes were verified in the desktop browser** on the same
+  throwaway server, read off the live page: the scoped payload is
+  `group:"d:…"`, `groups:[All Dictionaries, the dictionary, Russian only]`,
+  `rows:[that dictionary]`, `empty:"No results in this
+  dictionary"`, with one section rendered; picking the standing group out of that
+  state resets the scope to all (`#dict`="all", the URL's `dict` back to `all`,
+  the chip cleared, pickerGroup saved, search re-run — the tap the old guard would
+  have eaten); picking "All dictionaries" from the same state does the same and
+  the unscoped answer comes back (2 sections); the entry disappears from `groups`
+  in both; choosing a dictionary in the `#dict` select (the desktop route) yields
+  the same derived entry; a one-shot cross-dictionary-link scope (`searchFor` with
+  a scope) leaves the standing scope at "all" — no entry in the dropdown, but the
+  answered dictionary IS the one row, which is the fix above; `/api/groups` still
+  returns only the two real groups, localStorage holds no `d:` value, and reading
+  the payload changes no scope. `git diff --check`, `go build ./...` and
+  `go test ./internal/server -run 'TestScriptsAreContentAddressed|TestAssetCacheHeaders|TestIndexTracksTheUserStylesheet' -count=1`
+  all pass.
+- **The Java side needed no change at all** — `DictionaryPicker.Live` renders
+  whatever `groups`/`group`/`rows`/`empty` the payload carries, so the new entry
+  is just another spinner row to it. That also means the phone has to confirm it:
+  the spinner should read the dictionary while a word view is open, and the two
+  ways out of it (the group, "All dictionaries") should work from there. No APK
+  was built or installed.
+- **No APK, nothing built or installed; `go build ./...` was run for the
+  throwaway server only.**
+
+## The Settings drawer has five sections now (2026-09-21, stage 1)
+
+The user's plan for "bringing the panel into order": a `Dictionaries` section
+at the top carrying the real counts and the doors, a section for how results
+are shown, `Appearance`, `History`, `Info`. Four design questions were asked
+and answered before the work (all four took the recommendation): the second
+section is called **Results**, `Edit folders…` **and** `Rescan folders` both
+moved into the panel, History got its own section, and the headings are
+STATIC (nothing folds — the markup says why). Nothing was built for the phone;
+the user builds and checks there.
+
+- **What the drawer was**: one `<details>` called "Folders & setup" holding the
+  folder paths, the search-history controls, `Browse A–Z…`, `Appearance…` and
+  the About block, with the text-size stepper living inside its `<summary>` —
+  so the machine's doors, the reading controls and the reference paths read as
+  one undifferentiated column.
+- **What it is now** (`internal/server/web/index.html`, one `<section
+  class="sect">` per subject, in this order): `Dictionaries` (the
+  `#folderSummary` line — `N folders · M dictionaries` from `/api/config`,
+  unchanged code — then one `.mrow` per door: `#editDictSettings`,
+  `#editGroups`, `#editFolders`, `#rescanBtn`, `#lemmaLink`); `Results`
+  (`#hlBtn`, the Open-first and Sort segs, `#browseLink`); `Appearance`
+  (`#fsCtl` with a `Font size` label, then `#stylerLink`); `History`
+  (`#historyLength` + `#clearHistory`); `Info` (`#folderBody` — the paths —
+  then the `.about` block). Every id, handler and href is unchanged — the doors
+  are the same elements in new places, so no JS behaviour moved.
+- **Then two corrections from the user's look at it** (same day, the count line
+  and the paths): the **cog before the counts is gone**, so the line is text
+  and nothing else — no disclosure, no target, nothing drawn as a control; and
+  **the paths moved out of `Dictionaries` into `Info`**, with their group
+  headings in **sentence case** ("Dictionary folders", "Library", "Config
+  file" — they were lowercase in JS and uppercased by CSS; both are now normal
+  case, `font-weight:600` is what marks them as headings). The `<details
+  id="folders">` element is therefore gone entirely: no folding, and with it
+  `localStorage.wudict_folders`, the `toggle` listener and the lazy-load path
+  (`showPanel` already calls `loadFolders()` on every open, which is what fills
+  the block). `#folders .grp/.frow/.rv/.warn` became `#folderBody …`; the
+  count's rules became `.counts`.
+- **Doors vs actions, as a rule**: a door is a full-width row with a chevron
+  (`›`) on the right; the one row that ACTS where it stands (`Rescan folders`)
+  has no chevron and keeps its ⟳ glyph instead. That is the whole reason
+  `#rescanBtn` is the only row without the marker.
+- **The settings window lost three of its four toolbar commands.** `Edit
+  folders…`, `Rescan folders` and `Lemmatization…` are per-COLLECTION, not per
+  card, so they moved to the panel's `Dictionaries` section — the user's own
+  argument: adding a folder is how dictionaries arrive, so the thing that
+  configures what appeared belongs one row away. `Full-text for every
+  dictionary…` stays, because it is the bulk form of the per-card switches
+  directly under it.
+- **CSS**: `.sect` / `.sect-h` (heading + hairline, the last section without
+  one), `.facts .mrow` / `.mrow.door` / `.facts .rowlabel` and `.counts` are new
+  in `app.css`. The stepper's rules moved from `#folders .fs*` to `#fsCtl*`, the
+  paths' from `#folders .grp/.frow/.rv/.warn` to `#folderBody …`, and the bare
+  `.about` rules became `.sect .about` — **load-bearing**, because `.about` is
+  also the class of a card's "About this dictionary" disclosure further down,
+  whose links a bare `.about a` would have restyled.
+- **The stepper's click-suppression handler is gone** (`$("fsCtl")…
+  preventDefault/stopPropagation`): it existed only because the stepper sat
+  inside a `<summary>`, whose toggle is a click's default action. The row is a
+  plain div now. The dimming at the bounds (`.lim`) stayed, and its comment now
+  says what actually holds the range (clamping in `applyFS`).
+- **Comments were rewritten, not just moved**: this file's markup comments are
+  the design record, so the ones that justified the old single-`details`
+  layout, the "no Font size label" rule (the label fits now), the glyph choices
+  for `Edit folders…`/`Lemmatization…` (their rows are labelled doors now, so
+  the folder and stem glyphs are gone; the ⟳ on Rescan is the only glyph left in
+  the panel) and the reading strip's "no heading over them" all had to say
+  something true about the new shape.
+- **Verified** (throwaway server on 127.0.0.1:6899, temp config + db dir,
+  `test_data/`, desktop Chromium; server killed and the temp dir deleted
+  afterwards): five sections in order with the right headings, the last one
+  without a hairline; seven `.mrow` rows, all one line tall at 320px with **no**
+  horizontal overflow and no row overflowing its box; the chevrons present on
+  doors and `none` on `#rescanBtn` (computed `::after`); `#folderSummary`
+  reading "1 folder · 3 dictionaries" as a **plain** line (`.counts`, no svg, no
+  `<details>` anywhere in the panel) with the paths drawn in `Info` — the three
+  group headings in sentence case (`text-transform: none`, weight 600) and the
+  three path rows visible without unfolding; `#editDictSettings` opening the
+  modal window (3 cards, `:modal`, toolbar holding `#ftsAllBtn` only) and
+  `#ftsAllBtn` opening its box ("Index 3 dictionaries" / Cancel);
+  `#editGroups` opening the group editor; the stepper's two presses taking
+  `--wd-fs` 15px → 17px, updating `#fsVal` and persisting `ui.fontSize=17`
+  server-side; no duplicate ids anywhere in the page; the inline script still
+  parsing (the panel and the picker functions all present). `go build ./...`,
+  `git diff --check` and
+  `go test ./internal/server -run 'TestScriptsAreContentAddressed|TestAssetCacheHeaders|TestIndexTracksTheUserStylesheet'`
+  pass. No APK built or installed — the phone pass is owed.
+- **Known cosmetic question, left for the user**: the `Appearance` heading and
+  the `Appearance…` row inside it now say the same word. Renaming either (the
+  row could name what the sheet holds — the screen edges, the window
+  background, the user's CSS) is a one-line change if they want it.
+
+## The picker has one mode: Found (2026-09-21)
+
+The user's instruction: the Dictionary picker All/Found toggle goes away,
+the app works in Found mode only, and no saved state or code path may switch
+it back. Nothing was built for this session (the user builds and checks on
+the phone); the verification is below.
+
+- **Removed from `internal/server/web/index.html`**: the panel row
+  (`<span class="seg hidden" id="dictionaryPickerMode">` with `#pickerAll` /
+  `#pickerFound`), its two `app.css` rules (`#dictionaryPickerMode{flex-basis:100%}`
+  and `#dictionaryPickerMode.hidden{display:none}`), `window.wudictSetDictionaryMode`
+  together with the click wiring that kept its pairs of `aria-pressed`, and
+  `window.wudictFoundDictionaryPicker` — the `window.prompt` twin of the
+  native picker, which the shell could never reach anyway (see the retired
+  note below). The mode variable `window.wudictFoundDictionaryMode` is gone
+  from the page.
+- **What the single list is**: `livePickerRows()` now always returns the
+  dictionaries that ANSWERED the current search, in the order their sections
+  appear, filtered to the picker's group; `livePickerPayload()` always sends
+  `found:true` and always the found wording of `empty` ("Searching…" / "No
+  results in this group"), and no longer sends `selected` (that field was the
+  All-mode "chosen dictionary"); `wudictPickerDictionarySelected` always opens
+  the section and scrolls to it. The Java side is untouched on purpose:
+  `found:true` only chooses the presentation (plain rows, no radio circles)
+  in `DictionaryPicker.Live`, and `show()` still needs its `found` flag false
+  for `mode` / `stylerPreset` / `groupSelect`.
+- **Removed from the shell**: the mode injection in `Shell.applyBackground`
+  (it read `ShellPrefs.foundDictionaries`), the `wudict:dictionary-mode`
+  prompt handler in `Shell.windows().onJsPrompt`, the unreachable found
+  branch in `DICTIONARY_PICKER_JS`, and `ShellPrefs.FOUND_DICTIONARIES` +
+  `foundDictionaries()`. The stored `found_dictionaries` boolean is simply no
+  longer read — a value written by an older build cannot change anything, and
+  nothing has to be migrated or erased.
+- **Consequence worth knowing**: a single-dictionary search scope can no
+  longer be set from the picker (that was the All-mode radio list). Groups
+  still scope the search, cross-dictionary links and `?dict=` URLs still scope
+  a view, and picking a group in the picker resets the scope to all. The user
+  then raised how a single-dictionary scope should be chosen at all (their
+  sketch: a group holding one dictionary, added on demand, driven from a
+  word-list window) — that design question went to `docs/OPEN.md` as **O11**,
+  which recorded the fact that matters most: the entry point already exists
+  (`Browse A–Z…` → `browse.html` → `/?q=<word>&dict=<id>`), so nothing needs
+  to be built for "show this word in this dictionary". **O11 is now CLOSED**
+  (see the section below): the user answered with the jump, and it was verified
+  rather than built.
+- **Verified** (throwaway server on 127.0.0.1:6899, temp config + db dir,
+  `test_data/`'s three .dsl.dz, desktop Chromium; server killed and its temp
+  dir deleted afterwards): the page's inline script parses and runs —
+  `wudictNativeDictionaryPicker`, `livePickerRows`, `livePickerPayload` and
+  `wudictPickerDictionarySelected` are all functions, while
+  `wudictFoundDictionaryPicker`, `wudictSetDictionaryMode` and
+  `wudictFoundDictionaryMode` are all `undefined`; `#pickerAll`,
+  `#pickerFound` and `#dictionaryPickerMode` do not exist; the panel's only
+  segments are **Open first** and **Sort dictionaries** (its button ids are
+  `openOrder`, `openFast`, `sortAZ`, `sortOwn`); after a real search for
+  "time" the live payload reads `{found:true, group:"all", empty:"No results
+  in this group", rows:[Asperger…, Oxford…]}` — the two dictionaries that
+  answered, with no `selected` key. Also: `go build ./...`, `git diff --check`,
+  `go test ./internal/server -run 'TestScriptsAreContentAddressed|TestAssetCacheHeaders|TestIndexTracksTheUserStylesheet'`
+  and `:app:compileFossDebugJavaWithJavac --offline` all pass. No APK was
+  built or installed; the device pass (panel rows, the picker's list and the
+  jump) is still owed — it is listed in `docs/ANDROID-UI-HANDOFF.md`.
+
+## Retired: picker scroll speed note (2026-09-21, earlier the same session)
+
+The user asked whether the picker's jump to a dictionary can be instant
+instead of animated. It can, and the lever is the system's, not the app's.
+
+- Three call sites in `internal/server/web/index.html` are written
+  `behavior:lessMotion.matches?"auto":"smooth"`: 1094 (the picker's jump,
+  the one a tap now runs), 1112 (tap on a section's summary) and 3385
+  (`revealAt`). No `scroll-behavior` rule exists anywhere in `web/` (only
+  `overscroll-behavior`), so `"auto"` really is an instant jump rather than a
+  CSS-requested glide.
+- **On Android, `prefers-reduced-motion: reduce` IS "animator duration scale
+  == 0"** — verified in Chromium source, not from memory:
+  `ui/accessibility/android/java/src/org/chromium/ui/accessibility/AccessibilityState.java`
+  has `prefersReducedMotion() { return getAnimatorDurationScale() == 0.0; }`,
+  and `AccessibilityStateDelegateImpl` reads
+  `Settings.Global.ANIMATOR_DURATION_SCALE` (default 1f) with a
+  ContentObserver on it. That impl is also what `getDelegate()` constructs
+  when no embedder installs one, so WebView is covered without any shell
+  code of ours. So Developer options → "Animator duration scale: off" (the
+  same scale Android's Accessibility → "Remove animations" zeroes) makes
+  these jumps instant in the shipped build. The user's phone reported 1.0,
+  i.e. smooth today; the setting was READ only, never changed.
+- If it is ever made instant in code, the one thing to watch on the device is
+  a jump
+  measured before the opened section settles (the clamp described at
+  index.html:3197) — the codebase's answer to that class of bug is
+  `revealFirstMark`'s ResizeObserver settle loop.
 
 ## Appearance sheet: collapsible groups + the Screen rows (2026-09-21, this session)
 

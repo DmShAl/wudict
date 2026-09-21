@@ -113,9 +113,7 @@ final class Shell {
         web.evaluateJavascript("window.wudictNativeShell=1;"
                 + "if(typeof appearanceRead==='function' && document.getElementById('styler')"
                 + " && document.getElementById('styler').classList.contains('show')) appearanceRead();"
-                + "(window.wudictSetDictionaryMode || function(found){"
-                + "window.wudictFoundDictionaryMode=found;})("
-                + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);
+                + DICTIONARY_PICKER_JS, null);
     }
 
     // What the settings screen sends after emptying the browser's cache: the
@@ -154,10 +152,6 @@ final class Shell {
                 if (select.disabled) return;
                 if (id === 'dict' && window.wudictNativeDictionaryPicker) {
                   window.wudictNativeDictionaryPicker();
-                  return;
-                }
-                if (id === 'dict' && window.wudictFoundDictionaryMode && window.wudictFoundDictionaryPicker) {
-                  window.wudictFoundDictionaryPicker();
                   return;
                 }
                 const options = Array.from(select.options), rows = [];
@@ -400,15 +394,6 @@ final class Shell {
             public boolean onJsPrompt(WebView view, String url, String message,
                                       String defaultValue, android.webkit.JsPromptResult result) {
                 if (url == null || !url.startsWith(origin(a) + "/")) return false;
-                if ("wudict:dictionary-mode".equals(message)) {
-                    if (!"all".equals(defaultValue) && !"found".equals(defaultValue)) {
-                        result.cancel();
-                        return true;
-                    }
-                    ShellPrefs.set(a, ShellPrefs.FOUND_DICTIONARIES, "found".equals(defaultValue));
-                    result.confirm(defaultValue);
-                    return true;
-                }
                 if ("wudict:appearance".equals(message)) {
                     try {
                         org.json.JSONObject request = new org.json.JSONObject(defaultValue);

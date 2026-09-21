@@ -70,11 +70,9 @@ final class ShellPrefs {
     private static final String FILE = "shell";
 
     static final String SEPIA = "sepia";
-    static final String FOUND_DICTIONARIES = "found_dictionaries";
-
-    static boolean foundDictionaries(Context c) {
-        return of(c).getBoolean(FOUND_DICTIONARIES, false);
-    }
+    // "found_dictionaries" is no longer read: the dictionary picker lists the
+    // dictionaries that answered and nothing else, so a stored value from an
+    // older build cannot put the app back into the other mode.
     private static final String SEPIA_COLOR = "sepia_color";
     private static final int DEFAULT_SEPIA_COLOR = 0xFFF4ECD8;
 
