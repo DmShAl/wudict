@@ -15,6 +15,16 @@ names remain compatible with upstream.
 | FOSS/Play release | `com.dmshepeta.wudict2` | wuDict2 | `com.dmshepeta.wudict2.LookupActivity` |
 | FOSS/Play debug | `com.dmshepeta.wudict2.debug` | wuDict2 Debug | `com.dmshepeta.wudict2.LookupActivity` |
 
+The launcher icon is the fork's own too: upstream's mark with a "2" drawn in it,
+so the two apps are told apart on a home screen. The phone's copy is
+`android/app/src/main/res/drawable/ic_launcher_foreground.xml` (adaptive and
+monochrome), and `tools/make-icons.sh` renders the Play listing's `icon.png` and
+`featureGraphic.png` from that same mark with that same digit. The mark itself
+stays upstream's `internal/server/web/favicon.svg`, untouched, and so do the
+renditions that are only ever a few pixels tall — the tray PNGs, the served
+favicon, the `.icns`/`.ico`: a digit at 16px is a smudge, and no desktop build
+ships from this fork.
+
 wuDict2 uses `127.0.0.1:6889` by default; upstream wuDict uses port 6888.
 The server's `wudict` protocol identity stays upstream-compatible. The Android
 shell checks the responding server's app-specific library directory before
@@ -63,6 +73,7 @@ merge merely to resume this work.
 | Android IDs, FOSS/Play flavors, debug suffix, artifact names | `android/app/build.gradle` |
 | Exported launcher/lookup activities and shortcut resource | `android/app/src/main/AndroidManifest.xml`; `src/main/res/xml/shortcuts.xml` and `src/debug/res/xml/shortcuts.xml` |
 | Distinct external-reader component | `android/app/src/main/java/com/dmshepeta/wudict2/LookupActivity.java`, extending the unchanged upstream-package implementation |
+| Launcher icon, Play listing images | `android/app/src/main/res/drawable/ic_launcher_foreground.xml` (the icon the phone shows); `tools/make-icons.sh` renders both Play images from `internal/server/web/favicon.svg` with the same digit |
 | Port and saved override | `android/app/src/main/java/com/legbehindneck/wudict/ShellPrefs.java`: `DEFAULT_PORT`, `SERVER_PORT`, `port(Context)`; the settings hint is in `src/main/res/values/strings.xml` |
 | Child Go process, adoption, readiness | `android/app/src/main/java/com/legbehindneck/wudict/ServerProcess.java`: `run`, `adoptRunningServer`, `awaitPort`; `AppDirs.java` provides the app-specific library directory |
 | Shared Go protocol | `internal/server/server.go` defines the `wudict` Server header; `internal/server/folders.go` provides `/api/config.libDir`; `internal/cli/running.go` probes an occupied port. No Go identity rename is needed for separate ports. |

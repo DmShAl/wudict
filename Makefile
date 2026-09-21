@@ -106,7 +106,7 @@ cross: ## Cross-compile all release targets into dist/ (purego flavour: pure-Go 
 # reads that from the running process rather than from a second artifact.
 
 .PHONY: icons
-icons: ## Regenerate the committed tray PNGs + macOS .icns from internal/server/web/favicon.svg (needs rsvg-convert)
+icons: ## Regenerate the committed tray PNGs, macOS .icns + the Play listing images from internal/server/web/favicon.svg (needs rsvg-convert)
 	@sh tools/make-icons.sh
 
 # ---- macOS .app bundle (D75) --------------------------------------------

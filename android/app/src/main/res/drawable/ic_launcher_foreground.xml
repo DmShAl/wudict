@@ -5,7 +5,9 @@
      canvas: 32·1.5 = 48, centred by (108−48)/2 = 30. The glyph's own ink is
      centred inside its 32-unit box (see favicon.svg), so the drawn mark lands on
      the canvas centre and stays inside the 66dp safe zone every launcher mask
-     respects — 39×31.5dp of ink, worst case a circle mask with 13dp to spare. -->
+     respects — 39×31.5dp of ink, worst case a circle mask with 13dp to spare.
+     The digit at the end is inside that ink box, so all of the above holds for
+     it too; its own note is below. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -33,6 +35,30 @@
             android:strokeColor="#FFFFFF"
             android:strokeWidth="3"
             android:strokeLineCap="round"
+            android:fillColor="#00000000" />
+        <!-- The "2" — this fork's whole icon difference. wuDict2 installs
+             BESIDE the upstream app, so the launcher icon has to say which of
+             the two it is: one digit in the free bottom-left corner, next to
+             the lens, drawn in the mark's own hand — a semicircle of r=3 on the
+             y=20 line, a diagonal, a foot, at the text lines' stroke width,
+             round caps and joins.
+             Ink x[3,12] y[16,26]. The left edge is the text lines' own margin
+             (3); the foot sits on odd y=25 with width 2, so at 16px its edges
+             are whole pixels (rule 3 of the mark); and it stays inside the ink
+             box the mark already occupies, x[3,29] y[6,27] — which is what
+             leaves the centring rule (1) and the safe-zone margin above
+             untouched. Clearances: 2 units to the second text line above, 2 to
+             the lens on the right.
+             The digit is the one thing here that does NOT come from
+             favicon.svg, so it has a second copy: tools/make-icons.sh draws the
+             same path for the Play listing's two images. Change one, change the
+             other. -->
+        <path
+            android:pathData="M4,20 A3,3 0 1 1 10,20 L4,25 H11"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
             android:fillColor="#00000000" />
     </group>
 </vector>

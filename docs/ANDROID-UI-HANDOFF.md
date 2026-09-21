@@ -41,6 +41,7 @@ Java paths below are relative to `android/app/src/main/java/com/legbehindneck/wu
 | Article iframe bridge | `internal/server/web/frame.js`; shadow articles inherit CSS variables, iframe articles receive resolved tokens through `frameCSS`/`pushFrameCSS` in index.html |
 | Embedded example CSS | `internal/server/web/presets/background/`: `background_image_app.css`, `background_image_article.css`, `sepia_app.css`, `sepia_article.css` |
 | Packaging examples into page | `internal/server/server.go`: go:embed strings, JSON-encoded `BACKGROUND_PRESET` / `SEPIA_PRESET` substitutions in `basePage` |
+| Launcher icon (the fork's mark with a "2") | `android/app/src/main/res/drawable/ic_launcher_foreground.xml` — adaptive and monochrome; the digit's geometry and the mark rules it obeys are in its comment. The Play listing's `icon.png`/`featureGraphic.png` are rendered from the same path by `tools/make-icons.sh`. A resource change is checked with `.\gradlew.bat :app:processFossDebugResources --offline` from `android/` (the Java-only check does not look at `res/`); **owed on a device**: the launcher icon itself, its themed monochrome form, and the store listing, none of which has been seen on a phone |
 
 ### Dictionary groups: current work
 

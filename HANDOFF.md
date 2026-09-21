@@ -36,6 +36,55 @@ Everything below those two sections is a historical snapshot, not current state.
 
 Older appearance/presets/review notes below are historical.
 
+**Rechecked 2026-09-22:** `dev` is at `09fd7ea` — the two pieces above are
+committed, and the tree is clean again apart from one new uncommitted piece,
+this session's icon change, plus the same untracked `.zcode/`.
+
+## The launcher icon carries a "2" now (2026-09-22, this session)
+
+The user asked for a "2" in the bottom-left corner of the wuDict2 icon ("рядом с
+луппой", i.e. next to the lens) and listed four file paths they believed were
+the icon. Two really are it: the Play listing's `icon.png` and
+`featureGraphic.png`. The other two, `internal/tray/icons/{tray,tray-template}.png`,
+are the DESKTOP systray's — rendered from `internal/server/web/favicon.svg` by
+`tools/make-icons.sh` — and the phone's actual icon is not a PNG at all:
+`android/app/src/main/res/drawable/ic_launcher_foreground.xml`, a
+VectorDrawable, which their list did not contain.
+
+- **Changed**: that VectorDrawable (the phone's adaptive + monochrome icon) and
+  the two Play PNGs, rendered from the same mark. The digit's geometry, the mark
+  rules it is composed against and its clearances are stated in both files'
+  comments — not restated here.
+- **Where the digit lives**: the VectorDrawable, and `tools/make-icons.sh`, which
+  derives the Play renders from `favicon.svg` by substitution (the technique that
+  script already uses for the macOS template) so an upstream change to the mark
+  still reaches them. The digit is the only thing written down twice; both
+  comments say so.
+- **Left alone on purpose**: `favicon.svg` and its `pages/docs/assets/` copies,
+  the tray PNGs, `packaging/*.icns|.ico`. Those are all 16–32px renditions, where
+  a digit is a smudge, and they belong to the shared web/desktop artifacts of a
+  fork that ships no desktop build. If the mark should change ALL the way, it is
+  one `make icons` run plus the three SVG copies — but that is a permanent merge
+  cost on upstream files. The user's list included the tray pair; that is why.
+- **Verified**: the VectorDrawable's own XML was converted back to SVG and
+  rendered against the intended drawing — RMSE 0.015, which is the lens's
+  circle-vs-two-arcs antialiasing and nothing else, so the path on the phone's
+  icon is the designed one. `tools/make-icons.sh` ran end-to-end in a throwaway
+  tree with its `rsvg-convert` calls shimmed onto ImageMagick's librsvg delegate
+  (this machine has no librsvg) and produced BOTH Play PNGs pixel-identical to
+  the committed pair (`compare -metric RMSE` 0). The store images' canvases and
+  mark scales were measured off the pair they replace (glyph box 2/3 of the 512
+  icon, 300px wide in the 1024×500 graphic, both centred, both on full-bleed
+  `#4c6680`), and a digit-less re-render of the feature graphic reproduced the
+  old committed file to RMSE 3.2e-05.
+- **Owed**: nothing was built or installed, so no device has shown the new
+  launcher icon, its themed monochrome form, or the store listing. Static checks
+  pass: `sh -n tools/make-icons.sh`, the vector's XML parse, `git diff --check`.
+- **Found while working, left as found**: `tools/make-icons.sh` exits early when
+  `iconutil` is missing (upstream's own behaviour), so on a machine without
+  macOS tools `make icons` never reaches the Windows `.ico` section either. The
+  new Play section was placed BEFORE that guard on purpose, so it runs anywhere.
+
 ## Dictionary word list → article, and the picker it lands in (2026-09-21, this session)
 
 The user's task: in the Dictionary settings window every dictionary has a

@@ -3,15 +3,24 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Render the tray icons from the one source mark (D70: the mark is generated
-# from internal/server/web/favicon.svg, never redrawn — it already exists in
-# five unlinked places and this must not make a sixth).
+# Render the tray icons — and this fork's own launcher mark — from the one
+# source mark (D70: the mark is generated from
+# internal/server/web/favicon.svg, never redrawn — it already exists in five
+# unlinked places and this must not make a sixth; the digit added below is the
+# fork's one deliberate exception, and it is derived from that mark, not drawn
+# beside it).
 #
 # Outputs are COMMITTED, so `make build` needs no image toolchain. Run
 # `make icons` by hand when the mark changes.
 #
 #   internal/tray/icons/tray.png           32x32 colour  — Windows, Linux
 #   internal/tray/icons/tray-template.png  44x44 mono    — macOS @2x template
+#
+# …and the mark the Android app and its Play listing wear, which is the same
+# mark with this fork's digit in it:
+#
+#   fastlane/metadata/android/en-US/images/icon.png            512x512
+#   fastlane/metadata/android/en-US/images/featureGraphic.png  1024x500
 #
 # The icons live under internal/tray/ rather than packaging/ because go:embed
 # cannot reach outside its own package directory.
@@ -48,6 +57,71 @@ for f in tray.png tray-template.png; do
 	[ -s "$out/$f" ] || { echo "make-icons: $f is empty" >&2; exit 1; }
 	printf '%s  ' "$f"
 	ls -l "$out/$f" | awk '{print $5 " bytes"}'
+done
+
+# ---- this fork's own launcher mark (wuDict2) ------------------------------
+# wuDict2 installs BESIDE the upstream app, so its icon has to say which of the
+# two it is: the same mark with a "2" in the free bottom-left corner, next to
+# the lens. Both outputs below are derived from the source by substitution,
+# exactly as the template variant above is, so the mark's three geometry rules
+# survive untouched and an upstream change to the mark reaches them without a
+# second copy of it existing anywhere.
+#
+# The digit, in the mark's own 32-unit space:
+#
+#   M4 20 A3 3 0 1 1 10 20 L4 25 H11
+#
+# one semicircle (r=3, its diameter on the y=20 line), one diagonal, one foot,
+# at the text lines' stroke width (2), round caps and joins. Its ink is x[3,12]
+# y[16,26]: the left edge is the text lines' own margin (3), the foot sits on
+# odd y=25 so at 16px its edges are whole pixels (rule 3), and it stays inside
+# the ink box the mark already occupies — x[3,29] y[6,27] — which leaves rule 1
+# (centred ink) and the adaptive icon's safe-zone margin untouched. Clearances:
+# 2 units to the second text line above, 2 to the lens on the right.
+#
+# android/app/src/main/res/drawable/ic_launcher_foreground.xml carries the same
+# path by hand, and THAT is the icon the phone shows — a launcher icon is only
+# ever a VectorDrawable, so it cannot be rendered from here. What is rendered
+# here is the Play listing's pair, on canvases and at mark scales taken from the
+# images they replace (the glyph box is 2/3 of the 512 icon and 300px wide in
+# the 1024-wide feature graphic, both centred, both on the tile colour
+# full-bleed — the store applies the only corner either of them has).
+#
+# The tile colour and the mark are read out of the source rather than repeated
+# here; the digit is the one thing written down twice in this repository, here
+# and in that VectorDrawable.
+#
+# On a machine without rsvg-convert, ImageMagick's librsvg delegate renders
+# these two identically (`magick -background none x.svg -alpha off PNG24:x.png`)
+# — that is how the committed pair was rendered.
+tile=$(sed -n 's/.*<rect[^>]*fill="\(#[0-9a-fA-F]*\)".*/\1/p' "$src")
+[ -n "$tile" ] || { echo "make-icons: no tile colour in $src" >&2; exit 1; }
+digit='M4 20A3 3 0 1 1 10 20L4 25H11'
+mark=$(sed -e '/<rect /d' \
+	-e "s|</g>|<path d=\"$digit\" stroke-width=\"2\" stroke-linejoin=\"round\"/></g>|" "$src")
+
+play="$root/fastlane/metadata/android/en-US/images"
+mkdir -p "$play"
+
+render_mark() { # width height scale tx ty out
+	cat > "$tmp/play.svg" <<EOF
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $1 $2" width="$1" height="$2">
+  <rect width="$1" height="$2" fill="$tile"/>
+  <g transform="translate($4,$5) scale($3)">
+$mark
+  </g>
+</svg>
+EOF
+	rsvg-convert -w "$1" -h "$2" -o "$6" "$tmp/play.svg"
+}
+
+render_mark 512  512 10.66667 85.3333 85.3333 "$play/icon.png"
+render_mark 1024 500 9.375    362     100    "$play/featureGraphic.png"
+
+for f in icon.png featureGraphic.png; do
+	[ -s "$play/$f" ] || { echo "make-icons: $f is empty" >&2; exit 1; }
+	printf '%s  ' "$f"
+	ls -l "$play/$f" | awk '{print $5 " bytes"}'
 done
 
 # ---- the macOS app icon (P85) -------------------------------------------
