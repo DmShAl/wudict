@@ -142,16 +142,26 @@ public class MainActivity extends Activity {
                 Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
                 Insets ime = insets.getInsets(WindowInsets.Type.ime());
+                // The IME's height only counts while the keyboard is on screen.
+                // A callback can arrive with a non-zero ime inset and no keyboard
+                // (its frame still measured, or the IME going away while a page
+                // was loading), and padding a window for a keyboard nobody can
+                // see shrinks the whole page - which is how the Dictionary
+                // settings window came back smaller after a trip to Edit Folders
+                // (reported from the phone twice: the box follows the viewport,
+                // the viewport had lost ~145px, and a dialog with a bands above
+                // and below it was the visible symptom).
+                boolean imeUp = insets.isVisible(WindowInsets.Type.ime());
                 boolean toPage = ShellPrefs.edgeMode(this) == ShellPrefs.EDGE_NONE;
                 int top = toPage ? 0 : bars.top;
-                int bottom = Math.max(toPage ? 0 : bars.bottom, ime.bottom);
+                int bottom = Math.max(toPage ? 0 : bars.bottom, imeUp ? ime.bottom : 0);
                 v.setPadding(bars.left, top, bars.right, bottom);
                 // Zeroes in every other mode, which is how switching back out
                 // of EDGE_NONE undoes itself. The bottom is withheld while the
                 // keyboard is up: the shell is holding that space open already,
                 // and the page must not hold it a second time.
                 publishInsets(toPage ? bars.top : 0,
-                        toPage && ime.bottom == 0 ? bars.bottom : 0);
+                        toPage && !imeUp ? bars.bottom : 0);
             } else {
                 legacyPadding(v, insets);
             }
@@ -254,6 +264,24 @@ public class MainActivity extends Activity {
     void refreshAppearance() {
         applyEdges();
         Shell.applyBackground(web);
+    }
+
+    /**
+     * A Screen row changed in the page's Appearance sheet - the edge mode, the
+     * margin colour, which bars hide while reading.
+     *
+     * <p>The subject is this WINDOW, so nothing in the page can show the
+     * result and the page cannot be told about it either: the edges are
+     * repainted and the bars are asked away or back, and the insets are asked
+     * for AGAIN because the edge mode decides who wears them - EDGE_NONE hands
+     * the top and bottom to the page, and every other mode takes them back.
+     * requestApplyInsets re-runs the listener installed in onCreate, which is
+     * the same route a return from the settings screen takes on focus gain.
+     */
+    void refreshScreen() {
+        applyEdges();
+        applyBars();
+        root.requestApplyInsets();
     }
 
     @SuppressWarnings("deprecation")
@@ -631,6 +659,14 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         if (!Intake.onNewIntent(this, intent)) Storage.onNewIntent(this, intent);
+        // "Clear browser cache" in the settings screen emptied what this page
+        // was last loaded from: load it again rather than leave the window
+        // showing copies that no longer exist. It is not a bypass-cache reload -
+        // there is nothing cached to bypass.
+        if (intent != null && intent.getBooleanExtra(Shell.EXTRA_RELOAD, false)
+                && !gone && web.getParent() != null) {
+            web.reload();
+        }
         // Only what THIS intent brought: an unrelated intent must not fire a
         // query left pending by an earlier one - showPage owns that.
         if (takeQuery(intent) && !gone && web.getParent() != null) {

@@ -52,14 +52,13 @@
 	<string name="settings_lookup_share">From the share menu</string>
 	<string name="settings_lookup_link">From links and automation</string>
 	<!--
- Window facts (D141), and the only rows on this screen whose effect the
-          user can see the moment they leave it. Each label says what they GET;
-          each hint says the one thing they must know to live with it - that the
-          bars are a swipe away rather than gone, and that the last edge choice
-          trades a margin for reading room. Nothing about flags, cutout modes or
-          API levels: there is nothing to do with that (D102). 
+ Screen (D141): how the margins around the page are painted, and which
+          bars hide while reading. Those two rows are NOT here any more - they
+          live in the web Appearance sheet, where the wording belongs to the
+          page that draws them (SCREEN_EDGE_OPTIONS and friends in
+          web/index.html), and write the same ShellPrefs through the
+          wudict:appearance bridge.
 	-->
-	<string name="settings_screen_head">Screen</string>
     <string name="settings_dictionary_picker">Dictionary picker</string>
     <string-array name="settings_dictionary_picker_modes">
         <item>All Dictionaries</item>
@@ -68,33 +67,6 @@
     <string name="settings_dictionary_picker_hint">All Dictionaries changes where you search. Found Dictionaries jumps to a dictionary in the current results.</string>
     <string name="found_dictionaries_title">Found Dictionaries</string>
     <string name="found_dictionaries_empty">No dictionary articles are displayed yet.</string>
-	<string name="settings_edge">Edges of the screen</string>
-	<string name="settings_edge_hint">What fills the margins around the page — the strip behind the camera at the top, and the band above the navigation bar at the bottom.</string>
-	<!--
- Order is the stored order and may not be rearranged. Phrased as what
-          the colour FOLLOWS, because that is the whole question: a user whose
-          page is dark under a light phone is choosing which of the two the
-          margins should agree with. 
-	-->
-	<string-array name="settings_edge_modes">
-		<item>Match the phone\'s light or dark setting</item>
-		<item>Match the page</item>
-		<item>Black</item>
-		<item>A colour you pick</item>
-		<item>No margins — the page fills the screen</item>
-	</string-array>
-	<string name="settings_edge_custom">Margin colour</string>
-	<string name="settings_edge_custom_hint">A colour like #1A1A1A.</string>
-	<string name="settings_edge_custom_bad">That is not a colour. Use six digits after a #, like #1A1A1A.</string>
-	<string name="settings_edge_none_hint">The page runs under the clock and the navigation bar. The search field stays clear of the camera, and the rest of the screen is yours while you scroll.</string>
-	<string name="settings_bars">Hide while you read</string>
-	<string name="settings_bars_hint">Swipe in from the top or bottom edge to bring them back for a moment.</string>
-	<string-array name="settings_bars_modes">
-		<item>Nothing</item>
-		<item>The clock and status icons</item>
-		<item>The navigation bar</item>
-		<item>Both</item>
-	</string-array>
 	<!--
  PLATFORM OVERRIDES (D101). Each row names a resource trade the DEVICE
           forces - space, memory, cores, an address - never a dictionary fact,
@@ -152,6 +124,9 @@ app
 	<string name="settings_restore">Restore defaults</string>
 	<string name="settings_restore_confirm">Clear every advanced setting and go back to what the settings file says?</string>
 	<string name="settings_restore_done">Advanced settings cleared.</string>
+	<string name="settings_clear_cache">Clear browser cache</string>
+	<string name="settings_clear_cache_hint">Throws away the copies of the page\'s files this app keeps on the device, then loads the page again — for when an update leaves it showing something old. Your dictionaries, their indexes and your settings are not touched.</string>
+	<string name="settings_clear_cache_done">Browser cache cleared.</string>
 	<string name="settings_cancel">Cancel</string>
 	<!--
  Intake: an archive arriving from a file manager, a share sheet or the

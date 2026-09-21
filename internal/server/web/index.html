@@ -136,7 +136,7 @@ window.wudictShellBackground = function (color, image, imageName) {
 <button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
 <button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
 <button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
-<button type="button" class="btn tools" id="panelBtn" title="Dictionaries" aria-label="Manage dictionaries">☰</button>
+<button type="button" class="btn tools" id="panelBtn" title="Settings" aria-label="Settings">☰</button>
 </form>
 </header>
 
@@ -148,9 +148,9 @@ window.wudictShellBackground = function (color, image, imageName) {
 <div id="out"></div>
 </main>
 
-<div id="panel" role="dialog" aria-label="Dictionaries">
+<div id="panel" role="dialog" aria-label="Settings">
 <div class="panel-card">
-<div class="panel-head"><h2>Dictionaries
+<div class="panel-head"><h2>Settings
 <span class="headacts">
 <!-- The theme control's narrow-viewport home. Not a second control: both
      elements carry .themeBtn and one handler drives the pair, the way the
@@ -336,9 +336,55 @@ window.wudictShellBackground = function (color, image, imageName) {
     <span class="grow"></span>
     <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
   </div>
-  <div id="appearanceBackground" hidden>
-    <strong>Window background</strong>
-    <div class="appearance-row"><label for="appearanceColorOn">Color</label><input id="appearanceColorOn" type="checkbox"><div id="appearanceColorBox"><input id="appearanceColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Background color, six hexadecimal digits"><div id="appearanceColorMenu" class="color-history" hidden></div></div></div>
+  <!-- The sheet's groups, each behind a bar with a triangle, so which parts of
+       the sheet take its room is the reader's decision and not a layout's. The
+       state is in appearanceOpen (index.html's script), because the render
+       re-runs on every round trip to the shell and must never reopen a group
+       the reader closed.
+
+       TWO PLACES, deliberately. Only the window groups are inside
+       #appearanceGroups - the scrolling area - where a bar and the rows it
+       folds scroll together. The Custom CSS bar is NOT in there: it sits
+       directly on top of the tabs, the editor and the panes it folds, outside
+       the scroller, so that bar and those contents can never part company on
+       screen. (The first version had it in the scroller, and on a phone the
+       section's own control scrolled away from the section it folds.) -->
+  <div id="appearanceGroups">
+  <!-- Screen: the app WINDOW's own two facts, moved here from the shell's
+       settings screen - the one reached by long-pressing the launcher icon -
+       so that everything about how the app looks is in one place. Hidden
+       without a shell, because in a browser there is no window of ours to
+       decide anything about.
+       The two answers are menus the page draws rather than <select>s, and
+       that is the point of them: a <select> opens the platform's own popup
+       window, which wears the system's theme and can wear neither the app's
+       background colour nor its wallpaper - see .menu-card in app.css, the
+       surface every floating menu in the app wears. -->
+  <div id="appearanceScreenGroup" hidden>
+    <button type="button" class="group-bar" id="appearanceScreenBar" aria-expanded="true" aria-controls="appearanceScreen">Screen</button>
+    <div id="appearanceScreen">
+    <div class="screen-row">
+      <div class="screen-title" id="edgeTitle">Edges of the screen</div>
+      <button type="button" class="choice-btn" id="edgeChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="edgeTitle"></button>
+      <div class="choice-menu menu-card" id="edgeMenu" role="listbox" aria-labelledby="edgeTitle" data-w="anchor" hidden></div>
+      <!-- The colour the margins are painted in, and only while that is what
+           they follow: a field for a value nothing is using is a question the
+           reader has to answer before it means anything. -->
+      <div class="appearance-row" id="edgeColorRow" hidden><label for="edgeColor">Colour</label><div class="color-box" id="edgeColorBox"><input id="edgeColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Margin colour, six hexadecimal digits"><button type="button" class="color-pick" id="edgeColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="edgeColorMenu" class="color-history menu-card" hidden></div></div></div>
+      <small id="edgeHint"></small>
+    </div>
+    <div class="screen-row">
+      <div class="screen-title" id="barsTitle">Hide while you read</div>
+      <button type="button" class="choice-btn" id="barsChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="barsTitle"></button>
+      <div class="choice-menu menu-card" id="barsMenu" role="listbox" aria-labelledby="barsTitle" data-w="anchor" hidden></div>
+      <small id="barsHint">Swipe in from the top or bottom edge to bring them back for a moment.</small>
+    </div>
+    </div>
+  </div>
+  <div id="appearanceBgGroup" hidden>
+    <button type="button" class="group-bar" id="appearanceBgBar" aria-expanded="true" aria-controls="appearanceBackground">Window background</button>
+    <div id="appearanceBackground">
+    <div class="appearance-row"><label for="appearanceColorOn">Color</label><input id="appearanceColorOn" type="checkbox"><div class="color-box" id="appearanceColorBox"><input id="appearanceColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Background color, six hexadecimal digits"><button type="button" class="color-pick" id="appearanceColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="appearanceColorMenu" class="color-history menu-card" hidden></div></div></div>
     <!-- The strip IS the image picker: a tap on a thumbnail applies it, and
          the "+" tile opens the device picker directly - no second panel, no
          second Add button. The images are the same files the Files tab
@@ -347,9 +393,15 @@ window.wudictShellBackground = function (color, image, imageName) {
          addressable from CSS as /files/<name>. -->
     <div class="appearance-row"><span class="appearance-label">Image</span><div id="appearanceStripWrap"><div id="appearanceStrip" role="group" aria-label="Background image"></div><button type="button" class="stripArrow" id="appearanceStripL" aria-label="Scroll background thumbnails left" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.6 2L3 8l1.6 6"/></svg></button><button type="button" class="stripArrow" id="appearanceStripR" aria-label="Scroll background thumbnails right" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.4 2L13 8l-1.6 6"/></svg></button></div></div>
     <small>Color remains behind the image. None removes the image.</small>
+    </div>
   </div>
-  <div class="appearance-heading">Custom CSS</div>
-  <div class="row">
+  <div id="appearanceCssGroup">
+  <button type="button" class="group-bar" id="appearanceCssBar" aria-expanded="true" aria-controls="stylerBody">Custom CSS</button>
+  <!-- Every group is the same shape - a wrapper holding its bar and a body -
+       and Custom CSS is no exception: its tabs, its editor and its panes are
+       the body, they scroll with their bar, and folding the bar folds them. -->
+  <div id="stylerBody">
+  <div class="row" id="stylerDock">
     <button type="button" class="tab" id="tabApp" role="tab" aria-selected="true" aria-controls="stylerCSS">App</button>
     <button type="button" class="tab" id="tabArticle" role="tab" aria-selected="false" aria-controls="stylerCSS">Article</button>
     <!-- The third tab is not a third stylesheet: it is the things the other
@@ -373,8 +425,32 @@ window.wudictShellBackground = function (color, image, imageName) {
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
   <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
+  </div>
+  </div>
+  </div>
   <div id="stylerNote"></div>
 </div>
+
+<!-- The colour window: three sliders, the colour they make, one button that
+     writes it and a ✕ that closes with nothing changed. It is a window of the
+     app rather than the platform's chooser, and that is the whole point: a
+     picker reached from a field that ALREADY holds a colour has to open at that
+     colour, and the platform's dialog is not ours to set - on the phone it
+     opened at black while its own swatch showed the colour. Same frame as the
+     other windows (dialog.group-dialog.panel-card), so it wears what they wear. -->
+<dialog id="colorDialog" class="group-dialog panel-card" aria-labelledby="colorDialogTitle">
+  <h2 id="colorDialogTitle">Colour <button type="button" class="btn" id="closeColorDialog" aria-label="Close colour">✕</button></h2>
+  <div class="pick-preview"><span class="pick-swatch" id="colorPreviewSwatch" aria-hidden="true"></span><b id="colorPreviewHex"></b></div>
+  <div class="pick-rows">
+    <label class="pick-row"><span class="pick-key">R</span><input type="range" id="pickR" min="0" max="255" step="1"><output id="pickROut" for="pickR">0</output></label>
+    <label class="pick-row"><span class="pick-key">G</span><input type="range" id="pickG" min="0" max="255" step="1"><output id="pickGOut" for="pickG">0</output></label>
+    <label class="pick-row"><span class="pick-key">B</span><input type="range" id="pickB" min="0" max="255" step="1"><output id="pickBOut" for="pickB">0</output></label>
+  </div>
+  <!-- One button, in the same toolbar row the other windows put theirs in. The
+       ✕ above is the cancel: it closes with nothing written, which is what the
+       second button of a two-button window would be. -->
+  <div class="group-toolbar"><button type="button" class="btn" id="pickApply">Apply</button></div>
+</dialog>
 
 <script src="/assets/pick.js"></script>
 <script src="/assets/history.js?v={{HISTORYJS}}"></script>
@@ -4381,6 +4457,226 @@ function presetRemovePasted(p){
   stylerNote(p.title+" removed from your CSS — press Save to keep it that way");
   if(stylerView==="presets")presetsPaneRender();
 }
+/* ── the sheet's groups ──────────────────────────────────────────────
+   Every part of the sheet is behind a bar with a triangle on it, so the
+   reader decides which parts take the sheet's room - the sheet has no
+   opinion it could defend, and on a phone the keyboard takes most of that
+   room anyway. Open/closed lives here and is never read back off the DOM:
+   appearanceRender re-runs on every round trip to the shell, and a render
+   that reopened a group the reader had closed would make the bar useless. */
+const appearanceOpen={bg:true,screen:true,css:true};
+const appearanceBars={
+  bg:$("appearanceBgBar"),
+  screen:$("appearanceScreenBar"),
+  css:$("appearanceCssBar")
+};
+/* Every group is the same shape - a wrapper holding its bar and a body - so
+   one lookup per id says everything about folding one: the bar tells the truth
+   about the body, and the body is what hides. Custom CSS is no exception, its
+   body being the tabs, the editor and the panes. */
+const appearanceBodies={
+  bg:$("appearanceBackground"),
+  screen:$("appearanceScreen"),
+  css:$("stylerBody")
+};
+function appearanceGroupSet(id,open){
+  appearanceOpen[id]=open;
+  appearanceBars[id].setAttribute("aria-expanded",String(open));
+  appearanceBodies[id].hidden=!open;
+  // Folding the editor also lets the sheet be its OWN height rather than stand
+  // at full height with an empty lower half - the one place where a folded
+  // group changes the sheet and not only the sheet's contents.
+  $("styler").classList.toggle("no-css",!appearanceOpen.css);
+  appearanceSheetHeight();
+}
+for(const id in appearanceBars)appearanceBars[id].onclick=()=>{
+  // The reader's own answer outranks the automatic collapse below, and this
+  // is where that is said: cleared here, so leaving the editor cannot undo
+  // this tap.
+  if(id==="bg")appearanceBgAutoRestore=false;
+  appearanceGroupSet(id,!appearanceOpen[id]);
+};
+/* The editor's collapse, and the only automatic one: while the caret is in
+   the CSS box the window-background group stands down, and it returns when
+   the caret leaves. Both halves are EDGE-triggered - the caller polls the
+   caret three times a second - because a level-triggered version would
+   re-collapse the group a poll tick after the reader reopened it. */
+let stylerEditOn=false,appearanceBgAutoRestore=false;
+function stylerEditing(on){
+  if(on===stylerEditOn)return;
+  stylerEditOn=on;
+  $("styler").classList.toggle("editing",on);
+  if(on){
+    appearanceBgAutoRestore=appearanceOpen.bg;
+    if(appearanceBgAutoRestore)appearanceGroupSet("bg",false);
+    // After the collapse, not before: the group that just stood down shortened
+    // the sheet, and the box has to be brought into view in the layout the
+    // reader is about to type in.
+    stylerBoxIntoView();
+  }else if(appearanceBgAutoRestore){
+    appearanceBgAutoRestore=false;
+    appearanceGroupSet("bg",true);
+  }
+}
+/* The editor is one of the sheet's three sections now, inside the one scroller
+   - so a caret that arrives, and a keyboard that shrinks the WebView while it
+   is there, can leave the section below the fold. What gets pinned is the
+   SECTION's top: its bar and the row of tabs under it are the reader's context
+   while typing, and a row of tabs scrolled up under the sheet's head is a row
+   of tabs nobody can press. The box itself then has the rest of the scroller,
+   and scrolls internally for the caret as a textarea always does.
+   Called when the caret enters (stylerEditing) and when the viewport changes
+   size under a caret already there (stylerFit): never on a tick that changed
+   nothing, so a reader scrolling the sheet by hand is not fought. */
+function stylerBoxIntoView(){
+  const group=$("appearanceCssGroup"),box=$("stylerCSS"),scroller=$("appearanceGroups");
+  if(!group||group.hidden||!box||box.hidden||!box.offsetHeight||!scroller)return;
+  const g=group.getBoundingClientRect(),b=box.getBoundingClientRect();
+  const s=scroller.getBoundingClientRect(),off=g.top-s.top;
+  // The section's bar sits 8px under the scroller's top, and that is where it
+  // belongs once the caret is in the box. The box's bottom only gets a vote
+  // while the whole section could fit: a section taller than the scroller can
+  // never satisfy it, and asking for the same scroll on every tick would make
+  // the sheet jitter by the 8px gap for as long as the keyboard is up.
+  const placed=off>=-1&&off<=8;
+  const fits=group.offsetHeight<=s.height;
+  if(placed&&(!fits||b.bottom<=s.bottom+1))return;
+  scroller.scrollTop+=off-8;
+}
+/* The sheet's own height, mirrored onto the page's bottom padding. The
+   padding is what keeps the last result reachable above the sheet, and a
+   sheet whose Custom CSS group is closed is a fraction of its full height -
+   which is the point of closing it. Measured rather than computed, because
+   the groups size themselves from their contents.
+   Written only when it changes: the keyboard fit calls this on every poll
+   tick, and a style write per tick is a layout per tick. */
+let appearanceShownPx="";
+function appearanceSheetHeight(){
+  const sheet=$("styler"),root=document.documentElement.style;
+  const h=sheet.classList.contains("show")
+    ?Math.round(sheet.getBoundingClientRect().height)+"px":"";
+  if(h===appearanceShownPx)return;
+  appearanceShownPx=h;
+  if(h)root.setProperty("--styler-shown",h);
+  else root.removeProperty("--styler-shown");
+}
+/* ── floating menus ──────────────────────────────────────────────────
+   The two Screen answers and both colour fields offer their alternatives in
+   a menu the page draws. FIXED, and placed from its anchor's rect as it
+   opens, because the settings area above the editor scrolls: an absolutely
+   positioned menu would be cut off at that scroller's edge. It then follows
+   its anchor on any scroll - a menu left behind by the list under it
+   answers about the wrong row - and goes away on a tap outside it. */
+const sheetMenus=[];
+function sheetMenuNew(anchor,menu,fill){
+  const ctl={
+    anchor,menu,
+    isOpen(){return !menu.hidden},
+    place(){
+      const r=anchor.getBoundingClientRect();
+      // A menu that speaks for a control is exactly as wide as it is.
+      if(menu.dataset.w==="anchor")menu.style.width=Math.round(r.width)+"px";
+      menu.style.left=Math.round(r.left)+"px";
+      // Measured while visible and inside this same task, so nothing is ever
+      // painted in between; it opens on whichever side of the anchor it fits.
+      const h=menu.offsetHeight;
+      const below=r.bottom+4,above=r.top-4-h;
+      menu.style.top=Math.round(below+h<=window.innerHeight-6
+        ?below:Math.max(6,above))+"px";
+    },
+    show(){if(fill&&!fill())return;menu.hidden=false;ctl.place()},
+    hide(){menu.hidden=true},
+    toggle(){if(ctl.isOpen())ctl.hide();else ctl.show()}
+  };
+  sheetMenus.push(ctl);
+  return ctl;
+}
+function sheetMenusFollow(){for(const m of sheetMenus)if(m.isOpen())m.place()}
+window.addEventListener("scroll",sheetMenusFollow,true);
+window.addEventListener("resize",sheetMenusFollow);
+document.addEventListener("pointerdown",e=>{
+  for(const m of sheetMenus)
+    if(m.isOpen()&&!m.menu.contains(e.target)&&!m.anchor.contains(e.target))m.hide();
+});
+/* ── the Screen group ────────────────────────────────────────────────
+   Wording and order come from the shell's settings screen, where these two
+   rows lived. The order IS the stored value, so it may not be rearranged. */
+const SCREEN_EDGE_OPTIONS=[
+  "Match the phone's light or dark setting",
+  "Match the page",
+  "Black",
+  "A colour you pick",
+  "No margins — the page fills the screen"
+];
+const SCREEN_EDGE_HINT="What fills the margins around the page — the strip behind the camera at the top, and the band above the navigation bar at the bottom.";
+const SCREEN_EDGE_NONE_HINT="The page runs under the clock and the navigation bar. The search field stays clear of the camera, and the rest of the screen is yours while you scroll.";
+const SCREEN_BARS_OPTIONS=["Nothing","The clock and status icons","The navigation bar","Both"];
+const EDGE_CUSTOM=3,EDGE_NONE=4;
+/* A bar with the answer written on it and the alternatives under it. The
+   selected row is ticked rather than left out, so the menu says what the
+   choice is as well as what it could be. */
+function screenChoice(bar,menu,options,onPick){
+  let value=0;
+  const ctl=sheetMenuNew(bar,menu,()=>{
+    menu.replaceChildren();
+    options.forEach((label,i)=>{
+      const b=document.createElement("button");
+      b.type="button";b.className="choice-item";b.setAttribute("role","option");
+      b.setAttribute("aria-selected",String(i===value));
+      b.textContent=label;
+      b.onclick=()=>{ctl.hide();onPick(i)};
+      menu.appendChild(b);
+    });
+    return true;
+  });
+  const show=ctl.show,hide=ctl.hide;
+  ctl.show=()=>{show();bar.setAttribute("aria-expanded","true")};
+  ctl.hide=()=>{hide();bar.setAttribute("aria-expanded","false")};
+  bar.onclick=()=>ctl.toggle();
+  // Escape shuts the menu before the sheet, exactly as the colour fields do:
+  // the sheet closing under a reader who only meant to dismiss the list is
+  // not what the key was pressed for.
+  bar.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&ctl.isOpen()){e.stopPropagation();ctl.hide()}
+  });
+  return {set(v){
+    value=Number.isInteger(v)&&v>=0&&v<options.length?v:0;
+    bar.textContent=options[value];
+  }};
+}
+const screenEdge=screenChoice($("edgeChoice"),$("edgeMenu"),SCREEN_EDGE_OPTIONS,
+  mode=>appearanceSet("edgeMode",mode));
+const screenBars=screenChoice($("barsChoice"),$("barsMenu"),SCREEN_BARS_OPTIONS,
+  mask=>appearanceSet("bars",mask));
+/* One colour field's behaviour, wired twice (the window background and the
+   margin colour). Both remember what they have been given - one list, the
+   sheet's own, because a colour this reader likes is a colour this reader
+   likes - and both open it on focus or on a tap. Nothing is shown before
+   the first colour is remembered: the field is the whole control until
+   then, and an empty menu is a thing to dismiss. */
+function colorFieldWire(input,menu,apply){
+  const ctl=sheetMenuNew(input,menu,()=>{
+    menu.replaceChildren();
+    for(const hex of colorHistoryRead()){
+      const b=document.createElement("button");
+      b.type="button";b.title="Use "+hex;
+      const sw=document.createElement("span");
+      sw.className="sw";sw.style.background="#"+hex;sw.setAttribute("aria-hidden","true");
+      b.appendChild(sw);
+      b.appendChild(document.createTextNode(hex));
+      b.onclick=()=>{input.value=hex;apply(hex);ctl.hide()};
+      menu.appendChild(b);
+    }
+    return menu.children.length>0;
+  });
+  input.addEventListener("focus",()=>ctl.show());
+  input.addEventListener("pointerdown",()=>ctl.show());
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&ctl.isOpen()){e.stopPropagation();ctl.hide()}
+  });
+  input.addEventListener("change",()=>apply(input.value.trim()));
+  return ctl;
+}
 function appearanceRequest(request){
   if(!window.wudictNativeShell)return null;
   try{
@@ -4391,10 +4687,15 @@ function appearanceRequest(request){
 function appearanceRender(state){
   if(!state)return;
   appearanceState=state;
-  $("appearanceBackground").hidden=false;
+  // The two shell groups exist only where a shell answers. Which of them is
+  // OPEN is appearanceOpen's business, not this function's - it re-runs on
+  // every round trip and must leave the bars as the reader set them.
+  $("appearanceBgGroup").hidden=false;
+  $("appearanceScreenGroup").hidden=false;
   document.documentElement.setAttribute("data-native-appearance","");
   $("appearanceColorOn").checked=!!state.colorEnabled;
   $("appearanceColor").value=String(state.color||"").replace(/^#/,"").toUpperCase();
+  colorPickSync($("appearanceColor"),$("appearanceColorPick"));
   // Tiles, left to right: None, every image in the store, then "+". A
   // thumbnail names itself in aria-label because the <img> inside is
   // deliberately anonymous. A selected name that is no longer in the store
@@ -4436,6 +4737,21 @@ function appearanceRender(state){
   plus.textContent="＋";plus.setAttribute("aria-hidden","true");
   addB.appendChild(plus);
   appearanceStripHints();
+  // Screen. The shell's answer IS the state of these two controls, and the
+  // margin colour is asked for only while the margins follow one: a field
+  // nothing is using is a question the reader has to answer before it means
+  // anything.
+  const mode=Number(state.edgeMode);
+  const edge=Number.isInteger(mode)&&mode>=0&&mode<=EDGE_NONE?mode:0;
+  screenEdge.set(edge);
+  screenBars.set(Number(state.bars)||0);
+  $("edgeColorRow").hidden=edge!==EDGE_CUSTOM;
+  $("edgeColor").value=String(state.edgeColor||"").replace(/^#/,"").toUpperCase();
+  colorPickSync($("edgeColor"),$("edgeColorPick"));
+  // The hint says what the answer MEANS, and EDGE_NONE is the one answer
+  // whose meaning is not obvious from its name.
+  $("edgeHint").textContent=edge===EDGE_NONE?SCREEN_EDGE_NONE_HINT:SCREEN_EDGE_HINT;
+  appearanceSheetHeight();
 }
 /* Which carousel arrows the strip shows, and which edge fades with them. An
    arrow stands on an edge exactly while that edge still hides thumbnails;
@@ -4468,7 +4784,7 @@ async function appearanceImageChosen(name){
   const hex=await appearanceDominantColor(name);
   if(hex&&seq===appearanceColorAutoSeq){
     $("appearanceColor").value=hex;
-    appearanceColorApply(hex);
+    colorValueApply("color",hex);
   }
   return name;
 }
@@ -4511,7 +4827,7 @@ function appearanceSet(field,value){
   const state=appearanceRequest({action:"set",field,value});
   // The state is also the answer: null means the shell refused the value,
   // and the caller may have a message of its own to trade for ours.
-  if(!state){stylerNote("Could not save the background setting.");appearanceRead();return null}
+  if(!state){stylerNote("Could not save that setting.");appearanceRead();return null}
   appearanceRender(state);
   return state;
 }
@@ -4554,6 +4870,9 @@ async function stylerOpen(){
 function stylerCloseSheet(){
   $("styler").classList.remove("show");
   document.body.classList.remove("styling");
+  // The colour window belongs to the sheet: closing the sheet behind it would
+  // leave a modal standing over the page with nothing left to apply it to.
+  if($("colorDialog").open)$("colorDialog").close();
   // Unsaved text is kept — it is still in the box when you come back — but it
   // stops being shown. Preview is preview; the page a closed editor leaves
   // behind is the page the files describe.
@@ -4572,7 +4891,7 @@ function stylerCloseSheet(){
    cheap reads a second, and it exists only while the sheet is open. With
    the keyboard down the overrides clear and the CSS defaults stand. */
 const stylerVV=window.visualViewport;
-let stylerFitTimer=null;
+let stylerFitTimer=null,stylerScrollerH=-1;
 function stylerFit(){
   const sheet=$("styler");
   const open=sheet.classList.contains("show");
@@ -4584,20 +4903,31 @@ function stylerFit(){
   // together with the keyboard, so innerHeight and visualViewport stay in
   // step and their difference is ALWAYS ~0 there - an overlap test can
   // never fire. "The reader is editing CSS" is the semantic fact anyway:
-  // the Background block stands down while the caret works, and returns the
-  // moment the caret leaves (focus/blur below, and the poll as the net).
-  sheet.classList.toggle("editing",
-    open&&document.activeElement===$("stylerCSS"));
+  // the window-background group stands down while the caret works, and
+  // returns the moment the caret leaves (focus/blur below, and the poll as
+  // the net). Edge-triggered, so the poll cannot overrule a bar tap.
+  stylerEditing(open&&document.activeElement===$("stylerCSS"));
   // The lift, for the window modes where the keyboard draws OVER the page
   // instead of shrinking it: covered = innerHeight - height - offsetTop.
   if(overlap<=0){
     root.removeProperty("--styler-h");
     root.removeProperty("--styler-bottom");
-    return;
+  }else{
+    root.setProperty("--styler-h",
+      Math.max(240,Math.min(Math.round(stylerVV.height*.62),560))+"px");
+    root.setProperty("--styler-bottom",overlap+"px");
   }
-  root.setProperty("--styler-h",
-    Math.max(240,Math.min(Math.round(stylerVV.height*.62),560))+"px");
-  root.setProperty("--styler-bottom",overlap+"px");
+  appearanceSheetHeight();
+  // The keyboard changes the SHEET's height on this fork (the shell's inset
+  // padding shrinks the WebView with it), so the box the caret is in can fall
+  // below the fold with no event naming that fact. A change of the scroller's
+  // own height is that moment, and only that moment: a reader scrolling the
+  // sheet by hand changes scrollTop, never this.
+  const h=$("appearanceGroups").clientHeight;
+  if(h!==stylerScrollerH){
+    stylerScrollerH=h;
+    if(stylerEditOn)stylerBoxIntoView();
+  }
 }
 function stylerFitStart(){
   stylerFit();
@@ -4656,54 +4986,98 @@ function colorHistoryRemember(hex){
   try{localStorage.setItem("wudict_color_history",
     JSON.stringify([hex,...rest].slice(0,10)))}catch(_){}
 }
-function appearanceColorApply(value){
-  if(!COLOR_RE.test(value)){
-    stylerNote("Use six hexadecimal digits, like F4ECD8.");appearanceRead();return;
+/* One value for one colour field. Only an accepted colour is remembered: a
+   value the shell refused would come back in the list and fail again on
+   every pick. */
+function colorValueApply(field,value){
+  const v=String(value||"").trim();
+  if(!COLOR_RE.test(v)){
+    stylerNote("Use six hexadecimal digits, like F4ECD8.");appearanceRead();return false;
   }
-  const hex=value.replace(/^#/,"").toUpperCase();
-  // Only an accepted color is remembered: a value the shell refused would
-  // come back in the list and fail again on every pick.
-  if(appearanceSet("color",hex))colorHistoryRemember(hex);
-  else appearanceRead();
+  const hex=v.replace(/^#/,"").toUpperCase();
+  if(appearanceSet(field,hex)){colorHistoryRemember(hex);return true}
+  appearanceRead();
+  return false;
 }
-function appearanceColorRender(){
-  const menu=$("appearanceColorMenu");
-  const colors=colorHistoryRead();
-  if(!colors.length)return;
-  menu.replaceChildren();
-  for(const hex of colors){
-    const b=document.createElement("button");
-    b.type="button";b.title="Use "+hex;
-    const sw=document.createElement("span");
-    sw.className="sw";sw.style.background="#"+hex;sw.setAttribute("aria-hidden","true");
-    b.appendChild(sw);
-    b.appendChild(document.createTextNode(hex));
-    b.onclick=()=>{
-      $("appearanceColor").value=hex;
-      appearanceColorApply(hex);
-      appearanceColorHide();
-    };
-    menu.appendChild(b);
+colorFieldWire($("appearanceColor"),$("appearanceColorMenu"),
+  value=>colorValueApply("color",value));
+colorFieldWire($("edgeColor"),$("edgeColorMenu"),
+  value=>colorValueApply("edgeColor",value));
+/* ── the colour window ────────────────────────────────────────────────
+   Opened by a pipette, and the reason a pipette does NOT open the platform's
+   chooser: a picker reached from a field that already holds a colour must open
+   AT that colour, and the platform's dialog is not ours to set - on the phone
+   it came up at black while its own swatch showed the colour. This window is
+   the app's own, so it opens where it should, wears what the other windows
+   wear, and needs no library to do it.
+   Apply writes through the same door the field's own change event uses
+   (colorValueApply -> the shell bridge), so the shell applies and remembers it
+   like a typed hex; the ✕ closes with nothing changed. The preview follows the
+   sliders, so the answer is visible before it is applied. */
+let colorDialogTarget=null;
+function colorPickHexOf(input){
+  const v=String(input.value||"").trim();
+  return COLOR_RE.test(v)?"#"+v.replace(/^#/,"").toUpperCase():"";
+}
+function colorDialogHex(){
+  const h=n=>Number(n).toString(16).padStart(2,"0").toUpperCase();
+  return "#"+h($("pickR").value)+h($("pickG").value)+h($("pickB").value);
+}
+function colorDialogPaint(){
+  const hex=colorDialogHex();
+  $("pickROut").textContent=$("pickR").value;
+  $("pickGOut").textContent=$("pickG").value;
+  $("pickBOut").textContent=$("pickB").value;
+  $("colorPreviewSwatch").style.background=hex;
+  $("colorPreviewHex").textContent=hex.slice(1);
+}
+function colorDialogOpen(field,input){
+  colorDialogTarget={field,input};
+  const hex=colorPickHexOf(input)||"#000000";
+  $("pickR").value=parseInt(hex.slice(1,3),16);
+  $("pickG").value=parseInt(hex.slice(3,5),16);
+  $("pickB").value=parseInt(hex.slice(5,7),16);
+  colorDialogPaint();
+  $("colorDialog").showModal();
+}
+/* The pipette IS the swatch: it wears the colour it would open at, which also
+   saves the row a second box saying what is chosen. A field with NO colour yet
+   (the background one is empty while its checkbox is off) keeps the plain
+   button, because there is nothing to show - and a light colour needs a dark
+   pipette on it, or the glyph disappears into it. */
+function colorPickSync(input,button){
+  const hex=colorPickHexOf(input);
+  const label="Pick a colour"+(hex?" (now "+hex+")":"");
+  button.title=label;
+  button.setAttribute("aria-label",label);
+  if(!hex){
+    button.style.background="";button.style.color="";button.style.borderColor="";
+    return;
   }
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  const dark=0.2126*r+0.7152*g+0.0722*b>150;
+  button.style.background=hex;
+  button.style.color=dark?"#1c1b19":"#ffffff";
+  button.style.borderColor=dark?"rgba(0,0,0,.35)":"rgba(255,255,255,.35)";
 }
-function appearanceColorShow(){
-  appearanceColorRender();
-  // Nothing remembered yet: the native field is the whole control, and a
-  // menu with one "empty" row would only have to be dismissed.
-  if($("appearanceColorMenu").children.length)$("appearanceColorMenu").hidden=false;
+$("colorDialog").addEventListener("input",e=>{
+  if(e.target&&e.target.type==="range")colorDialogPaint();
+});
+$("pickApply").onclick=()=>{
+  const target=colorDialogTarget;
+  // Closed first, then written: a refusal lands in the sheet's note line, which
+  // is behind this window while it is open.
+  $("colorDialog").close();
+  if(!target)return;
+  const hex=colorDialogHex();
+  target.input.value=hex.slice(1);
+  colorValueApply(target.field,hex);
+};
+$("closeColorDialog").onclick=()=>$("colorDialog").close();
+for(const [pick,input,field] of [["appearanceColorPick","appearanceColor","color"],
+                                 ["edgeColorPick","edgeColor","edgeColor"]]){
+  $(pick).onclick=()=>colorDialogOpen(field,$(input));
 }
-function appearanceColorHide(){$("appearanceColorMenu").hidden=true}
-$("appearanceColor").addEventListener("focus",appearanceColorShow);
-$("appearanceColor").addEventListener("pointerdown",appearanceColorShow);
-$("appearanceColor").addEventListener("keydown",e=>{
-  // Escape closes the menu first; letting it bubble would close the whole
-  // sheet out from under a reader who only meant to dismiss the list.
-  if(e.key==="Escape"){e.stopPropagation();appearanceColorHide()}
-});
-document.addEventListener("pointerdown",e=>{
-  if(!$("appearanceColorBox").contains(e.target))appearanceColorHide();
-});
-$("appearanceColor").onchange=e=>appearanceColorApply(e.target.value.trim());
 $("stylerClose").onclick=stylerCloseSheet;
 $("stylerSave").onclick=stylerSave;
 $("tabApp").onclick=()=>stylerShowTab("app");

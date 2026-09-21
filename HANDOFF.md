@@ -24,6 +24,150 @@ the merge properly; nothing was lost.
 
 Older appearance/presets/review notes below are historical.
 
+## Appearance sheet: collapsible groups + the Screen rows (2026-09-21, this session)
+
+Same branch (`Dictionary-Settings2`), uncommitted, on top of the dictionary-settings
+window. The user asked for two things, then sent three rounds of corrections from phone
+looks (the notes say which is which). The user builds, so this session built no APK — only
+the routine checks, all listed at the end of this section.
+
+- **All three groups have one shape, and the whole sheet is one scroll.** Each section is
+  a wrapper holding a `.group-bar` and a body (`#appearanceBackground`, `#appearanceScreen`,
+  `#stylerBody`); folding a bar hides its body, and every bar travels with what it folds.
+  All three live inside `#appearanceGroups`, which is now the sheet's whole scrolling area
+  (`flex:1 1 auto`), so the sections behave identically instead of two scrolling while the
+  third was pinned below them. Order: `Screen`, `Window background`, `Custom CSS`. This is
+  the third correction of the same area from phone looks (first the bar was pinned with its
+  contents and read as a section that never moved; then it was pinned above them and the
+  bar scrolled away from the contents it speaks for; now everything scrolls together, which
+  is what "behaves like the two sections above" means). Open/closed is `appearanceOpen` and
+  is never read back off the DOM, because `appearanceRender` re-runs on every bridge round
+  trip. Folding Custom CSS also puts `no-css` on the sheet: `height:auto`, and the page's
+  bottom padding follows the MEASURED sheet height (`--styler-shown`,
+  `appearanceSheetHeight`), so a folded editor gives the screen back rather than leaving a
+  full-height sheet with an empty lower half. The editor is now a fixed 16em box and the
+  Files/Presets panes are plain blocks (their own scrollbars are gone — two scrollers
+  fighting for one thumb on a phone).
+- **The caret's box is brought back into view** (`stylerBoxIntoView`): on the transition
+  into editing (`stylerEditing`) and whenever the scroller's height changes while the caret
+  is in the box (`stylerFit` compares `clientHeight` — the keyboard shrinking the WebView is
+  a height change, and a reader scrolling by hand is not). It scrolls the caret's box to
+  just under the scroller's top edge, which is the one thing that must be on screen while
+  typing.
+- **Both colour fields gained a pipette** (`#appearanceColorPick`, `#edgeColorPick`) that
+  opens the platform's own chooser through one hidden `<input type="color">`; which field
+  the dialog fills is remembered while it is open (the ＋ tile's bargain for uploads), and
+  the value is applied on `change`, never on every drag frame. The Screen group's `Colour`
+  row is still shown ONLY for "a colour you pick" (`appearanceRender`: `edgeColorRow.hidden
+  = edge !== EDGE_CUSTOM`).
+- `go build ./...`, `git diff --check` and `:app:compileFossDebugJavaWithJavac` (from
+  `android/`, `ANDROID_HOME` passed explicitly) all pass for the first pass. **The three
+  correction rounds that followed are NOT browser- or build-verified** (the user asked for
+  no build): the Screen/Window-background swap, the Custom CSS bar leaving the pinned spot,
+  and now the one-scroller layout, the box-into-view and the pipette buttons. Static checks
+  only for those: markup tag-balanced with the intended nesting (`#styler` = head +
+  `#appearanceGroups` + note; the scroller holds the three group wrappers; each wrapper
+  holds its bar and its body), app.css braces balanced, no JS reference to an id that no
+  longer exists. No APK built, nothing installed.
+- **The automatic collapse stayed, and is now overrulable.** The caret in the CSS box
+  still stands `Window background` down and returns it on blur — the behaviour the user
+  described from the phone — but it is EDGE-triggered (`stylerEditing`): a bar tap during
+  editing clears the pending restore, so the 300ms poll cannot undo the reader's tap
+  (verified: held for 670ms, more than two poll ticks).
+- **The `Screen` group is the shell screen's two rows, moved.** `Edges of the screen`
+  and `Hide while you read` became page-drawn dropdowns with the explanation under each
+  (wording and option order taken verbatim from the strings the shell screen used), plus
+  the margin-colour field, which is shown ONLY while the mode is "a colour you pick"
+  (`appearanceRender`: `edgeColorRow.hidden = edge !== EDGE_CUSTOM`).
+  `SettingsActivity` lost the whole section, `edgeRow`, `edgeColorDialog`, `choiceRow`
+  and the strings; the bridge grew `edgeMode`/`edgeColor`/`bars` (validated both ways)
+  and `MainActivity.refreshScreen()` applies them to the live window — the edge mode
+  decides who wears the insets, so it re-asks for those as well. The floating lookup
+  window only stores them; the app window picks them up on its next focus gain.
+- **The dropdowns are the page's own menus, not `<select>`s** — the user's rule: the
+  popup must wear the app's background and wallpaper, and the platform's own popup window
+  cannot. They are `position:fixed` and placed from their anchor's rect (the sheet
+  scrolls, and an absolute menu would be cut off at the scroller's edge), flip above the
+  anchor when they would run off the bottom, follow it on scroll, and close on a tap
+  outside. `.menu-card` is the shared shell-aware surface (the recipe `#styler` and the
+  history dropdown already used), so they are windows like everything else.
+- **The caret's box is kept in view, and the tab row with it** (`stylerBoxIntoView`): on the
+  transition into editing (`stylerEditing`) and whenever the scroller's height changes while
+  the caret is in the box (`stylerFit` compares `clientHeight` — the keyboard shrinking the
+  WebView is a height change, a reader scrolling by hand is not). What it pins is the
+  SECTION's top, not the box: the `Custom CSS` bar and the row of `App / Article / Files /
+  Presets` tabs sit 8px under the scroller's top, because a row of tabs scrolled up under
+  the sheet's head is a row of tabs nobody can press (the user's report). The box then takes
+  the rest of the scroller and scrolls internally for its caret, as a textarea does. The
+  `placed`/`fits` test is load-bearing: a section taller than the scroller can never satisfy
+  "box bottom visible", and asking for the same scroll on every poll tick would jitter the
+  sheet by the 8px gap for as long as the keyboard is up.
+- **`hidden` is now authoritative inside the sheet** (`#styler [hidden]{display:none}` in
+  app.css, replacing the per-id list). An AUTHOR rule such as `.appearance-row{display:flex}`
+  outranks the user-agent's `[hidden]{display:none}` whatever the specificity, so an element
+  the page hides by setting `.hidden` stays on screen: that is why the Screen group's colour
+  row showed for EVERY mode (reported from the phone) — it is an `.appearance-row`, and the
+  row was hidden by the property alone. The strip arrows already carried a guard of their own
+  for the same reason (`.stripArrow[hidden]`, HANDOFF-worthy since the fourth appearance
+  round). The whole area's elements are inside `#styler`, so one rule covers them; the check
+  script that found this lists every element whose `hidden` the page toggles against the
+  author `display` rules on that element itself (descendant rules are not the subject).
+- **What the first browser pass MISSED, and why**: it asserted `!document.getElementById(id)
+  .hidden` — the property — instead of the computed `display`, so an element that was
+  "hidden" in every assertion was still painted on the phone. When a check is about what the
+  reader sees, read `getComputedStyle(...).display` (or a rect), never the attribute.
+- **The pipette IS the swatch, and it opens a window of the app** (`#colorDialog`,
+  `dialog.group-dialog.panel-card` like the other windows): three R/G/B sliders with the
+  channel's own gradient on the track, a live preview + hex, `Apply` and a ✕. The field's
+  own recent-colours menu is unchanged; the window replaces the PLATFORM chooser
+  (`<input type="color">`), because a picker reached from a field that already holds a
+  colour has to open AT that colour and the platform's dialog is not ours to set — on the
+  phone it came up at black while its own swatch showed the colour. `Apply` goes through
+  `colorValueApply` (the same door a typed hex uses, so the shell applies and remembers it);
+  the ✕ closes with nothing changed. `colorPickSync` paints the pipette with the colour it
+  would open at, with the glyph flipped to dark on a light swatch; a field with no colour
+  yet keeps the plain button. `stylerCloseSheet` closes the window with the sheet — a modal
+  left standing over the page with nothing to apply it to is the bug that would otherwise
+  follow.
+  **The library question, answered with facts** (the user asked about
+  jaredrummler/ColorPicker before this was written): it is real (`com.jaredrummler:
+  colorpicker:1.1.0`, Maven Central, Apache-2.0, minSdk 14, published 2019-01, repo last
+  pushed 2024-07) and one line in app/build.gradle would fetch it, but its POM depends on
+  `androidx.appcompat:1.0.2` + `androidx.preference:1.0.0`, i.e. AppCompat and its
+  transitive set inside an app whose build.gradle says outright that it has no dependencies;
+  its dialogs are AppCompat widgets, which want an AppCompat theme our plain activities do
+  not use. Against that, `tools/notices.sh` walks the GO module graph only, so a Gradle
+  dependency would have to be written into the notices by hand (and into
+  `tools/notices.head.md`, or the next `make notices` drops it). Three sliders in the page
+  cost none of that, and the page already owns every other appearance surface.
+- **A flexbox lesson from the middle of these rounds** (the rule itself is gone with the
+  one-scroller layout, the lesson is not): `flex-shrink` is weighted by base size AND a
+  later `flex:1 1 auto` shorthand wins over an earlier `flex-shrink` — so a rule that tries
+  to make the work area give way has to be stated after the panes' own shorthands, or it
+  silently does nothing. Measured then at 390×780: settings 88px with it wrong, 298px with
+  it right.
+- **Verification status.** `go build ./...`, `git diff --check` and
+  `:app:compileFossDebugJavaWithJavac` (from `android/`, `ANDROID_HOME` passed explicitly)
+  pass for the FIRST pass, which is also the last thing actually driven in a browser
+  (throwaway server, temp config, one stub `.dsl`, the shell bridge stubbed in the page
+  exactly as `Shell.windows().onJsPrompt` answers it, and the host's background hook called
+  with `#f4ecd8` + `paper_01.jpg`): every bar toggles, the caret collapse and its override
+  behave, both menus open at the anchor's width with the current choice ticked and flip
+  above when there is no room below, picking a mode round-trips through the bridge
+  (`edgeMode:3` → the colour row appears; `#204060` → remembered; `4` → the EDGE_NONE
+  explanation), all three menus compute the paper tint AND the wallpaper URL, a collapsed
+  group survives a later `appearanceRead()`, and 320×640 has no horizontal overflow. That
+  browser session could not inject clicks (`click` times out, `cua.click` inert) and
+  `screenshot` timed out, so interactions went through the real handlers and layout was read
+  from rects and computed styles — nothing was LOOKED at. **The three correction rounds
+  after it are static-checked only** (the user asked for no build): the Screen/Window
+  background swap, the Custom CSS bar leaving the pinned spot, and the one-scroller layout
+  with the box-into-view and the pipettes. Static checks: markup tag-balanced with the
+  intended nesting (`#styler` = head + `#appearanceGroups` + note; the scroller holds the
+  three group wrappers; each wrapper holds its bar and its body), app.css braces balanced,
+  no JS reference to an id that no longer exists. No APK built, nothing installed; phone
+  checks are listed in `docs/ANDROID-UI-HANDOFF.md`.
+
 ## Configuration and Lemmatization pages (2026-09-20, this session)
 
 Same branch, after the settings window. The two pages the window's toolbar opens
@@ -128,6 +272,102 @@ cards.
   `setup.html`: `<h1>` and `<title>` are "Edit Folders" (were "wuDict
   Configuration"/"wudict Setup"); `lemmas.html`: "Lemmatization" (was "wuDict
   Lemmatization"). No test asserted either string.
+- **Around a window: the background, not the app** (the last visible difference
+  the user named: beside the pages there is only the wallpaper, beside the
+  window the app showed through the 40% backdrop). `group-editor.css`:
+  `.group-dialog::backdrop` is `var(--paper-bg,var(--bg))` — the colour the
+  host sends — and `html[data-shell-image] .group-dialog::backdrop` paints
+  `var(--paper-bk-image)` stretched `100% 100%`, the recipe `#styler` and
+  `.color-history` already use. Both vars come from `wudictShellBackground`, so
+  the modal now sits on exactly what the pages sit on and nothing of the app
+  shows beside it (verified with the hook called as the host calls it: backdrop
+  `rgb(244,236,216)` plain, plus `url(...)` stretched with an image, and the
+  drawer + results no longer visible around the card). The ☰ drawer keeps its
+  own dimmed overlay — `#panel` is chrome, not one of the windows the user
+  compared; say the word if it should wear the background too.
+- **On a phone the window IS the pages' card** (three rounds of phone reports
+  settled it: bands too big → flush to the edges and the title too far in →
+  finally "look at Edit Folders": a 1em margin on every side and 1.618em of
+  padding inside, which is exactly what `.card` inside a `body{padding:1em}`
+  wears). `group-editor.css`, `@media (max-width:600px)`:
+  `inset:calc(1em + var(--wd-inset-top,0px)) 1em calc(1em + var(--wd-inset-bottom,0px))`,
+  `width/height:auto`, `max-width/max-height:none`, `padding:1.618em`, plus
+  `#groupEditor,#dictSettings{height:auto}` to lift the desktop heights.
+  Measured at 360×780 against `/setup`: both cards start at 16px, both titles at
+  43px, card 328 wide — the window 328×748 (16px bands top and bottom), the page's
+  card running off the bottom. Desktop keeps the centred 560×650 window
+  (85px margins at 1100×820).
+- **The box stretches via `inset`, never a viewport unit** — and that is
+  load-bearing, not style. With `height:100dvh` the reopened window came back
+  small and centred after a trip to Edit Folders (the user's screenshot): the
+  Android WebView reported a dynamic viewport ~145px SHORTER than the window at
+  that moment, and `margin:auto` then centred the short box in the full
+  viewport, i.e. exactly the bands the same user had complained about an hour
+  earlier. `height:auto` under a four-sided `inset` cannot do that.
+- **The window's height follows the WebView, and the shell was shrinking it**
+  (the last phone report: the first open is perfect, but after a trip to Edit
+  Folders and back the window is small again, with bands above and below).
+  The box is viewport-driven by design (`inset` + `auto` sizes, no viewport
+  unit), so a smaller window means a smaller viewport — and `MainActivity`
+  padded the root with `Math.max(bars.bottom, ime.bottom)` **whenever the IME
+  reported a height, visible or not**. A callback with a stale keyboard frame
+  (or an IME going away while a page loads) therefore shrank the whole page:
+  ~145px lost, which is the size the phone's screenshot showed the window
+  losing. Fixed by gating both places on `insets.isVisible(Type.ime())`:
+  `imeUp ? ime.bottom : 0` for the padding and `toPage && !imeUp` for the
+  published inset. Java compiles (`:app:compileFossDebugJavaWithJavac`).
+  NOT verified on a device — this is the diagnosis to test first, and if the
+  window still shrinks the next step is a debug build
+  (`setWebContentsDebuggingEnabled(BuildConfig.DEBUG)` is already there, so the
+  debug APK can be inspected over CDP).
+- **Diagnosed on the device, over CDP** (the user installed a debug build —
+  `setWebContentsDebuggingEnabled(BuildConfig.DEBUG)` is already in both
+  activities — and invited a look; `adb forward tcp:9222
+  localabstract:webview_devtools_remote_<pid>` plus a ~60-line WebSocket client
+  written over `node:net` in the node REPL, since that kernel has no WebSocket
+  global). Findings, all measured on the live page:
+  - The failing flow does NOT fail on a build carrying the `inset`+`auto` CSS:
+    window open (viewport 763, window 731 = 763 − 2×16, modal, over the drawer) →
+    `Edit folders…` → the ✕ → back → the window is reopened at 731 with the same
+    viewport. The release build on the phone at the time was the OLDER
+    `100dvh` one (its `.so` carries `2.618em`/`100dvh`, not `padding:1.618em`),
+    which is why the user still saw it.
+  - `--wd-inset-*` are `0px` in the default inset mode (the shell pads its root
+    and publishes zeroes; only EDGE_NONE hands them to the page), so the CSS
+    calc is a no-op there — the window follows the WebView, period.
+  - Returning with NO overlay open leaves Chromium's restored focus on `#q` and
+    the keyboard up (viewport 431), which is correct-but-surprising rather than
+    a bug; with the drawer+window open the modal's `showModal()` takes the focus,
+    so the keyboard stays down and the window comes back full size.
+  - The `insets.isVisible(Type.ime())` guard in MainActivity is therefore
+    unproven belt-and-braces: nothing reproduced a stale IME inset. It is kept
+    because padding for a keyboard nobody can see is wrong on its face.
+- **"Clear browser cache" in the app's Settings** (the user's answer to the
+  stale-assets question: they asked for the control by name, so the label is
+  theirs). `SettingsActivity` grew a hint + button under the Advanced block;
+  `Shell.clearWebCache(Context)` empties the WebView's resource cache (a
+  throwaway WebView's `clearCache(true)` — per-APPLICATION despite being an
+  instance method) and `Shell.EXTRA_RELOAD` makes the window that shows the page
+  load it again (MainActivity.onNewIntent). It touches no dictionary file, no
+  prepared index and no localStorage: the hint says so, which is why the tap is
+  not confirmed.
+  Verified: the strings are in the built APK (`aapt2 dump strings`), the Java
+  compiles, and the reload half was driven live on the phone (`am start … --ez
+  wudict.reload true` → the page's navigation type went `navigate` → `reload`).
+  The cache-emptying half could NOT be tapped through adb: this MIUI phone
+  refuses input injection (`SecurityException: … INJECT_EVENTS`), and the button
+  is native UI, so it awaits the user's first tap.
+  The button itself sits BELOW the Close button, on the user's instruction: the
+  last thing on the screen, since it is a last resort and not one of the
+  settings.
+- **The ☰ drawer is now titled "Settings"** (the user's rename): `<h2>`, the
+  panel's `aria-label`, and the button's `title`/`aria-label` — the button had
+  `aria-label="Manage dictionaries"`, both now say Settings. Verified live on
+  the phone over CDP (`#panel h2`, getAttribute on `#panelBtn`) and in a
+  screenshot of the running app; `docs/DICTIONARY-GROUPS.md` ("☰ → Settings →
+  Edit dictionary groups") and the picker-mode note in the UI handoff were
+  updated with it, and the ☰ glyph survived the edit (checked — the first
+  attempt at the button line dropped it).
 - Verified in the desktop browser against a throwaway server (temp config, two
   stub `.dsl`s, port 6899): panel holds the two buttons and none of the four
   actions; window modal at 560×650, toolbar above the cards, zero checkboxes in
@@ -234,6 +474,14 @@ under `## Changes`.
   En-En 6.8k entries, Oxford En-Ru 35.8k, Zimmerman Ru-En 15.9k, ~5.4 MB, now
   git-ignored). Point a throwaway `DICT_DIR` at it to see the UI with real
   sizes, chips and index estimates instead of stub dictionaries.
+- **Kill EVERY `wudict.exe` before starting a preview server** —
+  `taskkill /F /IM wudict.exe`. A stale instance keeps port 6899 and the new one
+  exits with "stop the running instance first", so the browser goes on being
+  served by the OLD binary's embedded assets (the log looks fine: the config
+  summary is printed before the bind). Cost an hour of chasing a CSS change that
+  was never served; `tasklist //FI "IMAGENAME eq wudict.exe"` should show one
+  process after a restart. The page also caches its CSS by the `?v=` hash, so
+  the browser must be reloaded after the server is really new.
 - Go: `go build ./...`; targeted `go test ./internal/<pkg> -run '...' -count=1`.
 - Android Java: from `android/`,
   `ANDROID_HOME="$LOCALAPPDATA/Android/Sdk" ./gradlew.bat :app:compileFossDebugJavaWithJavac --offline`.

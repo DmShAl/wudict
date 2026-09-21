@@ -1,6 +1,6 @@
 # Dictionary groups
 
-Open **☰ → Dictionaries → Edit dictionary groups**. The selector lists
+Open **☰ → Settings → Edit dictionary groups**. The selector lists
 **All Dictionaries**, your groups, and **New Group** last. New groups are empty.
 Turn on **Show All** to add dictionaries using the checkboxes; turn it off to
 see only members. Members appear first, followed by nonmembers, each in the

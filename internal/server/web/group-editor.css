@@ -3,8 +3,37 @@ dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560p
 #groupEditor{height:min(650px,85vh);height:min(650px,85dvh)}
 /* The dictionary list is the long one — a real library is a hundred cards — so
    Dictionary settings takes the same fixed height rather than fit-content, and
-   the list scrolls inside it under a fixed toolbar. */
+   the list scrolls inside it under a fixed toolbar. On a phone that fixed
+   height is what the media query below lifts: see it for why. */
 #dictSettings{height:min(650px,85vh);height:min(650px,85dvh)}
+/* On a phone the window IS the pages' card: a 1em margin on every side and
+   1.618em of padding inside it, which is exactly what Edit Folders and
+   Lemmatization wear (`.card` inside a `body` with 1em of padding). Measured
+   against that page: its card starts 1em below the top and its title 43px down;
+   the window now does the same, where a flush-to-the-edge card with a 2.618em
+   top padding put the title too far in and left no band at all — both reported
+   from the phone, in that order.
+   The box is written as `inset` + `auto` sizes so it STRETCHES to that rect:
+   any viewport unit would be wrong here, and `dvh` demonstrably was — after a
+   trip to Edit Folders the Android WebView reported a dynamic viewport ~145px
+   shorter than the window, and the reopened window came back small and centred
+   with the bands the user had already complained about. `max-width:none` and
+   `width:auto` undo the UA cap and the desktop width so the insets alone decide
+   the box. Desktop keeps the centred 650px window: there the page beside it is
+   the point, and a 100-card list must not become a full-height sheet on a 1440p
+   monitor. */
+@media (max-width:600px){
+  dialog.group-dialog.panel-card{
+    inset:calc(1em + var(--wd-inset-top,0px)) 1em calc(1em + var(--wd-inset-bottom,0px));
+    width:auto;max-width:none;height:auto;max-height:none;padding:1.618em}
+  #groupEditor{height:auto}
+  #dictSettings{height:auto}
+  /* The colour window is short by nature - three sliders, a preview and one
+     button - so it keeps its own height and centres itself in the same
+     card-wide column, rather than stretching to the full card the way a list
+     window does (there is nothing to scroll in it). */
+  #colorDialog{height:fit-content;margin:auto}
+}
 /* The window's own actions, above the cards they act on: outside the scroller,
    so they stay reachable however far down the list the reader has gone. */
 #dictSettings .configbar{flex:none;margin:0}
@@ -17,7 +46,23 @@ dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560p
 #dictSettings .panel-scroll{overscroll-behavior:contain}
 dialog.group-dialog:not([open]){display:none}
 dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
-.group-dialog::backdrop{background:rgba(0,0,0,.4)}
+/* What is visible AROUND a window: the same background the Edit Folders and
+   Lemmatization pages show around their cards, not the app dimmed behind it.
+   The pages are transparent over the background the Android host paints (a
+   colour, and the wallpaper image when one is set), which is why nothing of the
+   app shows up beside them; a modal's backdrop is above the page and has to
+   paint that background itself: --paper-bg is the host's colour and
+   --paper-bk-image is the wallpaper the page serves from /files (both set by
+   wudictShellBackground — the recipe #styler and .color-history already use).
+   Stretched, not tiled: the host stretches the image across the window. With no
+   host background at all, var(--bg) is what the pages sit on. */
+.group-dialog::backdrop{background:var(--paper-bg,var(--bg))}
+html[data-shell-image] .group-dialog::backdrop{
+  background-color:var(--paper-bg,var(--bg));
+  background-image:var(--paper-bk-image);
+  background-size:100% 100%;
+  background-position:center;
+  background-repeat:no-repeat}
 .group-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.8em}
 .group-toolbar select{flex:1;min-width:0;max-width:100%;width:12em}
 .group-dialog select,.group-dialog input[type=text]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:.6em}

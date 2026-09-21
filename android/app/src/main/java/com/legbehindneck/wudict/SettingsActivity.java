@@ -53,6 +53,7 @@ package com.legbehindneck.wudict;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -73,7 +74,6 @@ import android.widget.Toast;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.IntConsumer;
 
 public class SettingsActivity extends Activity {
 
@@ -131,18 +131,12 @@ public class SettingsActivity extends Activity {
         col.addView(row(ShellPrefs.SHARE, R.string.settings_lookup_share));
         col.addView(row(ShellPrefs.LINK, R.string.settings_lookup_link));
 
-        // Window facts, so they sit on their own rather than under the lookup
-        // heading: these are about the app's window, not about where a lookup
-        // lands. Both are pickers rather than boxes because their values are
-        // alternatives - a set of checkboxes here could be asked to be two
-        // things at once, and one of them would have to win silently.
-        col.addView(head(R.string.settings_screen_head, SP_6));
-        col.addView(edgeRow());
-        col.addView(caption(getString(R.string.settings_edge_hint), 0, SP_3));
-        col.addView(choiceRow(R.string.settings_bars, R.array.settings_bars_modes,
-                ShellPrefs.bars(this), v -> ShellPrefs.setBars(this, v)));
-        col.addView(caption(getString(R.string.settings_bars_hint), 0, SP_3));
-
+        // The Screen section - how the margins around the page are painted and
+        // which bars hide while reading - is NOT here any more. Those two rows
+        // moved to the web Appearance sheet, beside the window background they
+        // belong with, and write the same ShellPrefs through the same
+        // wudict:appearance bridge; nothing on this screen needs them, and a
+        // second copy of a picker is a second thing to keep in step.
         col.addView(head(R.string.settings_access_head, SP_6));
         col.addView(keyRow());
         col.addView(caption(getString(R.string.settings_access_key_hint), SP_2, SP_3));
@@ -179,6 +173,12 @@ public class SettingsActivity extends Activity {
         close.setText(R.string.settings_close);
         close.setOnClickListener(v -> finish());
         col.addView(close, wide(SP_6));
+
+        // Below the way out, deliberately: it is the last resort, not one of
+        // the settings, and a reader who is not looking for it should meet the
+        // end of the screen where they expect it.
+        col.addView(caption(getString(R.string.settings_clear_cache_hint), SP_6, SP_3));
+        col.addView(clearCacheButton());
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(col, new ViewGroup.LayoutParams(
@@ -264,90 +264,6 @@ public class SettingsActivity extends Activity {
         c.setChecked(ShellPrefs.opensApp(this, key));
         c.setOnCheckedChangeListener((v, on) -> ShellPrefs.set(this, key, on));
         return c;
-    }
-
-    /**
-     * How the window's margins are painted. The custom colour is asked for the
-     * moment that value is chosen - and again whenever it is chosen again,
-     * which is the only affordance a one-line picker can offer for editing a
-     * value it does not show.
-     */
-    private View edgeRow() {
-        return choiceRow(R.string.settings_edge, R.array.settings_edge_modes,
-                ShellPrefs.edgeMode(this), v -> {
-                    ShellPrefs.setEdgeMode(this, v);
-                    if (v == ShellPrefs.EDGE_CUSTOM) edgeColorDialog();
-                });
-    }
-
-    private void edgeColorDialog() {
-        EditText e = new EditText(this);
-        e.setInputType(InputType.TYPE_CLASS_TEXT);
-        e.setHint(R.string.settings_edge_custom_hint);
-        e.setText(String.format("#%06X", 0xFFFFFF & ShellPrefs.edgeColorValue(this)));
-        int pad = dp(SP_5);
-        e.setPadding(pad, dp(SP_3), pad, dp(SP_3));
-        new BackgroundDialogBuilder(this)
-                .setTitle(R.string.settings_edge_custom)
-                .setView(e)
-                .setNegativeButton(R.string.settings_cancel, null)
-                .setPositiveButton(android.R.string.ok, (d, w) -> {
-                    try {
-                        // parseColor takes #RGB, #RRGGBB and #AARRGGBB alike;
-                        // the alpha is forced opaque on the way in, because a
-                        // translucent margin would show the window behind it.
-                        ShellPrefs.setEdgeColorValue(this,
-                                Color.parseColor(e.getText().toString().trim()));
-                    } catch (IllegalArgumentException | NullPointerException bad) {
-                        toast(getString(R.string.settings_edge_custom_bad));
-                    }
-                })
-                .show();
-    }
-
-    /**
-     * A row whose value is one of several. The only picker on this screen, and
-     * it is a dialog rather than a Spinner because a Spinner's dropdown is a
-     * second window with its own theme to get wrong, and this screen already
-     * builds an AlertDialog for the restore confirmation.
-     *
-     * <p>Written on pick, like every other control here - see {@link #row}.
-     */
-    private View choiceRow(int label, int optionsRes, int current, IntConsumer onPick) {
-        String[] options = getResources().getStringArray(optionsRes);
-        // A stored value from a newer build, or a hand-edited file: show the
-        // first option rather than crash on the array bound.
-        final int[] sel = {current >= 0 && current < options.length ? current : 0};
-
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setMinimumHeight(dp(ROW_MIN));
-        box.setPadding(0, dp(SP_2), 0, dp(SP_2));
-        box.setClickable(true);
-        TypedValue bg = new TypedValue();
-        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, bg, true)) {
-            box.setBackgroundResource(bg.resourceId);
-        }
-
-        TextView title = new TextView(this);
-        title.setText(label);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_LABEL);
-        TextView value = caption(options[sel[0]], 0, 0);
-        value.setAlpha(1f); // it is the row's answer, not a footnote about it
-        box.addView(title);
-        box.addView(value);
-
-        box.setOnClickListener(v -> new BackgroundDialogBuilder(this)
-                .setTitle(label)
-                .setSingleChoiceItems(options, sel[0], (d, w) -> {
-                    d.dismiss(); // a single choice IS the answer; no OK to press
-                    sel[0] = w;
-                    value.setText(options[w]);
-                    onPick.accept(w);
-                })
-                .setNegativeButton(R.string.settings_cancel, null)
-                .show());
-        return box;
     }
 
     /**
@@ -454,6 +370,33 @@ public class SettingsActivity extends Activity {
                     recheck();
                 })
                 .show());
+        return wrap(b, SP_6);
+    }
+
+    /**
+     * The way out of a page that is showing something old after an update:
+     * whatever the WebView cached is gone and the window that shows the page is
+     * asked to load it again.
+     *
+     * Not confirmed, and the screen closes behind it. There is nothing to lose -
+     * see Shell.clearWebCache, which empties the browser's cache and nothing
+     * else - and the answer to this tap is the page coming back, not a sentence
+     * about it.
+     */
+    private View clearCacheButton() {
+        Button b = new Button(this);
+        styleBackgroundButton(b);
+        b.setText(R.string.settings_clear_cache);
+        b.setOnClickListener(v -> {
+            Shell.clearWebCache(this);
+            toast(getString(R.string.settings_clear_cache_done));
+            // MainActivity is singleTask: this brings the window that shows the
+            // page forward with the extra, or starts one when there is none -
+            // and a fresh window loads the page anyway.
+            startActivity(new Intent(this, MainActivity.class)
+                    .putExtra(Shell.EXTRA_RELOAD, true));
+            finish();
+        });
         return wrap(b, SP_6);
     }
 

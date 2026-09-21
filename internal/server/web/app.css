@@ -375,7 +375,7 @@ html[data-shell-image] #styler{
   background-color:var(--paper-bg,var(--bg));
   background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
   background-size:100% 100%}
-body.styling{padding-bottom:var(--styler-h)}
+body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
 /* The three headings are kept apart by hairlines rather than by spacing
    alone: the sheet is tall, sections scroll past each other, and a line under
    the sheet head and under the window-background block costs two pixels and
@@ -383,21 +383,56 @@ body.styling{padding-bottom:var(--styler-h)}
 #stylerHead{flex:none;display:flex;align-items:center;gap:.4em;
   border-bottom:1px solid var(--line);padding-bottom:.4em;margin-bottom:.45em}
 #stylerHead strong{font-size:13px;font-weight:600;color:var(--fg)}
-#appearanceBackground{flex:none;border-bottom:1px solid var(--line);
-  padding-bottom:.55em;margin-bottom:.45em}
-#appearanceBackground[hidden]{display:none}
+/* THE SETTINGS AREA, and it is the sheet's whole scroll. The three sections
+   live in here, one after another, each one holding its bar and its contents -
+   so every section behaves the same way: its bar travels with what it folds,
+   and the reader scrolls the sheet rather than a window inside it. (The first
+   version pinned the Custom CSS bar and its editor below this area, and on the
+   phone the bar scrolled away from the contents it speaks for.)
+   flex:1 1 auto: it takes whatever the head and the note leave, and its
+   contents scroll inside it. */
+#appearanceGroups{flex:1 1 auto;min-height:0;overflow-y:auto}
+/* THE BAR: one per group, the strip and the triangle the whole sheet is
+   folded by. A drawn triangle rather than a glyph (the same 4px border
+   triangle the search chips wear), turned down while the group is open, so
+   there is no font to depend on and no icon font to load. */
+.group-bar{display:flex;align-items:center;gap:.45em;width:100%;
+  margin:.35em 0 .25em;padding:.3em .45em;border:0;border-radius:5px;
+  background:var(--line-soft);color:var(--fg-soft);
+  font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+.group-bar:first-child{margin-top:0}
+.group-bar::before{content:"";flex:none;width:0;height:0;
+  border:4px solid transparent;border-left-color:var(--fg-soft);
+  transition:transform .18s ease}
+.group-bar[aria-expanded="true"]::before{transform:rotate(90deg)}
+.group-bar:hover,.group-bar:focus-visible{color:var(--fg)}
+.group-bar:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* `hidden` is AUTHORITATIVE inside the sheet, and it is not by default: an
+   author rule such as `.appearance-row{display:flex}` outranks the
+   user-agent's `[hidden]{display:none}` however specific either is, so an
+   element the page hides by setting .hidden stays on screen. That is how the
+   Screen group's colour row came to show for every mode (reported from the
+   phone), and why the strip arrows already carry a guard of their own. One
+   rule here beats remembering it per element - and it covers every element the
+   sheet hides, since all of them live inside #styler. */
+#styler [hidden]{display:none}
 /* Editing wants the room back. With the keyboard up, the fixed rows above
-   the editor - head, Background block with its thumbnail strip, toolbar -
-   ate the lifted sheet down to a line of CSS. While the caret is in the
-   textarea the Background block stands down, keyboard or not: the strip
-   needs no keyboard, the block is irrelevant while CSS is being typed, and
-   it returns the moment the caret leaves. The class is set by stylerFit. */
-#styler.editing #appearanceBackground,#styler.editing #stylerNote{display:none}
-/* Both section headings cut from one cloth: same size, tone and weight, so
-   neither reads as more important than the other. */
-#appearanceBackground strong,.appearance-heading{font-size:13px;font-weight:600;
-  color:var(--fg-soft)}
-.appearance-heading{margin-bottom:.25em}
+   the editor - head, the window groups with the thumbnail strip, toolbar -
+   ate the lifted sheet down to a line of CSS. The note goes while the caret
+   works; the window-background GROUP is stood down by the same trigger, but
+   from the script (stylerEditing), because it is a group now and the bar has
+   to keep telling the truth about it. */
+#styler.editing #stylerNote{display:none}
+/* Custom CSS closed: the sheet stops being a sheet. Its height is the
+   groups' own - measured onto --styler-shown by appearanceSheetHeight - so
+   closing the editor gives the page back the rest of the screen instead of
+   leaving the sheet standing empty over it. max-height keeps that honest on a
+   SHORT viewport: an auto height has no opinion about the keyboard, and the
+   colour fields can raise one with the editor folded, so above --styler-h the
+   scroller takes over as it does everywhere else. The section's own contents
+   are hidden by the group's own `hidden` (appearanceGroupSet), as for the two
+   window groups; the class here is only about the sheet's height. */
+#styler.no-css{height:auto;max-height:var(--styler-h)}
 .appearance-row{display:flex;align-items:center;gap:.5em;min-height:2.5em}
 /* One narrow label column for both rows - "Color" and "Image" say enough
    under the section heading, and every em here is strip width. */
@@ -405,10 +440,56 @@ body.styling{padding-bottom:var(--styler-h)}
 .appearance-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
   font:inherit;font-size:13px;
   background:var(--bg-card);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:.25em}
-/* The color box wraps the input AND its dropdown, so the 35% row cap moved
-   here: a percentage on the input would resolve against the box and stop
-   capping anything. */
-#appearanceColorBox{position:relative;display:inline-flex;max-width:35%}
+/* The color box wraps the input, the picker AND the dropdown, so the 35% row
+   cap moved here: a percentage on the input would resolve against the box and
+   stop capping anything. The pipette sits to the RIGHT of the field, where the
+   reader's finger is already going and where it does not push the hex digits
+   away from the label that names them. */
+.color-box{display:inline-flex;align-items:center;gap:.3em;max-width:35%}
+.color-pick{flex:none;display:flex;align-items:center;justify-content:center;
+  width:2em;height:2em;padding:0;cursor:pointer;
+  font-size:13px;background:var(--bg-card);color:var(--fg-soft);
+  border:1px solid var(--line);border-radius:5px}
+.color-pick svg{width:1.05em;height:1.05em;display:block}
+/* Hover only reaches a pipette with no colour on it: once the button wears a
+   swatch, the glyph's colour and border are inline (chosen for contrast) and an
+   inline declaration outranks this rule whatever the selector says. */
+.color-pick:hover,.color-pick:focus-visible{color:var(--fg);border-color:var(--fg-faint)}
+.color-pick:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* ── the colour window ───────────────────────────────────────────────
+   Three sliders, the colour they make, and one button that writes it. Each
+   track carries its channel's own gradient - black to red, to green, to blue -
+   which is what makes a slider readable at a glance: the position is the value
+   and the colour under the thumb is the answer. The thumb is drawn rather than
+   left to the platform, like every other control in these windows.
+   Its own size, height and centring come from dialog.group-dialog.panel-card
+   (group-editor.css) with the other windows - deliberately NOT repeated here as
+   an #id rule, which would outrank that file's phone media query and leave this
+   one window a different width from every other on a phone. */
+.pick-preview{display:flex;align-items:center;gap:.6em}
+.pick-swatch{flex:none;width:2.6em;height:2.6em;border-radius:7px;
+  border:1px solid var(--line)}
+#colorPreviewHex{font-size:13px;letter-spacing:.06em;color:var(--fg)}
+.pick-rows{display:flex;flex-direction:column;gap:.5em}
+.pick-row{display:flex;align-items:center;gap:.6em}
+.pick-key{flex:0 0 1.2em;font-size:13px;color:var(--fg-soft)}
+.pick-row input[type=range]{flex:1 1 auto;min-width:0}
+.pick-row output{flex:0 0 2.6em;text-align:right;font-size:13px;
+  color:var(--fg-soft);font-variant-numeric:tabular-nums}
+#pickR{--track:linear-gradient(90deg,#000,#f00)}
+#pickG{--track:linear-gradient(90deg,#000,#0f0)}
+#pickB{--track:linear-gradient(90deg,#000,#00f)}
+#colorDialog input[type=range]{appearance:none;-webkit-appearance:none;
+  height:26px;margin:0;background:none;cursor:pointer}
+#colorDialog input[type=range]::-webkit-slider-runnable-track{height:10px;
+  border-radius:5px;border:1px solid var(--line);
+  background:var(--track,var(--line-soft))}
+#colorDialog input[type=range]::-webkit-slider-thumb{appearance:none;
+  -webkit-appearance:none;width:22px;height:22px;margin-top:-6px;
+  border-radius:50%;background:var(--bg-card);border:2px solid var(--fg);
+  box-shadow:0 1px 3px rgba(0,0,0,.35)}
+#colorDialog input[type=range]:focus-visible::-webkit-slider-thumb{
+  outline:2px solid var(--focus);outline-offset:1px}
 /* The Background-color checkbox wears the groups editor's square - one
    checkbox shape across the panels: 20px, a --fg border, and the check drawn
    rather than left to the platform, whose default box reads as foreign next
@@ -422,29 +503,59 @@ body.styling{padding-bottom:var(--styler-h)}
   border-width:0 2px 2px 0;transform:rotate(45deg)}
 .appearance-row input[type=checkbox]:focus-visible{outline:2px solid var(--accent);
   outline-offset:2px}
-/* The recent-colors dropdown wears the search-history surface exactly - same
-   card, and under the shell the same paper tint and wallpaper - because it
-   floats over the same page; history.css has the original of this recipe. */
-.color-history{position:absolute;top:calc(100% + 4px);left:0;z-index:20;
-  min-width:10em;max-height:min(50vh,320px);overflow-y:auto;
+/* ─ floating menus ──────────────────────────────────────────────────
+   THE SURFACE, stated once: every menu the app floats over the page wears it,
+   so a menu is a window like the others - the history dropdown's own card,
+   and under the shell the same paper tint and wallpaper (history.css has the
+   original of this recipe). Fixed positioning comes from the place() in
+   sheetMenuNew: the settings area above the editor scrolls, and a menu
+   anchored inside it would be cut off at that scroller's edge. */
+.menu-card{position:fixed;z-index:20;overflow-y:auto;
+  max-width:calc(100vw - 12px);
   background:var(--bg-card);border:1px solid var(--line);border-radius:8px;
   box-shadow:var(--shadow)}
-html[data-shell-sepia] .color-history{
+html[data-shell-sepia] .menu-card{
   background-color:var(--paper-bg);
   background-image:linear-gradient(#ffffff24,#ffffff24)}
-html[data-shell-image] .color-history{
+html[data-shell-image] .menu-card{
   background-color:var(--paper-bg,var(--bg));
   background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
   background-size:100% 100%}
-.color-history[hidden]{display:none}
-.color-history button{display:flex;align-items:center;gap:.6em;width:100%;
+.menu-card[hidden]{display:none}
+.menu-card button{display:flex;align-items:center;gap:.6em;width:100%;
   padding:.45em .7em;border:0;background:none;color:var(--fg);
   text-align:left;font:inherit;font-size:13px;cursor:pointer}
-.color-history button:hover,.color-history button:focus-visible{
+.menu-card button:hover,.menu-card button:focus-visible{
   background:var(--line-soft);outline:none}
+/* The recent colors: the swatch IS the label's subject, so it leads. */
+.color-history{min-width:10em;max-height:min(50vh,320px)}
 .color-history .sw{flex:none;width:1.7em;height:1.7em;border-radius:4px;
   border:1px solid var(--line)}
-#appearanceBackground small{display:block;font-size:11px;color:var(--fg-faint)}
+/* ── the Screen group ────────────────────────────────────────────────
+   A title, the answer as a control you tap, and a line saying what the
+   answer means - the shape the shell's own settings screen gives these two
+   rows, which is where they came from. */
+.screen-row{padding:.2em 0 .45em}
+.screen-title{font-size:13px;font-weight:600;color:var(--fg-soft);margin-bottom:.25em}
+.choice-btn{display:flex;align-items:center;gap:.4em;width:100%;min-height:2.2em;
+  font:inherit;font-size:13px;color:var(--fg);
+  background:var(--bg-card);border:1px solid var(--line);border-radius:5px;
+  padding:.35em .55em;text-align:left;cursor:pointer}
+.choice-btn::after{content:"";flex:none;margin-left:auto;width:0;height:0;
+  border:4px solid transparent;border-top-color:var(--fg-faint)}
+.choice-btn:hover{border-color:var(--fg-faint)}
+.choice-btn:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* The menu is exactly as wide as the control it speaks for (data-w, set by
+   the markup and read in place()), so the answer and its alternatives line
+   up in one column; the long edge labels then wrap rather than run off a
+   phone's sheet. */
+.choice-menu{min-width:12em;max-height:min(60vh,340px)}
+.choice-menu .choice-item::before{content:"";flex:none;width:1em;
+  color:var(--accent);font-weight:400}
+.choice-menu .choice-item[aria-selected="true"]::before{content:"✓"}
+#appearanceBackground small,.screen-row small{display:block;font-size:11px;
+  line-height:1.4;color:var(--fg-faint)}
+.screen-row small{margin-top:.25em}
 /* The picker is the pictures themselves: a scrollable row of thumbnails, the
    selected one ringed in the accent, None at the left and a dashed "+" at
    the right. Squares crop with object-fit because the shell stretches the
@@ -562,7 +673,7 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 /* The editor speaks the sheet's own typeface, the way the Background rows
    above it do: it is prose to be tweaked on a phone, not a terminal session,
    and a second family here read as a different program. */
-#stylerCSS{flex:1 1 auto;min-height:5em;width:100%;margin-top:.5em;resize:none;
+#stylerCSS{width:100%;height:16em;margin-top:.5em;resize:none;
   font:inherit;font-size:13px;line-height:1.5;tab-size:2;padding:.5em .6em;
   color:var(--fg);background:var(--bg-card);
   border:1px solid var(--line);border-radius:8px}
@@ -577,7 +688,12 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 #stylerNote .p:hover{color:var(--fg-soft)}
 /* The files pane occupies exactly the textarea's box, so switching tabs does
    not resize the sheet under the reader's thumb. */
-#stylerFiles{flex:1 1 auto;min-height:0;width:100%;margin-top:.5em;overflow:auto;
+/* ── the Files and Presets panes ─────────────────────────────────────
+   Blocks in the sheet's scroller, exactly like the editor above them: the
+   pane's own list used to scroll inside its own box while the sheet scrolled
+   around it, which on a phone is two scrollers fighting for one thumb. They
+   lay their rows out in full and #appearanceGroups scrolls them. */
+#stylerFiles{width:100%;margin-top:.5em;
   background:var(--bg-card);border:1px solid var(--line);border-radius:8px}
 #stylerFiles .empty{padding:1.2em .8em;text-align:center;color:var(--fg-faint);
   font-size:12px;line-height:1.5}
@@ -601,8 +717,8 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
    should not have to learn a second surface. The rows differ in what leads
    them: a switch, not a thumbnail, since a preset's whole body is the
    description under its name. */
-#stylerPresetsPane{flex:1 1 auto;min-height:0;width:100%;margin-top:.5em;
-  overflow:auto;background:var(--bg-card);border:1px solid var(--line);
+#stylerPresetsPane{width:100%;margin-top:.5em;
+  background:var(--bg-card);border:1px solid var(--line);
   border-radius:8px}
 #stylerPresetsPane .empty{padding:1.2em .8em;text-align:center;
   color:var(--fg-faint);font-size:12px}

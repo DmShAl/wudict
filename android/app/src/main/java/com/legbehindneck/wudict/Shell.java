@@ -118,6 +118,30 @@ final class Shell {
                 + ShellPrefs.foundDictionaries(c) + ");" + DICTIONARY_PICKER_JS, null);
     }
 
+    // What the settings screen sends after emptying the browser's cache: the
+    // window that shows the page belongs to another Activity, so it is asked to
+    // load the page again rather than reached into.
+    static final String EXTRA_RELOAD = "wudict.reload";
+
+    /**
+     * Empties the WebView's resource cache - the copies of the page's own files
+     * (HTML, CSS, JS, the favicon) it keeps on the device.
+     *
+     * Only that. The dictionaries and the prepared library are the server's
+     * files on disk, and localStorage (theme, wide mode, which group the picker
+     * is on) is the reader's state, not a cache: neither is touched, which is
+     * why this needs no confirmation and changes no setting.
+     *
+     * clearCache() is per-APPLICATION despite being an instance method - the
+     * WebView documentation says so outright - so a throwaway WebView is the
+     * whole requirement here.
+     */
+    static void clearWebCache(Context c) {
+        WebView probe = new WebView(c);
+        probe.clearCache(true);
+        probe.destroy();
+    }
+
     // Keep the real select as the source of truth, including streamed options,
     // groups, disabled entries and its existing change handler.
     static final String DICTIONARY_PICKER_JS = """
@@ -391,6 +415,14 @@ final class Shell {
                         String action = request.optString("action", "get");
                         if ("set".equals(action)) {
                             String field = request.getString("field");
+                            // The window's own two rows, moved here from the
+                            // settings screen: they change the SHELL's window,
+                            // not the page, so they are stored here and applied
+                            // through the activity that owns one. In the
+                            // floating lookup window there is nothing to apply
+                            // them to - a popup does not own the system bars -
+                            // and the value simply awaits the app window.
+                            boolean window = false;
                             if ("colorEnabled".equals(field)) {
                                 ShellPrefs.of(a).edit().putBoolean(ShellPrefs.SEPIA,
                                         request.getBoolean("value")).apply();
@@ -401,9 +433,33 @@ final class Shell {
                                 if (!name.isEmpty() && !WindowBackground.images(a).contains(name))
                                     throw new IllegalArgumentException("Image unavailable");
                                 ShellPrefs.of(a).edit().putString("background_image", name).apply();
+                            } else if ("edgeMode".equals(field)) {
+                                int mode = request.optInt("value", -1);
+                                if (mode < ShellPrefs.EDGE_SYSTEM || mode > ShellPrefs.EDGE_NONE)
+                                    throw new IllegalArgumentException("Unknown edge mode");
+                                ShellPrefs.setEdgeMode(a, mode);
+                                window = true;
+                            } else if ("edgeColor".equals(field)) {
+                                // parseColor takes #RGB, #RRGGBB and #AARRGGBB
+                                // alike; the alpha is forced opaque on the way
+                                // in, and a string it cannot read throws.
+                                ShellPrefs.setEdgeColorValue(a,
+                                        android.graphics.Color.parseColor(request.getString("value")));
+                                window = true;
+                            } else if ("bars".equals(field)) {
+                                int mask = request.optInt("value", -1);
+                                if (mask < 0 || mask > ShellPrefs.BARS_BOTH)
+                                    throw new IllegalArgumentException("Unknown bar mask");
+                                ShellPrefs.setBars(a, mask);
+                                window = true;
                             } else throw new IllegalArgumentException("Unknown field");
-                            if (a instanceof MainActivity) ((MainActivity) a).refreshAppearance();
-                            else if (a instanceof LookupActivity) ((LookupActivity) a).refreshAppearance();
+                            if (window) {
+                                if (a instanceof MainActivity) ((MainActivity) a).refreshScreen();
+                            } else if (a instanceof MainActivity) {
+                                ((MainActivity) a).refreshAppearance();
+                            } else if (a instanceof LookupActivity) {
+                                ((LookupActivity) a).refreshAppearance();
+                            }
                         } else if (!"get".equals(action)) throw new IllegalArgumentException("Unknown action");
                         org.json.JSONObject reply = new org.json.JSONObject();
                         reply.put("colorEnabled", ShellPrefs.sepia(a));
@@ -412,6 +468,10 @@ final class Shell {
                         org.json.JSONArray images = new org.json.JSONArray();
                         for (String name : WindowBackground.images(a)) images.put(name);
                         reply.put("images", images);
+                        reply.put("edgeMode", ShellPrefs.edgeMode(a));
+                        reply.put("edgeColor",
+                                String.format("#%06X", 0xFFFFFF & ShellPrefs.edgeColorValue(a)));
+                        reply.put("bars", ShellPrefs.bars(a));
                         result.confirm(reply.toString());
                     } catch (org.json.JSONException | IllegalArgumentException bad) {
                         result.cancel();
