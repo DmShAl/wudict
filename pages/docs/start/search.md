@@ -84,10 +84,10 @@ The widening is never silent. When a dictionary did not find an exact match, its
 header says **phrase not found · words proximity** or **phrase not found ·
 words anywhere**, so you always know which FTS mode is used.
 
-### Saying exactly what you mean
+### Full-text search query language
 
-When you want one reading and not the ladder, write it. **A query containing
-an operator is run exactly as written and is never widened.**
+When you need to search for an exact phrase only with no fallbacks to proximity search enclose the text in single or double quotes.
+**A query containing an operator is run exactly as written and is never widened.**
 
 wuDict switches to this exact reading only when your input contains a quote, a
 bare **UPPERCASE** `AND`, `OR`, `NOT`, or `NEAR(`. Lower-case `and`
@@ -101,20 +101,20 @@ document — all five mean the same thing. An apostrophe is still a letter:
 a single quote opens a phrase only when it stands at the *start* of a word and
 its partner at the *end* of one.
 
-| You type | You get |
-| --- | --- |
-| `"no pun intended"` | that phrase, exactly those words, adjacent, in that order — **no** prefix on the last one, and **no** widening if it finds nothing |
-| `'no pun intended'` | the same — single quotes are quotes |
-| `"no pun intended"*` | the same phrase with the last word left open — also *…no pun intendedly* |
-| `pun` | every word starting with *pun* — a bare word is always a prefix |
-| `"pun"` | the word *pun* only |
-| `pun intended` *(inside an operator query)* | both words, anywhere in the article |
-| `pun AND intended` | the same thing, written out |
-| `pun OR intended` | either one |
-| `pun NOT intended` | *pun*, in articles that do not contain *intended* |
-| `NEAR("pun" "intended", 5)` | the two words within 5 words of each other, any order |
-| `NEAR("pun" "intended")` | the same with the default distance of 10 |
-| `(pun OR joke) AND intended` | grouping, to any depth |
+| You type | You get                                                                                             |
+| --- |-----------------------------------------------------------------------------------------------------|
+| `"no pun intended"` | that exact literal phrase — **no** prefix on the last word, and **no** fallback if it finds nothing |
+| `'no pun intended'` | the same — single quotes are quotes                                                                 |
+| `"no pun intended"*` | the same phrase with the last word left open — also *…no pun intendedly*                            |
+| `pun` | every word starting with *pun* — a bare word is always a prefix                                     |
+| `"pun"` | the word *pun* only                                                                                 |
+| `pun intended` *(inside an operator query)* | both words, anywhere in the article                                                                 |
+| `pun AND intended` | the same thing, written out                                                                         |
+| `pun OR intended` | either one                                                                                          |
+| `pun NOT intended` | *pun*, in articles that do not contain *intended*                                                   |
+| `NEAR("pun" "intended", 5)` | the two words within 5 words of each other, any order                                               |
+| `NEAR("pun" "intended")` | the same with the default distance of 10                                                            |
+| `(pun OR joke) AND intended` | grouping, to any depth                                                                              |
 
 `NOT` binds tightest, then `AND`, then `OR`; two operands side by side mean
 `AND`. Use parentheses when you want another grouping.
