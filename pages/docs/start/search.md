@@ -116,15 +116,15 @@ its partner at the *end* of one.
 | `NEAR("pun" "intended")` | the same with the default distance of 10                                                            |
 | `(pun OR joke) AND intended` | grouping, to any depth                                                                              |
 
-`NOT` binds tightest, then `AND`, then `OR`; two operands side by side mean
+`NOT` has highest priority, followed by `AND`, then `OR`; two operands side by side mean
 `AND`. Use parentheses when you want another grouping.
 
-??? example "Worked examples for `no pun intended`"
+??? example "Examples for `no pun intended`"
 
     | Goal | Query |
     | --- | --- |
     | That phrase, and only that phrase | `"no pun intended"` or `'no pun intended'` |
-    | The phrase, but let wuDict widen if it finds nothing | `no pun intended` |
+    | The phrase, but allow fallback to proximity search if nothing found | `no pun intended` |
     | *pun* and *intended* near each other, either order | `NEAR("pun" "intended", 10)` |
     | *pun* and *intended* in the same article, however far apart | `"pun" AND "intended"` |
     | Either *pun* or *joke*, with *intended* | `(pun OR joke) intended` |
