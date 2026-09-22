@@ -759,7 +759,13 @@ func TestMediaSourcesEveryZipSpelling(t *testing.T) {
 			zf.Close()
 
 			var found bool
-			for _, s := range MediaSources(src) {
+			srcs := MediaSources(src)
+			defer func() {
+				for _, s := range srcs {
+					s.Close()
+				}
+			}()
+			for _, s := range srcs {
 				if rc, err := s.Open("pic.png"); err == nil {
 					rc.Close()
 					found = true

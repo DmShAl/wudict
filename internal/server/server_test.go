@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wuweidict/wudict/internal/config"
 	"github.com/wuweidict/wudict/internal/dict"
 	_ "github.com/wuweidict/wudict/internal/format/dsl" // register .dsl
 	"github.com/wuweidict/wudict/internal/store"
@@ -143,6 +144,7 @@ func newTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	closeBackends(t, reg)
 	return New(reg)
 }
 
@@ -562,7 +564,7 @@ func TestSetupFlow(t *testing.T) {
 	}
 	// persisted to config
 	data, err := os.ReadFile(s.ConfigPath)
-	if err != nil || !strings.Contains(string(data), "DICT_DIR = "+`"`+dictDir+`"`) {
+	if err != nil || !strings.Contains(string(data), "DICT_DIR = "+config.QuoteTOML(dictDir)) {
 		t.Errorf("config not persisted: %v %q", err, data)
 	}
 	// "/" now serves the app
@@ -803,7 +805,7 @@ func TestSetupMultipleFolders(t *testing.T) {
 	}
 	// persisted as an array
 	data, _ := os.ReadFile(s.ConfigPath)
-	if !strings.Contains(string(data), `DICT_DIR = ["`+a+`", "`+b+`"`) {
+	if !strings.Contains(string(data), "DICT_DIR = ["+config.QuoteTOML(a)+", "+config.QuoteTOML(b)) {
 		t.Errorf("array not persisted: %q", data)
 	}
 	// and the library folder is refused as a dictionary folder
@@ -865,6 +867,7 @@ func newDictWithResources(t *testing.T, files map[string][]byte) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	closeBackends(t, reg)
 	return New(reg)
 }
 
@@ -1164,4 +1167,19 @@ func newRequest(method, target string, body io.Reader) *http.Request {
 	r := httptest.NewRequest(method, target, body)
 	r.Host = "127.0.0.1:6888"
 	return r
+}
+
+// closeBackends closes every open backend when the test ends. Registered after
+// the temp dirs, so it runs before their removal: Windows refuses to delete a
+// file that is still open, and a registry has no Close of its own - it lives as
+// long as the process. ingestMu first, so an ingest still finishing (a
+// demanded index the test only waited to see land) is not raced.
+func closeBackends(t *testing.T, reg *Registry) {
+	t.Cleanup(func() {
+		for _, e := range reg.all() {
+			e.ingestMu.Lock()
+			e.closeNow()
+			e.ingestMu.Unlock()
+		}
+	})
 }

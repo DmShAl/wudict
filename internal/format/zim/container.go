@@ -169,9 +169,17 @@ func openContainer(path string) (*container, error) {
 }
 
 func (c *container) Close() error {
-	if c.zr != nil {
-		c.zr.Close()
-		c.zr = nil
+	// zstd() builds and hands out c.zr under c.mu, so Close takes it too: the
+	// registry closes superseded backends after a grace period while a decode
+	// may still be starting one. A decode that grabbed the decoder just before
+	// this line degrades to an error from that one cluster; what is gone is
+	// the unlocked mutation of the field itself.
+	c.mu.Lock()
+	zr := c.zr
+	c.zr = nil
+	c.mu.Unlock()
+	if zr != nil {
+		zr.Close()
 	}
 	return c.f.Close()
 }

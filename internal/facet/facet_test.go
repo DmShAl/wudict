@@ -74,7 +74,7 @@ func TestDeriveKind(t *testing.T) {
 		{"Stedman's Medical Dictionary", []string{"medical"}},
 		{"Dictionary of Abbreviations and Acronyms", []string{"abbrev"}},
 		{"Longman Dictionary of Contemporary English", nil},
-		{"Malawi Gazetteer", nil},  // "law" must not fire inside a word
+		{"Malawi Gazetteer", nil}, // "law" must not fire inside a word
 		{"The Lawyer's Companion", nil},
 		{"Concise Oxford English Dictionary", nil},
 	}

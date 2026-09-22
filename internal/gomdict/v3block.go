@@ -11,7 +11,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	lzo "github.com/anchore/go-lzo"
 )
@@ -99,9 +99,16 @@ func (mdict *MdictBase) decodeBlockV3(block []byte, decompressedSize int) ([]byt
 			return nil, fmt.Errorf("v3 block: zlib reader: %w", err)
 		}
 		defer z.Close()
-		decompressed, err = ioutil.ReadAll(z)
+		// Bounded by the same cap as the LZO branch: decompressedSize is read
+		// out of the block header, and an unbounded inflate turns a corrupt
+		// (or hostile) size into a zlib bomb - a small block that inflates to
+		// nothing but RAM.
+		decompressed, err = io.ReadAll(io.LimitReader(z, maxLZOBlock+1))
 		if err != nil {
 			return nil, fmt.Errorf("v3 block: zlib read: %w", err)
+		}
+		if int64(len(decompressed)) > maxLZOBlock {
+			return nil, fmt.Errorf("v3 block: inflated size exceeds the %d byte limit", maxLZOBlock)
 		}
 	default:
 		return nil, fmt.Errorf("v3 block: unsupported compression method %d", compressionMethod)

@@ -38,13 +38,20 @@ func removeNewlines(s string) string { return reNewlines.ReplaceAllString(s, " "
 
 func normalizeNewlines(s string) string { return reNewlines.ReplaceAllString(s, "\n") }
 
+// Replacers built once: strings.NewReplacer compiles a trie, and these run
+// per definition during an ingest scan of the whole dictionary.
+var (
+	imgMarkerStripper = strings.NewReplacer("\x1e", "", "\x1f", "")
+	xmlEscaper        = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+)
+
 // fixImgLinks strips the \x1e / \x1f markers Babylon wraps around img src names.
 func fixImgLinks(s string) string {
-	return strings.NewReplacer("\x1e", "", "\x1f", "").Replace(s)
+	return imgMarkerStripper.Replace(s)
 }
 
 func escapeXML(s string) string {
-	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
+	return xmlEscaper.Replace(s)
 }
 
 // replaceHTMLEntities converts &#NN; / &#xHH; / &name; references to their

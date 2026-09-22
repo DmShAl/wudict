@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/logx"
 )
 
 func init() {
@@ -581,6 +582,11 @@ func (s *Store) Keywords(offset, n int) []string {
 		if rows.Scan(&w) == nil {
 			out = append(out, w)
 		}
+	}
+	// The signature cannot carry it, but a read that died part way must not
+	// pass for a short list: name the degradation where it happened.
+	if err := rows.Err(); err != nil {
+		logx.Warn("keywords: %v (returning the %d read so far)", err, len(out))
 	}
 	return out
 }

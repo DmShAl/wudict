@@ -105,7 +105,7 @@ func All(ctx context.Context, dicts []dict.Dictionary, mode Mode, term string, p
 				hits[i] = Hit{Meta: d.Meta(), Err: err}
 				return
 			}
-			hits[i] = query(d, mode, term, plan, perDict)
+			hits[i] = runQuery(ctx, d, mode, term, plan, perDict)
 		}(i, d)
 	}
 	wg.Wait()
@@ -209,10 +209,42 @@ func StreamOpen(ctx context.Context, openers []Opener, mode Mode, term string, p
 				send(i, Hit{Err: err})
 				return
 			}
-			send(i, query(d, mode, term, plan, perDict))
+			send(i, runQuery(ctx, d, mode, term, plan, perDict))
 		}(i, open)
 	}
 	wg.Wait()
+}
+
+// runQuery runs one dictionary's query and waits for it, unless the context
+// dies first - then the query is ABANDONED, not waited on.
+//
+// A context cannot reach into a backend's query: the dict interfaces take no
+// context (preview backends are plain parsers; the stores' queries are plain
+// SQL). Before the pre-open checks existed, that wedge held the whole
+// fan-out - wg.Wait() waited for every dictionary, so one crawling contains
+// search stalled every other result behind it, and the handler could do
+// nothing but hang with it. Abandoning bounds the wedge to one goroutine
+// holding one backend, which the janitor eventually closes underneath it;
+// the buffered send means the abandoned goroutine also ends without
+// blocking whenever its query finally does.
+func runQuery(ctx context.Context, d dict.Dictionary, mode Mode, term string, plan []ftsq.Rung, perDict int) Hit {
+	done := make(chan Hit, 1)
+	go func() { done <- query(d, mode, term, plan, perDict) }()
+	select {
+	case h := <-done:
+		return h
+	case <-ctx.Done():
+		// A finished query outranks the cancellation that landed in the
+		// same scheduler tick: the work is done and the answer exists, so
+		// a slot reporting "canceled" over a result it is holding would
+		// be a lie about the work.
+		select {
+		case h := <-done:
+			return h
+		default:
+			return Hit{Meta: d.Meta(), Err: ctx.Err()}
+		}
+	}
 }
 
 // safeOpen runs a caller-supplied opener under the same panic conversion as

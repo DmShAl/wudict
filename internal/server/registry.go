@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,13 @@ import (
 	"github.com/wuweidict/wudict/internal/resource"
 	"github.com/wuweidict/wudict/internal/store"
 )
+
+// errReindexing answers an open of a dictionary whose prepared database is
+// being replaced: on Windows an open during the rebuild would hold the old
+// text.db and fail the rename the rebuild ends in (registry_windows.go). The
+// slot reports the error until the rebuild's reopen() hands the new database
+// out; every other dictionary in the fan-out is unaffected.
+var errReindexing = errors.New("dictionary is being re-indexed")
 
 // upgraded serves queries from an ingested text.db while resolving
 // resources media.db → original source (D2 resolution order). The direct
@@ -48,6 +56,9 @@ type upgraded struct {
 	srcErr error
 	srcW   atomic.Int64
 	srcUse atomic.Int64
+	// retired is a released source handle sitting out closeGrace; Close
+	// closes it at once, so closing the view lets go of the source files.
+	retired retiring
 
 	// The middle rung of resource resolution (O8): containers found from the
 	// source PATH, and locations recorded in media.link.db. Both provide a
@@ -95,10 +106,7 @@ func (u *upgraded) releaseSource() int64 {
 	u.src, u.srcErr = nil, nil
 	u.srcW.Store(0)
 	u.srcMu.Unlock()
-	time.AfterFunc(closeGrace, func() {
-		d.Close()
-		scheduleReclaim()
-	})
+	u.retired.retire(d)
 	logx.V("released resource handle for %s (~%d MB)", filepath.Base(u.srcPath), w>>20)
 	return w
 }
@@ -262,6 +270,7 @@ func (u *upgraded) Close() error {
 	if src != nil {
 		src.Close()
 	}
+	u.retired.closeAll()
 	u.medMu.Lock()
 	srcs, links, fet := u.medSrc, u.medLink, u.medFet
 	u.medSrc, u.medLink, u.medFet = nil, nil, nil
@@ -332,6 +341,10 @@ type entry struct {
 	// disagrees (revalidate). dMu-guarded, like d and err.
 	backing string
 
+	// retired holds the backends this entry superseded or evicted while they
+	// sit out closeGrace; closeNow and releasePrepared close them at once.
+	retired retiring
+
 	lastUse atomic.Int64 // unix nanos, for LRU eviction
 	weight  atomic.Int64 // estimated bytes held by a preview backend (0 if cheap)
 
@@ -365,6 +378,12 @@ type entry struct {
 	// abbrevTried marks this dictionary as already considered by the
 	// abbreviation upgrade sweep, so a rescan does not re-queue it.
 	abbrevTried atomic.Bool
+
+	// rebuilding bars opens for the length of an ingest that will rename over
+	// the prepared database (Windows only; set with the backend handback in
+	// registry_windows.go). Set false again by the defers in setFeatures,
+	// ensureBaseIndex and reabsorbAbbrev - whichever stage armed it.
+	rebuilding atomic.Bool
 }
 
 // noPackableMedia reports whether a prior full ingest found nothing to pack,
@@ -561,6 +580,9 @@ func (e *entry) indexing() bool { return e.demanded.Load() }
 // media.db) exists for it, wraps it into the upgraded view.
 func (e *entry) open() (dict.Dictionary, error) {
 	e.lastUse.Store(time.Now().UnixNano())
+	if e.rebuilding.Load() {
+		return nil, errReindexing
+	}
 	e.dMu.RLock()
 	d, err := e.d, e.err
 	e.dMu.RUnlock()
@@ -839,10 +861,7 @@ func (e *entry) drop(force bool) (int64, bool) {
 	// Outside dMu, so this lock is only ever taken before dMu and never after
 	// it - the derivation in entry.styles holds styleMu while it opens.
 	e.forgetStyles()
-	time.AfterFunc(closeGrace, func() {
-		d.Close()
-		scheduleReclaim()
-	})
+	e.retired.retire(d)
 	if w > 0 {
 		logx.V("evicted preview backend %s (~%d MB)", filepath.Base(e.Path), w>>20)
 	} else {
@@ -1434,6 +1453,29 @@ func preparedFor(path string) (string, bool) {
 	return store.PreparedFor(path)
 }
 
+// preparedDB names the prepared database for this entry: the resolution its
+// open was checked against when there is one, else backingDB's stat-and-
+// receipt answer. Deliberately NOT preparedTextDB, whose source-changed check
+// is a SQLite open per call - and /res/ lands here for every resource on a
+// page. Where the two disagree (the source was edited after indexing) the
+// answer is still the folder the user would have put an override into:
+// staleness is open-time business, not path business.
+func (e *entry) preparedDB() (string, bool) {
+	if store.IsTextDB(e.Path) {
+		return e.Path, true
+	}
+	e.dMu.RLock()
+	backing := e.backing
+	e.dMu.RUnlock()
+	if backing != "" {
+		return backing, true
+	}
+	if p := backingDB(e.Path); p != "" {
+		return p, true
+	}
+	return "", false
+}
+
 // backingDB names the prepared database that exists on disk for a dictionary
 // path right now, or "" when there is none. It is the identity a cached open is
 // checked against, so it answers from stat() and the folder's info.txt claim
@@ -1573,6 +1615,9 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 	defer HoldActiveProcs()()
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	// releasePrepared (below, or inside rebuild) may bar opens for the length
+	// of this work; this stage owns the exit either way.
+	defer e.rebuilding.Store(false)
 
 	cur, err := e.open()
 	if err != nil {
@@ -1634,10 +1679,15 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 
 	switch {
 	case want.Media && !have.Media:
+		// no media.db exists, so nothing holds one and the pack's rename is
+		// legal everywhere: the backend keeps serving (and feeding the pack)
 		if err := e.packMedia(cur, textDB, mediaDB, progress); err != nil {
 			return err
 		}
 	case !want.Media && have.Media:
+		// the serving backend's store holds media.db open, and Windows
+		// refuses to remove an open file (registry_windows.go)
+		releasePrepared(e, textDB)
 		// the media can be packed again from the source it came from
 		if err := os.Remove(mediaDB); err != nil {
 			return fmt.Errorf("removing packed media for %q: %w", name, err)
@@ -1653,6 +1703,9 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 
 // rebuild writes a fresh index for the requested plan.
 func (e *entry) rebuild(name, textDB string, plan store.Plan, progress store.Progress) error {
+	// The ingest finishes in a rename over textDB, which the serving backend
+	// holds open - fatal only on Windows, a no-op elsewhere (registry_windows.go).
+	releasePrepared(e, textDB)
 	rd, err := dict.OpenReader(e.Path)
 	if err != nil {
 		return err
@@ -1692,14 +1745,11 @@ func (e *entry) reopen() error {
 	// stylesheet is read again rather than trusted from the backend it replaced.
 	e.forgetStyles()
 	if old != nil && old != fresh {
-		time.AfterFunc(closeGrace, func() {
-			old.Close()
-			// preparing is the memory high-water mark; hand the pages back
-			// rather than sitting on them until the next natural GC -
-			// coalesced with any other close landing at the same moment,
-			// since INDEX_WORKERS>1 makes that the normal case
-			scheduleReclaim()
-		})
+		// preparing is the memory high-water mark; the close hands the pages
+		// back rather than sitting on them until the next natural GC -
+		// coalesced with any other close landing at the same moment, since
+		// INDEX_WORKERS>1 makes that the normal case
+		e.retired.retire(old)
 	}
 	return nil
 }
@@ -1709,11 +1759,76 @@ func (e *entry) reopen() error {
 // bytes per headword) is worth reclaiming promptly.
 const closeGrace = 10 * time.Second
 
+// retiring is the set of superseded backends sitting out closeGrace. The grace
+// is for in-flight readers; a caller that needs every handle on the files gone
+// now - removal and a rebuild's rename, which Windows refuses over an open
+// file - closes the lot early with closeAll. Each backend closes exactly once,
+// whichever comes first. The zero value is ready to use.
+type retiring struct {
+	mu      sync.Mutex
+	pending map[*retiree]struct{}
+}
+
+type retiree struct {
+	once sync.Once
+	c    io.Closer
+}
+
+// close blocks a concurrent caller until the one close completes, so closeAll
+// never returns while the timer is still mid-close.
+func (r *retiree) close() {
+	r.once.Do(func() {
+		r.c.Close()
+		scheduleReclaim()
+	})
+}
+
+// retire closes c after closeGrace, or at the next closeAll.
+func (rs *retiring) retire(c io.Closer) {
+	r := &retiree{c: c}
+	rs.mu.Lock()
+	if rs.pending == nil {
+		rs.pending = make(map[*retiree]struct{})
+	}
+	rs.pending[r] = struct{}{}
+	rs.mu.Unlock()
+	time.AfterFunc(closeGrace, func() {
+		r.close() // before the delete: closeAll must find it or find it closed
+		rs.mu.Lock()
+		delete(rs.pending, r)
+		rs.mu.Unlock()
+	})
+}
+
+// closeAll closes every backend still in its grace, now.
+func (rs *retiring) closeAll() {
+	rs.mu.Lock()
+	pending := rs.pending
+	rs.pending = nil
+	rs.mu.Unlock()
+	for r := range pending {
+		r.close()
+	}
+}
+
 // packMedia writes the media.db for a dictionary, from whichever backend can
 // enumerate its resources.
 func (e *entry) packMedia(cur dict.Dictionary, textDB, mediaDB string, progress store.Progress) error {
+	e.dMu.RLock()
+	served := e.d == cur
+	e.dMu.RUnlock()
 	src := cur
-	if u, ok := cur.(*upgraded); ok {
+	if !served {
+		// A rebuild released cur (Windows, registry_windows.go): it is closed,
+		// and asking it for a source would reopen one that nothing closes.
+		// Pack from a handle of our own; reopen() serves the result afterwards.
+		s, err := dict.Open(e.Path)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		src = s
+	} else if u, ok := cur.(*upgraded); ok {
 		s, err := u.source() // lazily open the direct backend for resources
 		if err != nil {
 			return err
@@ -1745,7 +1860,7 @@ func (e *entry) packMedia(cur dict.Dictionary, textDB, mediaDB string, progress 
 		}
 		if extra > 0 {
 			logx.V("%s%d referenced files are not packed in the .mdd - packing them from beside it",
-				logx.Dict(cur.Meta().Name), extra)
+				logx.Dict(src.Meta().Name), extra)
 		}
 	}
 	if len(names) == 0 {
@@ -1849,6 +1964,7 @@ func (r *Registry) upgradeAbbrev() {
 func (e *entry) reabsorbAbbrev() error {
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	defer e.rebuilding.Store(false) // rebuild's releasePrepared may have armed it
 	if store.IsTextDB(e.Path) {
 		return nil
 	}
@@ -1877,6 +1993,7 @@ func (e *entry) reabsorbAbbrev() error {
 func (e *entry) ensureBaseIndex(progress store.Progress) error {
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
+	defer e.rebuilding.Store(false) // rebuild's releasePrepared may have armed it
 	if e.prepared() {
 		return nil // a text.db of its own, or already prepared at whatever level the user chose
 	}

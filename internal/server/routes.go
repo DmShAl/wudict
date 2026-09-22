@@ -152,6 +152,7 @@ func (s *Server) routes() []route {
 		// the binary's own embedded, immutably cached content.
 		{"GET", "/files/", s.handleUserFile, "", false},
 		{"GET", "/assets/frame.js", serveAsset("application/javascript; charset=utf-8", frameJS), "", false},
+		{"GET", "/assets/pick.js", serveAsset("application/javascript; charset=utf-8", pickJS), "", false},
 		{"GET", "/assets/setup.css", serveAsset("text/css; charset=utf-8", setupCSS), "", false},
 		{"GET", "/assets/favicon.svg", serveFavicon, "", false},
 		{"GET", "/favicon.ico", serveFavicon, "", false},

@@ -10,11 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"runtime/metrics"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -178,19 +176,8 @@ func runChild(t *testing.T, corpus string, mb int) (result, error) {
 	if err != nil {
 		return r, fmt.Errorf("child failed: %v\n%s", err, tail(string(out), 40))
 	}
-	if ru, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-		r.PeakRSSMB = maxRSSBytes(ru.Maxrss) / (1 << 20)
-	}
+	r.PeakRSSMB = peakRSSMB(cmd.ProcessState)
 	return r, nil
-}
-
-// maxRSSBytes normalises rusage.Maxrss, which is bytes on Darwin and
-// kilobytes on Linux.
-func maxRSSBytes(v int64) float64 {
-	if runtime.GOOS == "darwin" {
-		return float64(v)
-	}
-	return float64(v) * 1024
 }
 
 const resultPrefix = "RESULT "

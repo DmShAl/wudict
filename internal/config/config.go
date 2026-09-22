@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Config holds all server settings.
@@ -573,7 +574,7 @@ func EnsureConfigFile() (path string, created bool, err error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", false, err
 	}
-	if err := os.WriteFile(p, []byte(configTemplate), 0o644); err != nil {
+	if err := writeFileAtomic(p, []byte(configTemplate), 0o644); err != nil {
 		return "", false, err
 	}
 	return p, true, nil
@@ -617,7 +618,13 @@ func hasControl(v string) bool {
 // SaveKeyRaw is SaveKey for a value that is already TOML syntax - an array
 // from FormatList, say - so lists round-trip through the same
 // uncomment-in-place, comments-preserved edit as scalars.
+//
+// The whole read-modify-write runs under saveMu: the pages save per key, and
+// two overlapping saves that each read the same file would let the later
+// write quietly discard the earlier one's key.
 func SaveKeyRaw(path, key, raw string) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -651,7 +658,58 @@ func SaveKeyRaw(path, key, raw string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(s), 0o644)
+	return writeFileAtomic(path, []byte(s), 0o644)
+}
+
+// saveMu serialises SaveKeyRaw's read-modify-write (the write itself is
+// atomic regardless); writeFileAtomic does not take it, because a nested
+// Lock would deadlock the one caller that already holds it.
+var saveMu sync.Mutex
+
+// writeFileAtomic replaces path with data: written to a temp file in the
+// config's own directory, flushed, then renamed over the target. The config
+// file is the only copy of its settings, so a crash mid-write must not leave
+// a truncated file behind - the same atomicity an ingest's temp+rename gives
+// a text.db. The temp sits beside the target because a rename across
+// devices is a copy, and a copy has exactly the torn-write window this
+// exists to close. Callers that read-modify-write must hold saveMu.
+//
+// What os.WriteFile left alone stays alone: a symlinked config (a dotfiles
+// checkout) is written at its target rather than replaced by a plain file,
+// and an existing file keeps its mode - perm is for a file this write creates.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	if fi, err := os.Stat(path); err == nil {
+		perm = fi.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer func() {
+		if err != nil {
+			os.Remove(name)
+		}
+	}()
+	if _, err = tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err = tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err = tmp.Close(); err != nil {
+		return err
+	}
+	if err = os.Chmod(name, perm); err != nil {
+		return err
+	}
+	err = os.Rename(name, path)
+	return err
 }
 
 // wudict.toml holds nothing but flat `KEY = value` lines, so this package

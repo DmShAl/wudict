@@ -60,9 +60,7 @@ func newV12Fixture(t *testing.T, blocks []string) *MdictBase {
 			recordInfoList:             list,
 			recordBlockDataStartOffset: dataStart,
 		},
-		rangeTreeRoot: new(RecordBlockRangeTreeNode),
 	}
-	m.buildRecordRangeTree()
 	return m
 }
 

@@ -165,6 +165,12 @@ func (mdict *MdictBase) readKeyEntriesV3() error {
 		if err := binary.Read(f, binary.BigEndian, &compSize); err != nil {
 			return fmt.Errorf("v3 keys: block %d: read compSize: %w", i, err)
 		}
+		// compSize is the file's word for how much to allocate; blocks are tens
+		// of KB and this cap is the only thing between a corrupt count and a
+		// 4 GB make.
+		if int64(compSize) > maxLZOBlock {
+			return fmt.Errorf("v3 keys: block %d: compressed size %d exceeds the %d byte limit", i, compSize, maxLZOBlock)
+		}
 		blockData := make([]byte, compSize)
 		if _, err := io.ReadFull(f, blockData); err != nil {
 			return fmt.Errorf("v3 keys: block %d: read data: %w", i, err)

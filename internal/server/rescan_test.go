@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/wuweidict/wudict/internal/store"
@@ -27,6 +28,9 @@ func entryState(e *entry) (d interface{}, err error, backing string) {
 // database and answered every search with SQLite's "unable to open database
 // file", with neither preparation lane willing to rebuild it.
 func TestRescanRecoversFromDeletedPreparedFolder(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to delete a database the app holds open: the folder cannot vanish underneath it")
+	}
 	restorePower(t)
 	s, e := demandEntry(t)
 	s.AutoIndex = true

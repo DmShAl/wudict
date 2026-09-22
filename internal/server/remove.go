@@ -214,9 +214,10 @@ func (r *Registry) has(id string) bool {
 	return ok
 }
 
-// closeNow drops this entry's open backend immediately. evict() defers the
-// close so in-flight readers finish; removal cannot, because the file is about
-// to disappear underneath them either way.
+// closeNow drops this entry's open backend immediately, and any it retired
+// that are still in their grace. evict() defers the close so in-flight readers
+// finish; removal cannot, because the file is about to disappear underneath
+// them either way.
 func (e *entry) closeNow() {
 	e.dMu.Lock()
 	d := e.d
@@ -226,6 +227,7 @@ func (e *entry) closeNow() {
 	if d != nil {
 		_ = d.Close()
 	}
+	e.retired.closeAll()
 }
 
 // handleRemoveLibrary deletes one dictionary. DELETE, because it is one, and

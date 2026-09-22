@@ -28,7 +28,6 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"unicode/utf16"
 
@@ -152,16 +151,26 @@ func readFileFromPos(file *os.File, start, n int64) ([]byte, error) {
 	return data, nil
 }
 
-func zlibDecompress(data []byte, from, len int64) ([]byte, error) {
-	b := bytes.NewReader(data[from : from+len])
-	z, err := zlib.NewReader(b)
+// zlibDecompress inflates one MDX block. max bounds the output: the decompressed
+// size a caller checks against is itself read out of the file, so an unbounded
+// inflate turns a corrupt (or hostile) block into a zlib bomb - a small block
+// that inflates to nothing but RAM. Bounded the same way the LZO path is, by
+// maxLZOBlock.
+func zlibDecompress(data []byte, from, length, max int64) ([]byte, error) {
+	if from < 0 || length < 0 || from+length > int64(len(data)) {
+		return nil, fmt.Errorf("invalid block range (offset %d, %d bytes in %d)", from, length, len(data))
+	}
+	z, err := zlib.NewReader(bytes.NewReader(data[from : from+length]))
 	if err != nil {
 		return nil, err
 	}
 	defer z.Close()
-	p, err := ioutil.ReadAll(z)
+	p, err := io.ReadAll(io.LimitReader(z, max+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(p)) > max {
+		return nil, fmt.Errorf("inflated block exceeds %d bytes", max)
 	}
 	return p, nil
 }
