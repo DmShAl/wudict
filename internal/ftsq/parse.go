@@ -7,6 +7,7 @@ package ftsq
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/wuweidict/wudict/internal/hilite"
 )
@@ -101,55 +102,141 @@ type token struct {
 	prefix bool     // a trailing star was present
 }
 
-// lex splits the input. An unterminated quote is not repaired - it fails, and
-// Parse falls back to the plain reading, which is the only behaviour that lets
-// a user type a lone quote mark without the search breaking.
+// isSep reports the runes that end a bare word. The apostrophe is deliberately
+// absent: `don't`, `l'annee` and `dogs'` are words in the languages this app
+// serves, so a single quote is a letter here until singleQuotedAt proves
+// otherwise.
+func isSep(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\r', '(', ')', ',', '"', '\u201c', '\u201d':
+		return true
+	}
+	return false
+}
+
+func isSingleQuote(r rune) bool { return r == '\'' || r == '\u2018' || r == '\u2019' }
+
+// doubleQuotedAt reads the phrase literal opening at i. The straight form keeps
+// FTS5's own escape - a doubled quote inside a literal is one quote - so a query
+// can be pasted back and forth between the search bar and SQLite unchanged. The
+// typographic pair has no escape because it needs none: the opener and the
+// closer are different characters, so the first closer ends the phrase.
+func doubleQuotedAt(s string, i int) (string, int, bool) {
+	r, sz := utf8.DecodeRuneInString(s[i:])
+	if r == '"' {
+		var body strings.Builder
+		for j := i + sz; j < len(s); {
+			if s[j] != '"' {
+				body.WriteByte(s[j])
+				j++
+				continue
+			}
+			if j+1 < len(s) && s[j+1] == '"' {
+				body.WriteByte('"')
+				j += 2
+				continue
+			}
+			return body.String(), j + 1, true
+		}
+		return "", 0, false
+	}
+	for j := i + sz; j < len(s); {
+		c, csz := utf8.DecodeRuneInString(s[j:])
+		if c == '\u201d' {
+			return s[i+sz : j], j + csz, true
+		}
+		j += csz
+	}
+	return "", 0, false
+}
+
+// singleQuotedAt reads a single-quoted phrase opening at i, if that mark is an
+// opening quote at all. It is one only where an apostrophe cannot stand: at the
+// START of a token, with a partner at the END of one. `don't cry` and `l'annee`
+// are therefore words, `'no pun intended'` is a phrase, and `'a dog's life'` is
+// a phrase whose middle apostrophe is just a letter - the closing scan skips a
+// quote that has a letter after it.
+//
+// An unpartnered opener is NOT a failure the way an unterminated double quote
+// is. It is the far commoner thing, a word that begins with an elision, so it
+// falls through to the bare-word lexer instead of failing the parse.
+func singleQuotedAt(s string, i int) (string, int, bool) {
+	r, sz := utf8.DecodeRuneInString(s[i:])
+	if !isSingleQuote(r) {
+		return "", 0, false
+	}
+	if i > 0 {
+		if p, _ := utf8.DecodeLastRuneInString(s[:i]); !isSep(p) {
+			return "", 0, false
+		}
+	}
+	for j := i + sz; j < len(s); {
+		c, csz := utf8.DecodeRuneInString(s[j:])
+		if !isSingleQuote(c) {
+			j += csz
+			continue
+		}
+		end := j + csz
+		if end == len(s) {
+			return s[i+sz : j], end, true
+		}
+		if nr, _ := utf8.DecodeRuneInString(s[end:]); isSep(nr) || nr == '*' {
+			return s[i+sz : j], end, true
+		}
+		j = end
+	}
+	return "", 0, false
+}
+
+// lex splits the input. An unterminated double quote is not repaired - it
+// fails, and Parse falls back to the plain reading, which is the only behaviour
+// that lets a user type a lone quote mark without the search breaking.
 func lex(s string) ([]token, bool) {
 	var out []token
+	phrase := func(body string, next int) int {
+		t := token{kind: tkPhrase, words: strings.Fields(body)}
+		if next < len(s) && s[next] == '*' {
+			t.prefix = true
+			next++
+		}
+		out = append(out, t)
+		return next
+	}
 	for i := 0; i < len(s); {
-		switch c := s[i]; {
-		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
-			i++
-		case c == '(':
-			out, i = append(out, token{kind: tkLParen}), i+1
-		case c == ')':
-			out, i = append(out, token{kind: tkRParen}), i+1
-		case c == ',':
-			out, i = append(out, token{kind: tkComma}), i+1
-		case c == '"':
-			// A doubled quote inside a literal is one quote, the same escape
-			// FTS5 itself uses - so a query can be pasted back and forth
-			// between the search bar and SQLite without changing meaning.
-			var body strings.Builder
-			j, closed := i+1, false
-			for j < len(s) {
-				if s[j] != '"' {
-					body.WriteByte(s[j])
-					j++
-					continue
-				}
-				if j+1 < len(s) && s[j+1] == '"' {
-					body.WriteByte('"')
-					j += 2
-					continue
-				}
-				j, closed = j+1, true
-				break
-			}
-			if !closed {
+		r, sz := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == ' ' || r == '\t' || r == '\n' || r == '\r':
+			i += sz
+		case r == '(':
+			out, i = append(out, token{kind: tkLParen}), i+sz
+		case r == ')':
+			out, i = append(out, token{kind: tkRParen}), i+sz
+		case r == ',':
+			out, i = append(out, token{kind: tkComma}), i+sz
+		case r == '"' || r == '\u201c':
+			body, next, ok := doubleQuotedAt(s, i)
+			if !ok {
 				return nil, false
 			}
-			i = j
-			t := token{kind: tkPhrase, words: strings.Fields(body.String())}
-			if i < len(s) && s[i] == '*' {
-				t.prefix = true
-				i++
-			}
-			out = append(out, t)
+			i = phrase(body, next)
 		default:
+			if body, next, ok := singleQuotedAt(s, i); ok {
+				i = phrase(body, next)
+				break
+			}
 			j := i
-			for j < len(s) && !strings.ContainsRune(" \t\n\r(),\"", rune(s[j])) {
-				j++
+			for j < len(s) {
+				c, csz := utf8.DecodeRuneInString(s[j:])
+				if isSep(c) {
+					break
+				}
+				j += csz
+			}
+			if j == i {
+				// A closing typographic quote with no opener. It is a separator,
+				// not a word, and skipping it is what keeps this loop advancing.
+				i += sz
+				continue
 			}
 			w := s[i:j]
 			i = j

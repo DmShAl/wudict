@@ -42,6 +42,9 @@ parallel indexing threads via the
 `text.db` alone is a complete dictionary. Without `media.db`, audio and images
 are read from the original files if they are present.
 
+Both are ordinary SQLite databases, and the database schemas are documented in
+[The text.db format](../reference/text-db.md).
+
 Article text is compressed, so a prepared folder is usually smaller than the
 file it came from. Set
 [`NO_COMPRESS`](../reference/configuration.md#no_compress) to disable compression

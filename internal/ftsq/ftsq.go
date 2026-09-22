@@ -47,6 +47,13 @@
 // relaxing it would contradict what was asked. A parse error is never an error
 // the user sees: the input falls back to the plain reading, so a stray quote in
 // a query still searches.
+//
+// Quoting is the one operator a reader arrives already knowing, so all three
+// pairs it can produce are accepted: "…", '…' and the typographic “…” / ‘…’ a
+// word processor substitutes. A quoted phrase is lowered CLOSED - no trailing
+// star, no NEAR, one rung - so `'no pun intended'` finds that phrase or nothing,
+// which is precisely what the quotes were typed to say. The apostrophe is why
+// the single pair needs a rule rather than a character test: see singleQuotedAt.
 package ftsq
 
 import (
@@ -194,9 +201,24 @@ func hasToken(s string) bool {
 // or a BARE UPPERCASE keyword. Lower-case "and" is a word in every language
 // this app serves, and parentheses alone are ordinary lexicographic notation -
 // "(coll.)" must not turn a query into a syntax puzzle.
+//
+// A double quote is a quote wherever it appears; a single one only where the
+// lexer would read it as an opening quote, which is why that test is asked of
+// singleQuotedAt itself rather than restated here. Any apostrophe entering
+// operator mode would silently cost `don't cry` its phrase reading, because an
+// explicit query is answered by one rung and `don't cry` would become a bag of
+// two words.
 func looksOperator(s string) bool {
-	if strings.ContainsRune(s, '"') {
+	if strings.ContainsRune(s, '"') || strings.ContainsRune(s, '\u201c') {
 		return true
+	}
+	for i, r := range s {
+		if !isSingleQuote(r) {
+			continue
+		}
+		if _, _, ok := singleQuotedAt(s, i); ok {
+			return true
+		}
 	}
 	for _, f := range strings.Fields(s) {
 		switch strings.TrimLeft(f, "(") {
