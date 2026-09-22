@@ -57,6 +57,130 @@ the cogwheel <kbd>⚙️</kbd> in the dictionary panel and then in the expanded 
     Folded means lower case with accents removed. The index stores the folded
     form, so searching for words with accented characters works as expected.
 
+## Full-text search syntax
+
+Full-text mode searches in article *text* and has its own
+query language. Exact, prefix and contains treat whatever you type as literal
+text. The FTS syntax only applies to full-text search and not to other modes.
+
+Full-text needs the full-text index switched on for the dictionary (the
+<kbd>☰</kbd> panel). Dictionaries without it are skipped.
+
+### Several words mean a phrase
+
+When you do a full-text search for e.g. `no pun intended` wuDict reads adjacent 
+words the way a lexicographer writes them: **as a phrase, in that specific order**.
+
+_If_ the phrase finds nothing, wudict falls back to proximity search, one step at a
+time, and it stops at the first step that has any results:
+
+| Step | What is searched | Example: `no pun intended` finds |
+| --- | --- | --- |
+| **1 phrase** | the words, adjacent, in that order | *…and, **no pun intended**, he resigned* |
+| **2 proximity** | the same words close together, any order | *…clearly **intended** as a **pun**…* |
+| **3 words** | the same words anywhere in the article | *…**pun**… (200 words) …**intended**…* |
+
+The widening is never silent. When a dictionary did not find an exact match, its result
+header says **phrase not found · words proximity** or **phrase not found ·
+words anywhere**, so you always know which FTS mode is used.
+
+### Full-text search query language
+
+When you need to search for an exact phrase only with no fallbacks to proximity search enclose the text in single or double quotes.
+**A query containing an operator is run exactly as written and is never widened.**
+
+wuDict switches to this exact reading only when your input contains a quote, a
+bare **UPPERCASE** `AND`, `OR`, `NOT`, or `NEAR(`. Lower-case `and`
+is an ordinary word in most languages, and `(coll.)` is ordinary dictionary
+notation, so neither changes how a query is read.
+
+Quotes may be `"double"`, `'single'`, or the typographic “double” and
+‘single’ pairs your word processor produces when you paste from a
+document — all five mean the same thing. An apostrophe is still a letter:
+`don't cry`, `l'année` and `dogs' lives` are read as ordinary words, because
+a single quote opens a phrase only when it stands at the *start* of a word and
+its partner at the *end* of one.
+
+| You type | You get                                                                                             |
+| --- |-----------------------------------------------------------------------------------------------------|
+| `"no pun intended"` | that exact literal phrase — **no** prefix on the last word, and **no** fallback if it finds nothing |
+| `'no pun intended'` | the same — single quotes are quotes                                                                 |
+| `"no pun intended"*` | the same phrase with the last word left open — also *…no pun intendedly*                            |
+| `pun` | every word starting with *pun* — a bare word is always a prefix                                     |
+| `"pun"` | the word *pun* only                                                                                 |
+| `pun intended` *(inside an operator query)* | both words, anywhere in the article                                                                 |
+| `pun AND intended` | the same thing, written out                                                                         |
+| `pun OR intended` | either one                                                                                          |
+| `pun NOT intended` | *pun*, in articles that do not contain *intended*                                                   |
+| `NEAR("pun" "intended", 5)` | the two words within 5 words of each other, any order                                               |
+| `NEAR("pun" "intended")` | the same with the default distance of 10                                                            |
+| `(pun OR joke) AND intended` | grouping, to any depth                                                                              |
+
+`NOT` has highest priority, followed by `AND`, then `OR`; two operands side by side mean
+`AND`. Use parentheses when you want another grouping.
+
+??? example "Examples for `no pun intended`"
+
+    | Goal | Query |
+    | --- | --- |
+    | That phrase, and only that phrase | `"no pun intended"` or `'no pun intended'` |
+    | The phrase, but allow fallback to proximity search if nothing found | `no pun intended` |
+    | *pun* and *intended* near each other, either order | `NEAR("pun" "intended", 10)` |
+    | *pun* and *intended* in the same article, however far apart | `"pun" AND "intended"` |
+    | Either *pun* or *joke*, with *intended* | `(pun OR joke) intended` |
+    | *pun* articles that are not about punctuation | `pun NOT punctuation` |
+
+??? example "Patterns that come up in real lexicographic work"
+
+    | Goal | Query |
+    | --- | --- |
+    | A fixed expression, verbatim | `"faux ami"` |
+    | …but not in the linguistics articles | `"faux ami" NOT linguistics` |
+    | Two spellings of one term | `"colour blind" OR "color blind"` |
+    | A word used with another word, not merely present | `NEAR("bank" "river", 4)` |
+    | A definition fragment you half remember | `sudden fear of` |
+    | An abbreviation and its expansion in one article | `NEAR("i.e." "that is", 6)` |
+    | Every derivative of a stem, exactly | `"lexicograph"*` |
+    | Exclude a sense you keep hitting | `crane NOT bird` |
+    | Two conditions, one of them loose | `"phrasal verb" AND (idiom OR colloquial)` |
+
+!!! info "Accents, case and the tokenizer"
+
+    Accents and case are ignored here exactly as in the other modes, so
+    `"corazon"` finds *corazón* and `"OXFORD"` finds *Oxford*.
+
+    The operators themselves are the exception: they are recognised only in
+    capitals. `wage NOT minimum` excludes *minimum*; `wage not minimum`
+    searches for the three words *wage*, *not* and *minimum*, which is what
+    someone writing in English, Dutch or Latin needs it to do.
+
+    Punctuation inside a quoted phrase is not searched for; it is split on the
+    same word boundaries as the text, so `"i.e."` matches *i.e.* and
+    `"no-pun-intended"` behaves like `"no pun intended"`.
+
+### What is deliberately not there
+
+-   **No field or column filters.** There is no `headword:` or `definition:`
+    prefix; full-text searches the article. `title:foo` is read as the two
+    words *title* and *foo*.
+-   **No `-word` negation and no leading `NOT`.** `NOT` needs something on its
+    left: write `wage NOT minimum`, not `NOT minimum`.
+-   **No wildcard inside or at the start of a word.** The star only works at
+    the end — `wage*`, `"no pun intended"*`. `*age` and `w*ge` are literal text.
+-   **No spelling correction.** Full-text finds the words you typed, and their
+    prefixes. A misspelt word finds nothing; [inflected forms](#inflected-words)
+    are handled separately, by the lemmatizer.
+-   **No regular expressions.**
+
+!!! info "A query never fails"
+
+    Anything wuDict cannot parse — a stray quote, an unbalanced bracket, an
+    operator with nothing to operate on — is read as plain words instead of
+    refused. You never get a syntax error; at worst you get the ordinary
+    three-step search. This is also how you search for the word *OR* itself.
+
+    Very long queries are cut at 128 words, and nesting at 24 brackets deep.
+
 ## Inflected words
 
 A search that finds nothing anywhere is not over. wuDict looks the word up in
@@ -176,5 +300,24 @@ wudict fts      ~/Dicts/Oxford.mdx "sudden fear"
 
 `contains` and `fts` need a prepared dictionary. `lookup` and `prefix` work on
 any file.
+
+!!! warning "The syntax above belongs to `searchall`, not to `fts`"
+
+    `wudict searchall -mode=fts "no pun intended"` is the same search the web UI
+    runs: the phrase-first ladder and every operator apply, and `-format` only
+    changes how the article is printed.
+
+    `wudict fts <file> <term>` is the single-file, single-question form. It
+    reads the term as plain words — the ladder and the operators are not
+    applied there, so `"no pun intended"` and `no pun intended` mean the same thing to
+    it: articles containing all three words.
+
+    Remember that your shell eats quotes before wuDict sees them. Wrap the
+    whole query in single quotes to pass double quotes through:
+
+    ``` sh
+    wudict searchall -mode=fts '"faux ami" NOT linguistics'
+    wudict searchall -mode=fts 'NEAR("bank" "river", 4)'
+    ```
 
 [All commands](../reference/cli.md){ .md-button }

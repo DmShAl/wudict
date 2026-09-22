@@ -233,6 +233,17 @@ func TestFindOrphansSemantics(t *testing.T) {
 	writeSrc(t, filepath.Join(db, "old-aaaa.text.db"), "x")
 	writeSrc(t, filepath.Join(db, "old-aaaa.media.db"), "x")
 	writeSrc(t, filepath.Join(db, "text.db.ingest.abc123"), "x")
+	// 5. an interrupted ingest INSIDE a healthy folder: since D20 this is the
+	//    only place tempDBName can put one, so it is the case that matters.
+	//    The folder itself stays; only the temp is removable.
+	stale := writeSrc(t, filepath.Join(kept2, "text.db.ingest.deadbeef"), "partial")
+	aged := time.Now().Add(-2 * ingestGrace)
+	if err := os.Chtimes(stale, aged, aged); err != nil {
+		t.Fatal(err)
+	}
+	// 6. an ingest that is running RIGHT NOW must survive: deleting it would
+	//    destroy the work of a prepare happening in another window.
+	writeSrc(t, filepath.Join(kept2, "text.db.ingest.beefdead"), "in progress")
 
 	orphs, err := FindOrphans()
 	if err != nil {
@@ -248,10 +259,14 @@ func TestFindOrphansSemantics(t *testing.T) {
 	if _, bad := got[filepath.Base(kept2)]; bad {
 		t.Fatal("DATA LOSS: prepared dictionary with a changed source must NOT be an orphan")
 	}
-	for _, want := range []string{"stray", "old-aaaa.text.db", "old-aaaa.media.db", "text.db.ingest.abc123"} {
+	for _, want := range []string{"stray", "old-aaaa.text.db", "old-aaaa.media.db",
+		"text.db.ingest.abc123", "text.db.ingest.deadbeef"} {
 		if _, ok := got[want]; !ok {
 			t.Errorf("%s should be an orphan (got %v)", want, got)
 		}
+	}
+	if _, bad := got["text.db.ingest.beefdead"]; bad {
+		t.Fatal("DATA LOSS: an ingest temp still being written must NOT be an orphan")
 	}
 }
 

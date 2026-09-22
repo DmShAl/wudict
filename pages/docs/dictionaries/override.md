@@ -18,10 +18,9 @@ A dictionary carries its own styles, scripts, images and audio. Some files can b
 Because a dictionary's own scripts usually load first,
 one bad .js or .css file can distort all articles in that dictionary.
 
-wuDict warns when it serves a `.js`, `.css`, `.html`, `.json`, `.xml`, `.svg`
-or `.txt` file containing a NUL bytes. That byte cannot occur in those formats,
-so it proves the stored copy is broken. The warning names the `res/` path that
-would replace it.
+wuDict warns you when it finds a `.js`, `.css`, `.html`, `.json`, `.xml`, `.svg`
+or `.txt` file containing NUL bytes — this byte is not legal in these types of files,
+so it indicates the stored copy is broken.
 
 ## How to patch dictionary files
 
@@ -38,7 +37,7 @@ would replace it.
     css/style.css  replaces the dictionary's stylesheet
 ```
 
-Subfolders matter. Articles routinely ask for `js/…` and `css/…`, so mirror
+Subfolders matter. Articles routinely use folders like `js/…` and `css/…` for assets so mirror
 that path exactly.
 
 ## Find the resource path

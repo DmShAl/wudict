@@ -238,6 +238,9 @@ Both are valid and accepted by [pyglossary](https://github.com/ilius/pyglossary)
 If the output folder already exists, `dump` warns before overwritting. 
 Files left by an earlier dump under a different name are **not** deleted.
 
+To read a prepared dictionary directly instead of converting it, its SQLite
+tables are documented in [The text.db format](text-db.md).
+
 ## ingest
 
 ``` sh title="prepare dictionaries from CLI"
