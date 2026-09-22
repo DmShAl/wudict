@@ -105,6 +105,18 @@ func TestMarkPhrase(t *testing.T) {
 			"red fox", o + "red fox" + c},
 		{"a one-rune token inside a phrase is kept", []Phrase{ph("в", "конспектах")},
 			"в конспектах и в вода", o + "в конспектах" + c + " и в вода"},
+		// An open last token whose text runs past the pattern by MORE than one
+		// rune: the scan keeps counting past the pattern's length, so it must
+		// stay out of the pattern on every one of those runes, not just the
+		// first. Reading that boundary as `==` indexed the pattern out of range
+		// and panicked on the search worker's goroutine, which took the whole
+		// process down (`de miedo` -> *miedoso*, `de mala leche` -> *lecheria*).
+		{"an open last token may overrun the pattern by many runes", []Phrase{ph("de", "miedo*")},
+			"un cuento de miedoso", "un cuento " + o + "de miedoso" + c},
+		{"an open last token overrunning a short pattern", []Phrase{ph("de", "mala", "leche*")},
+			"de mala lecheria", o + "de mala lecheria" + c},
+		{"a closed last token is still rejected on a long overrun", []Phrase{ph("de", "miedo")},
+			"un cuento de miedoso", "un cuento de miedoso"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := NewPhrases(tc.phrases).Mark(tc.in); got != tc.want {

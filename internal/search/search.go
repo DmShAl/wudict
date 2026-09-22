@@ -142,10 +142,31 @@ func StreamOpen(ctx context.Context, openers []Opener, mode Mode, term string, p
 	sem := make(chan struct{}, Workers())
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	// emit does the caller's rendering - reference rewriting, highlighting,
+	// encoding - and it does it HERE, on the worker's own goroutine. That is
+	// the one place a panic is not the HTTP handler's to recover: net/http
+	// guards the goroutine it created, this is not that goroutine, and Go's
+	// rule that a panic can only be recovered where it runs means the process
+	// dies and every other request with it. The same rule query() applies to
+	// the parsers one layer down therefore has to hold one layer up: one bad
+	// article costs one row.
+	//
+	// The replacement hit carries no results, so the rendering that failed is
+	// not attempted again on the way out; the inner recover is there because a
+	// caller whose emit panicked once may panic reporting it, and a panic in a
+	// deferred report would defeat the whole guard.
 	send := func(i int, h Hit) {
 		mu.Lock()
+		defer mu.Unlock()
+		defer func() {
+			r := recover()
+			if r == nil {
+				return
+			}
+			defer func() { _ = recover() }()
+			emit(i, Hit{Meta: h.Meta, Term: h.Term, Err: dict.PanicError(h.Meta.Path, r)})
+		}()
 		emit(i, h)
-		mu.Unlock()
 	}
 	for i, open := range openers {
 		wg.Add(1)

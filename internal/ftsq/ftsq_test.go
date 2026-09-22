@@ -43,6 +43,21 @@ func TestPlainLadder(t *testing.T) {
 			`near NEAR("(coll.)"* "foo"*, 10)`,
 			`words "(coll.)"* "foo"*`,
 		}},
+		{"an apostrophe is a letter, not a quote", "don't cry", []string{
+			`phrase "don't cry"*`,
+			`near NEAR("don't"* "cry"*, 10)`,
+			`words "don't"* "cry"*`,
+		}},
+		{"a possessive does not open a phrase", "dogs' lives", []string{
+			`phrase "dogs' lives"*`,
+			`near NEAR("dogs'"* "lives"*, 10)`,
+			`words "dogs'"* "lives"*`,
+		}},
+		{"an unpartnered elision is a word", "'tis the season", []string{
+			`phrase "'tis the season"*`,
+			`near NEAR("'tis"* "the"* "season"*, 10)`,
+			`words "'tis"* "the"* "season"*`,
+		}},
 		{"nothing to search for", "  ", nil},
 		{"no token survives", "!!! ???", nil},
 	} {
@@ -73,6 +88,12 @@ func TestOperatorMode(t *testing.T) {
 		{"NEAR with a distance", `NEAR(alpha beta, 3)`, `NEAR("alpha"* "beta"*, 3)`},
 		{"NEAR defaults to ten", `NEAR("a b" c)`, `NEAR("a b" "c"*, 10)`},
 		{"an embedded quote is doubled", `"say ""no"""`, `"say ""no"""`},
+		{"single quotes mean exact too", `'no pun intended'`, `"no pun intended"`},
+		{"a star reopens a single-quoted phrase", `'no pun'*`, `"no pun"*`},
+		{"an apostrophe inside a quoted phrase is a letter", `'a dog's life'`, `"a dog's life"`},
+		{"typographic double quotes are quotes", "\u201cno pun intended\u201d", `"no pun intended"`},
+		{"typographic single quotes are quotes", "\u2018no pun intended\u2019", `"no pun intended"`},
+		{"a quoted phrase still combines", `'faux ami' NOT linguistics`, `("faux ami" NOT "linguistics"*)`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q := Parse(tc.in)
@@ -121,6 +142,22 @@ func TestMarksFollowTheQuery(t *testing.T) {
 	want = []hilite.Phrase{{{Text: "faux"}, {Text: "ami"}}}
 	if !reflect.DeepEqual(rs[0].Marks, want) {
 		t.Errorf("NOT branch leaked into the marks: %#v", rs[0].Marks)
+	}
+}
+
+// Quoting is the user saying "this, and nothing near it". The phrase is lowered
+// closed - no trailing star, no NEAR, one rung - so nothing widens it, and the
+// marks are the same closed span, because match and marks are one tree.
+func TestQuotedPhraseIsNotRelaxed(t *testing.T) {
+	for _, in := range []string{`"no pun intended"`, `'no pun intended'`, "\u201cno pun intended\u201d"} {
+		rs := Parse(in).Rungs()
+		if len(rs) != 1 || rs[0].Match != `"no pun intended"` {
+			t.Fatalf("Parse(%q).Rungs() = %q", in, matches(rs))
+		}
+		want := []hilite.Phrase{{{Text: "no"}, {Text: "pun"}, {Text: "intended"}}}
+		if !reflect.DeepEqual(rs[0].Marks, want) {
+			t.Errorf("Parse(%q) marks = %#v", in, rs[0].Marks)
+		}
 	}
 }
 

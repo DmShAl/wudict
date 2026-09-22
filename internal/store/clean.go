@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Orphan is one deletable item in the db dir: an incomplete or unreadable
@@ -41,9 +42,7 @@ func FindOrphans() ([]Orphan, error) {
 	for _, de := range des {
 		p := filepath.Join(dir, de.Name())
 		if de.IsDir() {
-			if o, ok := judgeFolder(p); ok {
-				out = append(out, o)
-			}
+			out = append(out, judgeFolder(p)...)
 			continue
 		}
 		fi, err := de.Info()
@@ -77,10 +76,21 @@ func FindOrphans() ([]Orphan, error) {
 	return out, nil
 }
 
-// judgeFolder decides whether a library folder is garbage: no text.db at all
-// (an interrupted claim, or a media.db with nothing to pair with) or one that
-// cannot be read as a wudict database.
-func judgeFolder(dir string) (Orphan, bool) {
+// judgeFolder reports what is deletable in one library folder: the folder
+// itself when it is garbage - no text.db at all (an interrupted claim, or a
+// media.db with nothing to pair with), or a text.db that cannot be read - and
+// otherwise the interrupted ingest temps lying inside a perfectly healthy one.
+//
+// That second case is the only one that can still arise. store.tempDBName
+// builds every ingest at <dbPath>.ingest.<rand> and renames it onto text.db on
+// success, and since D20 put each dictionary in its own folder, dbPath is
+// always inside one - so a crash or a kill leaves the temp HERE, never beside
+// the folder, and a scan that only asked "does this folder have a readable
+// text.db" answered yes and walked past 21 MB of debris. The loop below is not
+// a general sweep of the folder: a file that is not an ingest temp is left
+// alone, because a folder is the user's unit to copy and move (D20) and
+// whatever else they put in it is theirs.
+func judgeFolder(dir string) []Orphan {
 	textDB := TextDBPath(dir)
 	fi, err := os.Stat(textDB)
 	if err != nil || fi.IsDir() {
@@ -88,10 +98,44 @@ func judgeFolder(dir string) (Orphan, bool) {
 		if _, err := os.Stat(MediaDBPath(dir)); err == nil {
 			reason = "media.db with no dictionary to pair with"
 		}
-		return Orphan{Path: dir, Size: dirSize(dir), Reason: reason, IsDir: true}, true
+		return []Orphan{{Path: dir, Size: dirSize(dir), Reason: reason, IsDir: true}}
 	}
 	if _, err := ReadMeta(textDB); err != nil {
-		return Orphan{Path: dir, Size: dirSize(dir), Reason: "unreadable database", IsDir: true}, true
+		return []Orphan{{Path: dir, Size: dirSize(dir), Reason: "unreadable database", IsDir: true}}
 	}
-	return Orphan{}, false
+	return staleIngests(dir)
+}
+
+// ingestGrace is how long an ingest temp must have gone untouched before it
+// counts as abandoned. An ingest writes continuously, so its temp's mtime is
+// always within seconds of now; an hour of silence means the process that
+// owned it is gone. Without this, `wudict clean -f` run while a big dictionary
+// is being prepared in another window would delete that ingest's scratch file
+// out from under it - and the ingest would fail at the rename, having done all
+// of the work.
+const ingestGrace = time.Hour
+
+// staleIngests lists abandoned ingest temps directly inside a healthy folder.
+func staleIngests(dir string) []Orphan {
+	des, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	cutoff := time.Now().Add(-ingestGrace)
+	var out []Orphan
+	for _, de := range des {
+		if de.IsDir() || !strings.Contains(strings.ToLower(de.Name()), ".ingest.") {
+			continue
+		}
+		fi, err := de.Info()
+		if err != nil || fi.ModTime().After(cutoff) {
+			continue // still being written, or unreadable: not ours to judge
+		}
+		out = append(out, Orphan{
+			Path:   filepath.Join(dir, de.Name()),
+			Size:   fi.Size(),
+			Reason: "interrupted ingest (temp file)",
+		})
+	}
+	return out
 }

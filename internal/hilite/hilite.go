@@ -359,9 +359,21 @@ func matchTokenAt(s string, i int, p pat) (int, bool) {
 		}
 		switch {
 		case mism:
-		case pos == len(p.runes):
+		case pos >= len(p.runes):
+			// The token runs past the pattern. An open pattern accepts the
+			// rest of it - that is the whole content of the trailing star -
+			// and a closed one is mismatched from here on.
+			//
+			// `>=`, not `==`: pos keeps counting past the pattern's length,
+			// so a token longer than an OPEN pattern by more than one rune
+			// arrives here a second time. Reading it as `==` let the second
+			// rune fall through to the comparison below and index the pattern
+			// out of range - `"de miedo"*` against *miedoso*, `"de mala
+			// leche"*` against *lechería* - which panicked on the search
+			// worker's own goroutine, where net/http's recover cannot reach
+			// it, and took the process down with it.
 			if !p.prefix {
-				mism = true // the token runs past a closed pattern
+				mism = true
 			}
 			pos++
 		case p.runes[pos] != f:
