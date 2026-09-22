@@ -58,6 +58,9 @@ type Reader struct {
 	// metadata gathered during the first pass
 	title          []byte
 	desc           []byte
+	author         []byte
+	email          []byte
+	copyright      []byte
 	numEntries     int
 	sourceLang     *language
 	targetLang     *language
@@ -223,6 +226,26 @@ func NewReader(path string) (*Reader, error) {
 	// embedded newline. Only when the file carries none does the language pair
 	// stand in - which is what every BGL used to show, description or not.
 	desc := plainInfo(r.targetEncoding, r.desc)
+	var header []dict.Field
+	for _, f := range []struct {
+		name string
+		raw  []byte
+	}{{"author", r.author}, {"email", r.email}, {"copyright", r.copyright}} {
+		if v := plainInfo(r.targetEncoding, f.raw); v != "" {
+			header = append(header, dict.Field{Name: f.name, Value: v})
+		}
+	}
+	if pairAsDesc := desc == "" && r.sourceLang != nil && r.targetLang != nil; !pairAsDesc {
+		// The pair stands in for a missing description below; any time it
+		// does not (a real description, or only one side declared), it is
+		// kept here instead of vanishing.
+		if r.sourceLang != nil {
+			header = append(header, dict.Field{Name: "source language", Value: r.sourceLang.name})
+		}
+		if r.targetLang != nil {
+			header = append(header, dict.Field{Name: "target language", Value: r.targetLang.name})
+		}
+	}
 	if desc == "" && r.sourceLang != nil && r.targetLang != nil {
 		desc = r.sourceLang.name + " → " + r.targetLang.name
 	}
@@ -241,6 +264,7 @@ func NewReader(path string) (*Reader, error) {
 		// GROUPS ("Other Russian languages"); those name no language and
 		// internal/lang resolves them to "", which is the honest answer.
 		IndexLang: lang.FromDeclared(srcLang),
+		Header:    header,
 	}
 	return r, nil
 }
@@ -321,6 +345,12 @@ func (r *Reader) readType3(blk []byte) {
 	switch code {
 	case 0x01:
 		r.title = val
+	case 0x02:
+		r.author = val // raw, decoded after the pass like the title
+	case 0x03:
+		r.email = val
+	case 0x04:
+		r.copyright = val
 	case 0x09:
 		// The glossary's own description. Kept raw: the charset codes that say
 		// how to decode it (0x1A/0x1B) arrive AFTER it in the block stream, so

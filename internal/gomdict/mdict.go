@@ -173,6 +173,13 @@ func (mdict *Mdict) Title() string {
 func (mdict *Mdict) Description() string {
 	return mdict.meta.description
 }
+
+// HeaderAttrs is every attribute of the XML header, in file order, entities
+// undone. The slice is shared: callers must not modify it.
+func (mdict *Mdict) HeaderAttrs() [][2]string {
+	return mdict.meta.headerAttrs
+}
+
 func (mdict *Mdict) GeneratedByEngineVersion() string {
 	return mdict.meta.generatedByEngineVersion
 }

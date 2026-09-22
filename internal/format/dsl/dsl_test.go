@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -1083,5 +1084,29 @@ func TestBodyBlankLineIdiom(t *testing.T) {
 		if got != c.want {
 			t.Errorf("transformBody(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// Meta.Header is every directive the name and description were not built
+// from, in file order: with #NAME and #INDEX_LANGUAGE present, the legacy
+// #FULL_NAME and #LANGUAGE are just more header, and #INCLUDE is never header.
+func TestReaderHeader(t *testing.T) {
+	p := writeDSL(t, "h.dsl", []byte(
+		"#NAME\t\"Main\"\n"+
+			"#FULL_NAME\t\"Main, long form\"\n"+
+			"#INDEX_LANGUAGE\t\"English\"\n"+
+			"#CONTENTS_LANGUAGE\t\"Basque\"\n"+
+			"#ICON_FILE\t\"h.bmp\"\n"+
+			"#LANGUAGE\t\"English\"\n"+
+			"#EMPTY\t\"\"\n"+
+			"alpha\n\t[m1]x[/m]\n"))
+	r, err := NewReader(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	want := []dict.Field{{Name: "FULL_NAME", Value: "Main, long form"}, {Name: "ICON_FILE", Value: "h.bmp"}, {Name: "LANGUAGE", Value: "English"}}
+	if got := r.Meta().Header; !reflect.DeepEqual(got, want) {
+		t.Errorf("Header = %q, want %q", got, want)
 	}
 }

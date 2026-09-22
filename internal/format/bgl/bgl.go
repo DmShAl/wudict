@@ -33,6 +33,11 @@ func init() {
 type Dict struct {
 	*store.Store
 	srcPath string
+	// src is the source's own header, re-read at every open (the reader is
+	// opened anyway). Its description and header win over the text.db copies,
+	// which are frozen at preparation: a folder prepared before either was
+	// read in full still reports what the file says now.
+	src dict.Meta
 
 	resOnce sync.Once
 	res     map[string][]byte
@@ -45,7 +50,8 @@ func Open(path string) (*Dict, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := r.Meta().Name
+	src := r.Meta()
+	name := src.Name
 
 	dbPath, prepared := store.PreparedFor(path)
 	if !prepared {
@@ -77,13 +83,14 @@ func Open(path string) (*Dict, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Dict{Store: s, srcPath: path}, nil
+	return &Dict{Store: s, srcPath: path, src: src}, nil
 }
 
 func (d *Dict) Meta() dict.Meta {
 	m := d.Store.Meta()
 	m.Format = "bgl"
 	m.Path = d.srcPath
+	m.Description, m.Header = d.src.Description, d.src.Header
 	return m
 }
 

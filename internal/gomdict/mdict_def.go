@@ -102,6 +102,7 @@ type mdictMeta struct {
 	creationDate             string
 	generatedByEngineVersion string
 	stylesheet               string
+	headerAttrs              [][2]string
 
 	// v3-only fields
 	uuid         string

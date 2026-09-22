@@ -85,8 +85,14 @@ are degenerate, because a dictionary with eleven distinct keys is not a
 dictionary.
 
 Usage:
-  python3 csvorjson2wudict.py INPUT OUTDIR [--fulltext] [--contains] [--force]
-  python3 csvorjson2wudict.py --demo OUTDIR
+  python3 csvorjson2wudict.py INPUT [-o OUTPUT] [--fulltext] [--contains] [--force]
+  python3 csvorjson2wudict.py --demo [-o OUTPUT]
+
+OUTPUT (resolved like `go build -o`; <name> is the input's file stem):
+  omitted                     ./<name>/
+  an existing library folder  that folder, rebuilt in place (needs --force)
+  DIR/ or an existing DIR     DIR/<name>/ (DIR/ is created if missing)
+  anything else               that path is the library folder; its parent must exist
 """
 
 import argparse
@@ -644,7 +650,9 @@ def parse_args(argv):
                     "a `wudict dump` CSV, or a native JSON spec",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("input", nargs="?", help="the .csv or .json to convert")
-    ap.add_argument("outdir", help="library folder to create (its name is the fallback title)")
+    ap.add_argument("-o", "--output", metavar="PATH",
+                    help="library folder to write, or an existing folder / DIR/ to "
+                         "write <name>/ into (default: ./<name>/)")
     ap.add_argument("--demo", action="store_true", help="ignore INPUT, write the 3-entry example")
 
     g = ap.add_argument_group("input dialect")
@@ -700,6 +708,38 @@ def parse_args(argv):
     return a
 
 
+def resolve_output(spec, base):
+    """--output -> the library folder to write (see OUTPUT in the module doc).
+
+    An existing folder that already holds a text.db IS a library, so it is the
+    target whatever the spelling: a trailing separator from shell completion must
+    not nest a new library inside the one being rebuilt.
+    """
+    if base in ("", ".", ".."):
+        raise SystemExit(f"cannot derive a folder name from {base!r}; pass -o PATH")
+    if spec is None:
+        return os.path.join(os.getcwd(), base)
+    if not spec:
+        raise SystemExit("--output is empty")
+    raw = os.path.expanduser(spec)
+    as_dir = raw.endswith(tuple(s for s in (os.sep, os.altsep) if s))
+    path = os.path.abspath(raw)                      # drops the trailing separator
+    if os.path.exists(path) and not os.path.isdir(path):
+        raise SystemExit(f"{path}: not a directory")
+    if os.path.isfile(os.path.join(path, "text.db")):
+        return path
+    if as_dir or os.path.isdir(path):
+        try:
+            os.makedirs(path, exist_ok=True)
+        except OSError as e:
+            raise SystemExit(f"cannot create {path}: {e}")
+        return os.path.join(path, base)
+    parent = os.path.dirname(path)
+    if parent and not os.path.isdir(parent):
+        raise SystemExit(f"{parent}: no such directory")
+    return path
+
+
 def main():
     a = parse_args(sys.argv[1:])
     require_sqlite(a.contains)
@@ -729,6 +769,9 @@ def main():
         if val:
             meta[key] = val
 
+    a.outdir = resolve_output(a.output, base)
+    if os.path.exists(a.outdir) and not os.path.isdir(a.outdir):
+        raise SystemExit(f"{a.outdir}: not a directory")
     os.makedirs(a.outdir, exist_ok=True)
     final = os.path.join(a.outdir, "text.db")
     if os.path.exists(final) and not a.force:

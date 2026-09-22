@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/wuweidict/wudict/internal/artmark"
@@ -310,6 +311,14 @@ func IngestPlan(r dict.Reader, dbPath string, plan Plan, progress Progress) (rep
 	}
 	if srcMeta.ContentsLang != "" {
 		metaKV["contents_lang"] = srcMeta.ContentsLang
+	}
+	// The rest of the source header, so a prepared folder whose source is
+	// gone still says who wrote it. JSON, one key: the table is key/value and
+	// the header is ordered and may repeat a name.
+	if len(srcMeta.Header) > 0 {
+		if b, err2 := json.Marshal(srcMeta.Header); err2 == nil {
+			metaKV["header"] = string(b)
+		}
 	}
 	if st, err2 := os.Stat(srcMeta.Path); err2 == nil {
 		metaKV["source_size"] = fmt.Sprint(st.Size())

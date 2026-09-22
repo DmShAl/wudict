@@ -134,6 +134,7 @@ func (mdict *MdictBase) readDictHeader() error {
 	meta.creationDate = headerInfo.CreationDate
 	meta.generatedByEngineVersion = headerInfo.GeneratedByEngineVersion
 	meta.stylesheet = headerInfo.StyleSheet
+	meta.headerAttrs = headerInfo.Attrs
 
 	// v3: stash the UUID so we can derive the encryption key later if needed.
 	if meta.version >= 3.0 {

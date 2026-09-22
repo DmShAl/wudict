@@ -47,6 +47,7 @@ type container struct {
 	encoding     string
 	compression  string
 	tags         map[string]string
+	tagOrder     []string // tag keys in file order, first occurrence only
 	contentTypes []string
 	blobCount    uint32
 	refs         []ref
@@ -210,6 +211,9 @@ func (c *container) parse() error {
 		v, err := br.tinyText()
 		if err != nil {
 			return err
+		}
+		if _, dup := c.tags[k]; !dup {
+			c.tagOrder = append(c.tagOrder, k)
 		}
 		c.tags[k] = v
 	}

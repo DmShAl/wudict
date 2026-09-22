@@ -39,6 +39,7 @@ type Reader struct {
 	scanner *bufio.Scanner
 	meta    dict.Meta
 	header  map[string]string
+	hdrKeys []string // header directive keys in file order, first occurrence only
 	path    string
 
 	// The abbreviation companion is parsed on the first entry, not in
@@ -183,6 +184,9 @@ func (r *Reader) init(path string) error {
 				r.queueInclude(path, v)
 				continue
 			}
+			if _, dup := r.header[k]; !dup {
+				r.hdrKeys = append(r.hdrKeys, k)
+			}
 			r.header[k] = v
 			continue
 		}
@@ -190,25 +194,27 @@ func (r *Reader) init(path string) error {
 		break
 	}
 
+	nameKey := "NAME"
 	name := r.header["NAME"]
 	if name == "" {
 		// #FULL_NAME is what Lingvo 6.0/7.0 wrote instead, undocumented and
 		// then withdrawn in 8.0 (lingvo-ref "Общее описание", директивы). A
 		// dictionary of that vintage has a name; reading only #NAME threw it
 		// away and fell through to the file name.
-		name = r.header["FULL_NAME"]
+		nameKey, name = "FULL_NAME", r.header["FULL_NAME"]
 	}
 	if name == "" {
 		base := filepath.Base(path)
 		name = strings.TrimSuffix(strings.TrimSuffix(base, ".dz"), ".dsl")
 	}
+	fromKey := "INDEX_LANGUAGE"
 	from, to := r.header["INDEX_LANGUAGE"], r.header["CONTENTS_LANGUAGE"]
 	if from == "" {
 		// The same vintage: in 6.0/7.0 a main text file's #LANGUAGE named the
 		// language of the HEADWORDS, which is exactly #INDEX_LANGUAGE's job.
 		// (In a .ann it means something else entirely - ann.go - and a .ann is
 		// never read through here.)
-		from = r.header["LANGUAGE"]
+		fromKey, from = "LANGUAGE", r.header["LANGUAGE"]
 	}
 	desc := ""
 	if from != "" || to != "" {
@@ -229,6 +235,16 @@ func (r *Reader) init(path string) error {
 		// panel existed it survived only as the middle of the desc string
 		// above. Recorded as a code so a consumer never has to parse " → ".
 		ContentsLang: lang.FromDeclared(to),
+	}
+	// Every other directive, in file order: the ones the name and the
+	// "from → to" description were built from are already shown as those.
+	for _, k := range r.hdrKeys {
+		if k == nameKey || k == fromKey || k == "CONTENTS_LANGUAGE" {
+			continue
+		}
+		if v := strings.TrimSpace(r.header[k]); v != "" {
+			r.meta.Header = append(r.meta.Header, dict.Field{Name: k, Value: v})
+		}
 	}
 	return nil
 }
