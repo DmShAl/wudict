@@ -61,7 +61,7 @@ the cogwheel <kbd>⚙️</kbd> in the dictionary panel and then in the expanded 
 
 Full-text mode searches in article *text* and has its own
 query language. Exact, prefix and contains treat whatever you type as literal
-text. The FTS syntax only applies to full-text search and not for other modes.
+text. The FTS syntax only applies to full-text search and not to other modes.
 
 Full-text needs the full-text index switched on for the dictionary (the
 <kbd>☰</kbd> panel). Dictionaries without it are skipped.
@@ -75,10 +75,10 @@ _If_ the phrase finds nothing, wudict falls back to proximity search, one step a
 time, and it stops at the first step that has any results:
 
 | Step | What is searched | Example: `no pun intended` finds |
-| --- | --- | 
-| **1 phrase** | the words, adjacent, in that order |
-| **2 proximity** | the same words close together, any order |
-| **3 words** | the same words anywhere in the article | 
+| --- | --- | --- |
+| **1 phrase** | the words, adjacent, in that order | *…and, **no pun intended**, he resigned* |
+| **2 proximity** | the same words close together, any order | *…clearly **intended** as a **pun**…* |
+| **3 words** | the same words anywhere in the article | *…**pun**… (200 words) …**intended**…* |
 
 The widening is never silent. When a dictionary did not find an exact match, its result
 header says **phrase not found · words proximity** or **phrase not found ·
@@ -89,8 +89,8 @@ words anywhere**, so you always know which FTS mode is used.
 When you want one reading and not the ladder, write it. **A query containing
 an operator is run exactly as written and is never widened.**
 
-wuDict switches to this exact reading only when your input contains a double
-quote, a bare **UPPERCASE** `AND`, `OR`, `NOT`, or `NEAR(`. Lower-case `and`
+wuDict switches to this exact reading only when your input contains a quote, a
+bare **UPPERCASE** `AND`, `OR`, `NOT`, or `NEAR(`. Lower-case `and`
 is an ordinary word in most languages, and `(coll.)` is ordinary dictionary
 notation, so neither changes how a query is read.
 
@@ -101,16 +101,20 @@ document — all five mean the same thing. An apostrophe is still a letter:
 a single quote opens a phrase only when it stands at the *start* of a word and
 its partner at the *end* of one.
 
-| You type                     | You get                                                                        |
-|------------------------------|--------------------------------------------------------------------------------|
-| `"no pun intended"`          | that phrase, exactly those words, **no** prefix on the last one                |
-| `"noone expect"*`            | that phrase, last word as a prefix — also *expect*, *expects*, *expected*, etc |
-| `pun AND intended`           | the same thing, written out                                                    |
-| `cap OR wage`                | either `pun` or `intended`                                                     |
-| `pun NOT intended`           | *pun*, in articles that do not contain *intended*                              |
-| `NEAR("pun" "intended", 5)`  | the two words within 5 words of each other, any order                          |
-| `NEAR("pun" "intended")`     | the same with the default distance of 10                                       |
-| `(pun OR joke) AND intended` | grouping, to any depth                                                         |
+| You type | You get |
+| --- | --- |
+| `"no pun intended"` | that phrase, exactly those words, adjacent, in that order — **no** prefix on the last one, and **no** widening if it finds nothing |
+| `'no pun intended'` | the same — single quotes are quotes |
+| `"no pun intended"*` | the same phrase with the last word left open — also *…no pun intendedly* |
+| `pun` | every word starting with *pun* — a bare word is always a prefix |
+| `"pun"` | the word *pun* only |
+| `pun intended` *(inside an operator query)* | both words, anywhere in the article |
+| `pun AND intended` | the same thing, written out |
+| `pun OR intended` | either one |
+| `pun NOT intended` | *pun*, in articles that do not contain *intended* |
+| `NEAR("pun" "intended", 5)` | the two words within 5 words of each other, any order |
+| `NEAR("pun" "intended")` | the same with the default distance of 10 |
+| `(pun OR joke) AND intended` | grouping, to any depth |
 
 `NOT` binds tightest, then `AND`, then `OR`; two operands side by side mean
 `AND`. Use parentheses when you want another grouping.
@@ -119,12 +123,12 @@ its partner at the *end* of one.
 
     | Goal | Query |
     | --- | --- |
-    | That phrase, and only that phrase | `"no pun intended"` |
+    | That phrase, and only that phrase | `"no pun intended"` or `'no pun intended'` |
     | The phrase, but let wuDict widen if it finds nothing | `no pun intended` |
     | *pun* and *intended* near each other, either order | `NEAR("pun" "intended", 10)` |
     | *pun* and *intended* in the same article, however far apart | `"pun" AND "intended"` |
-    | Either *pun* or *jok*, with *intended* | `(pun OR jok) intended` |
-    | *wage* articles that are not about minimum wage | `wage NOT minimum` |
+    | Either *pun* or *joke*, with *intended* | `(pun OR joke) intended` |
+    | *pun* articles that are not about punctuation | `pun NOT punctuation` |
 
 ??? example "Patterns that come up in real lexicographic work"
 
@@ -152,7 +156,7 @@ its partner at the *end* of one.
 
     Punctuation inside a quoted phrase is not searched for; it is split on the
     same word boundaries as the text, so `"i.e."` matches *i.e.* and
-    `"cap-on-wage"` behaves like `"no pun intended"`.
+    `"no-pun-intended"` behaves like `"no pun intended"`.
 
 ### What is deliberately not there
 
@@ -163,8 +167,9 @@ its partner at the *end* of one.
     left: write `wage NOT minimum`, not `NOT minimum`.
 -   **No wildcard inside or at the start of a word.** The star only works at
     the end — `wage*`, `"no pun intended"*`. `*age` and `w*ge` are literal text.
--   **No lemmatization.** Full-text finds the words you typed, and their
-    prefixes.
+-   **No spelling correction.** Full-text finds the words you typed, and their
+    prefixes. A misspelt word finds nothing; [inflected forms](#inflected-words)
+    are handled separately, by the lemmatizer.
 -   **No regular expressions.**
 
 !!! info "A query never fails"
