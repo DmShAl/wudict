@@ -40,6 +40,38 @@ Older appearance/presets/review notes below are historical.
 committed, and the tree is clean again apart from one new uncommitted piece,
 this session's icon change, plus the same untracked `.zcode/`.
 
+**Rechecked 2026-09-23:** `dev` is at `8c50272`, the merge of upstream `master`
+(`8b45514`) into `dev`. Trial-merged in a throwaway worktree
+(`git worktree add … dev`), so the main checkout, which sits on `master`, was
+never touched. `go build ./...` and `go vet ./...` clean — there is no `gcc`
+here, so the tag-less/pure-Go path is what was built; `go test ./...` leaves
+only the two known Windows failures below. Upstream's `fcd6edb` is a
+cherry-pick of THIS branch's work with its own evolution on top, which is why
+57 of its 72 files merged clean and the bounds tests came out byte for byte
+ours; the 15 that needed a decision and how each was resolved are in the merge
+commit's message. Three facts that are not derivable from the code:
+
+- **The setup page's 📁 is now a host capability, not our prompt.** The page
+  calls `wudictPickFolder` and shows the button only while the host has set
+  `data-folder-picker` (foss `Storage.java`, reached through `MainActivity` →
+  `Intake` → `Storage`); the Play flavour never defines the hook, so 📁 stays
+  hidden there. `Shell.java`'s `wudict:folder-picker` prompt path (`onJsPrompt`
+  → `settleDir`) is now unreachable — deliberately left in place; delete it
+  when someone is next in that file. `showDirectoryPicker` went with it: in a
+  browser it can name only the folder, never the path the server needs.
+- **Double tap and double click run through three places that must stay in
+  step**: `pick.js` (master's version — it fixes a `lang="en_US"` that threw
+  out of the whole hit test, and bounds its scan around the tap), `frame.js`'s
+  iframe handler and index.html's shadow-root handler. Both handlers try the
+  selection first and fall back to the word, and the two are NOT the same
+  message: a selection is prose and goes by `pick` to `lookupSelection`, a
+  segmenter word is already exact and goes by `pickword` to `searchFor`. Keep
+  that split — `lookupSelection`'s trailing-digit trim turns "CO2" into "CO"
+  and "1984" into nothing.
+- **This merge is what takes `dev` from twelve failing tests on this machine to
+  two.** The server resource/index, `dsl` and `lemmas` failures were upstream's
+  fixes arriving, not something left to re-fix.
+
 ## The launcher icon carries a "2" now (2026-09-22, this session)
 
 The user asked for a "2" in the bottom-left corner of the wuDict2 icon ("рядом с
