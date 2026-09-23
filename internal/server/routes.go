@@ -177,11 +177,7 @@ func (s *Server) routes() []route {
 		{"GET", "/assets/history.js", serveAsset("application/javascript; charset=utf-8", historyJS), "", false},
 		{"GET", "/assets/group-editor.css", serveAsset("text/css; charset=utf-8", groupEditorCSS), "", false},
 		{"GET", "/assets/group-editor.js", serveAsset("application/javascript; charset=utf-8", groupEditorJS), "", false},
-		{"GET", "/assets/pick.js", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-			w.Header().Set("Cache-Control", "no-store")
-			_, _ = w.Write(pickJS)
-		}, "", false},
+		{"GET", "/assets/pick.js", serveAsset("application/javascript; charset=utf-8", pickJS), "", false},
 		{"GET", "/assets/setup.css", serveAsset("text/css; charset=utf-8", setupCSS), "", false},
 		{"GET", "/assets/favicon.svg", serveFavicon, "", false},
 		{"GET", "/favicon.ico", serveFavicon, "", false},

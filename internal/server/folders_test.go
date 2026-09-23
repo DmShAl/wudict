@@ -498,7 +498,9 @@ func TestPreviewEviction(t *testing.T) {
 	for _, e := range reg.all() {
 		e.lastUse.Store(old)
 	}
-	if freed := reg.sweep(); freed == 0 {
+	// The outcome, not this sweep's own count: SetPreviewBudget nudged the
+	// janitor, which may reach the same eviction first and leave this one 0.
+	if freed := reg.sweep(); freed == 0 && reg.previewBytes() > 1 {
 		t.Fatal("idle backends over budget should be evicted")
 	}
 	if got := reg.previewBytes(); got > 1 {

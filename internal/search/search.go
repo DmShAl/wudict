@@ -230,21 +230,19 @@ func StreamOpen(ctx context.Context, openers []Opener, mode Mode, term string, p
 func runQuery(ctx context.Context, d dict.Dictionary, mode Mode, term string, plan []ftsq.Rung, perDict int) Hit {
 	done := make(chan Hit, 1)
 	go func() { done <- query(d, mode, term, plan, perDict) }()
-	for {
+	select {
+	case h := <-done:
+		return h
+	case <-ctx.Done():
+		// A finished query outranks the cancellation that landed in the
+		// same scheduler tick: the work is done and the answer exists, so
+		// a slot reporting "canceled" over a result it is holding would
+		// be a lie about the work.
 		select {
 		case h := <-done:
 			return h
-		case <-ctx.Done():
-			// A finished query outranks the cancellation that landed in the
-			// same scheduler tick: the work is done and the answer exists, so
-			// a slot reporting "canceled" over a result it is holding would
-			// be a lie about the work.
-			select {
-			case h := <-done:
-				return h
-			default:
-				return Hit{Meta: d.Meta(), Err: ctx.Err()}
-			}
+		default:
+			return Hit{Meta: d.Meta(), Err: ctx.Err()}
 		}
 	}
 }

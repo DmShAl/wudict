@@ -55,8 +55,24 @@ func Open(path string) (*Dict, error) {
 		Path:        path,
 		Description: strings.TrimSpace(c.tags["copyright"]),
 		EntryCount:  len(c.refs),
+		Header:      headerFields(c),
 	}
 	return d, nil
+}
+
+// headerFields is the slob's tags in file order, minus label and copyright,
+// which Meta already carries as Name and Description.
+func headerFields(c *container) []dict.Field {
+	var out []dict.Field
+	for _, k := range c.tagOrder {
+		if k == "label" || k == "copyright" {
+			continue
+		}
+		if v := strings.TrimSpace(c.tags[k]); v != "" {
+			out = append(out, dict.Field{Name: k, Value: v})
+		}
+	}
+	return out
 }
 
 func (d *Dict) Meta() dict.Meta { return d.meta }

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -292,10 +293,22 @@ func h(w, body string) dict.Entry {
 	return dict.Entry{Headwords: []string{w}, Body: body, Kind: dict.BodyHTML}
 }
 
+// testHeader repeats a name on purpose: the header is a list, not a map.
+var testHeader = []dict.Field{{Name: "Author", Value: "A. N. Other"}, {Name: "Note", Value: "x = y"}, {Name: "Note", Value: "<p>two</p>\nlines"}}
+
+// The source header survives preparation, order and repeats included, so a
+// folder whose source is gone still says who wrote it.
+func TestMetaHeaderRoundTrip(t *testing.T) {
+	if got := testStore(t).Meta().Header; !reflect.DeepEqual(got, testHeader) {
+		t.Errorf("Header = %q, want %q", got, testHeader)
+	}
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	r := &fakeReader{
-		meta: dict.Meta{Name: "Test Diccionario", Format: "mdx", Path: "/nonexistent/test.mdx"},
+		meta: dict.Meta{Name: "Test Diccionario", Format: "mdx", Path: "/nonexistent/test.mdx",
+			Header: testHeader},
 		entries: []dict.Entry{
 			h("corazón", `<div class="x"><b>corazón</b> órgano <script>evil()</script>muscular</div>`),
 			h("corazonada", `<p>presentimiento súbito</p>`),

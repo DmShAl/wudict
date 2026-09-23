@@ -175,6 +175,7 @@ func Open(filename string) (*Dict, error) {
 		Path:        filename,
 		Description: dict.DisplayText(strings.TrimSpace(md.Description())),
 		EntryCount:  len(entries),
+		Header:      headerFields(md),
 	}
 
 	for _, f := range companionMdds(filename) {
@@ -631,6 +632,23 @@ func substituteStylesheet(txt string, stylesheet map[string][2]string) string {
 func isFile(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// headerFields is the MDX header minus what Meta already carries (Title,
+// Description) and minus StyleSheet, which is code the renderer applies - a
+// numbered table of HTML fragments, not a statement about the dictionary.
+func headerFields(md *gomdict.Mdict) []dict.Field {
+	var out []dict.Field
+	for _, a := range md.HeaderAttrs() {
+		switch strings.ToLower(a[0]) {
+		case "title", "description", "stylesheet":
+			continue
+		}
+		if v := strings.TrimSpace(dict.DisplayText(a[1])); v != "" {
+			out = append(out, dict.Field{Name: a[0], Value: v})
+		}
+	}
+	return out
 }
 
 func dictName(md *gomdict.Mdict, filename string) string {

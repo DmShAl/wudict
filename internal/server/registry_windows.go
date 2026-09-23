@@ -34,6 +34,9 @@ func releasePrepared(e *entry, textDB string) {
 	old := e.d
 	e.d, e.err, e.backing = nil, nil, ""
 	e.dMu.Unlock()
+	// A backend superseded moments ago (the preview a first prepare replaced -
+	// dsl and bgl embed their own store) holds the same file until its grace ends.
+	e.retired.closeAll()
 	if old == nil {
 		return // nothing served; the bar alone covers opens until the reopen
 	}

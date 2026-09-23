@@ -25,6 +25,7 @@ func demandEntry(t *testing.T) (*Server, *entry) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	closeBackends(t, reg)
 	return New(reg), reg.all()[0]
 }
 
@@ -69,6 +70,8 @@ func TestDemandIndexIgnoresPowerState(t *testing.T) {
 // after it does the work.
 func TestFailedDemandIsRetried(t *testing.T) {
 	restorePower(t)
+	// Made before demandEntry, so its removal comes after the backends close.
+	writable := t.TempDir()
 	_, e := demandEntry(t)
 
 	// A regular file where the library folder should be: MkdirAll fails, so
@@ -100,7 +103,7 @@ func TestFailedDemandIsRetried(t *testing.T) {
 
 	// Past it - and with the library writable again - the same tap works.
 	e.demandFail.Store(time.Now().Add(-2 * demandRetryAfter).UnixNano())
-	t.Setenv("WUDICT_DB_DIR", t.TempDir())
+	t.Setenv("WUDICT_DB_DIR", writable)
 	e.demandIndex()
 	waitUntil(t, "the retried index", func() bool { return prepared(e) })
 }

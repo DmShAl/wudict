@@ -411,20 +411,22 @@ func Library() ([]LibEntry, error) {
 		dir := filepath.Join(root, de.Name())
 		textDB := TextDBPath(dir)
 		// The receipt first - it is what it is for ("the fast source index")
-		// and needs no SQLite. Folders whose receipt predates a field this
-		// listing needs fall back to the meta table; the next ingest
-		// regenerates their receipt and the fallback goes away.
-		meta, ok := receiptMeta(dir)
+		// and needs no SQLite. A receipt that is missing, older than its
+		// text.db, or predates a field this listing needs falls back to the
+		// meta table; the next ingest regenerates it and the fallback goes away.
+		meta, ok := receiptMeta(dir, textDB)
+		name := meta["name"] // the receipt already holds the decoded title
 		if !ok {
 			meta, err = ReadMeta(textDB)
 			if err != nil {
 				continue
 			}
+			name = dict.DisplayText(meta["name"]) // as store.Open: repair an over-escaped title without a re-ingest
 		}
 		e := LibEntry{
 			Dir:      dir,
 			TextDB:   textDB,
-			Name:     dict.DisplayText(meta["name"]), // as store.Open: repair an over-escaped title without a re-ingest
+			Name:     name,
 			Format:   meta["format"],
 			Source:   meta["source_path"],
 			FullText: meta["ingest_level"] != string(LevelHeadwords),
@@ -560,14 +562,24 @@ func readInfo(path string) (map[string]string, error) {
 }
 
 // receiptMeta reads a folder's info.txt receipt into the meta-keyed shape
-// ReadMeta returns, so a library listing needs no SQLite. The receipt is
-// regenerated from that table after every ingest, so the one state where it
-// can trail the database is the microseconds between the ingest's rename and
-// its WriteInfo - nothing a listing could notice. ok is false when the
-// receipt is missing or predates a field the listing needs (receipts written
-// before `contains` existed), and the caller falls back to ReadMeta.
-func receiptMeta(dir string) (map[string]string, bool) {
-	info, err := readInfo(InfoPath(dir))
+// ReadMeta returns, so a library listing needs no SQLite. The name comes back
+// already decoded (WriteInfo stores dict.DisplayText's answer). The receipt is
+// regenerated after every ingest and pack, but that write is best-effort, so it
+// is trusted only while it is at least as new as the text.db it describes; a
+// text.db that is gone is not listed at all, as with ReadMeta. ok is false when
+// the receipt is missing, stale, or predates a field the listing needs
+// (receipts written before `contains` existed): the caller falls back.
+func receiptMeta(dir, textDB string) (map[string]string, bool) {
+	db, err := os.Stat(textDB)
+	if err != nil {
+		return nil, false
+	}
+	path := InfoPath(dir)
+	fi, err := os.Stat(path)
+	if err != nil || db.ModTime().After(fi.ModTime()) {
+		return nil, false
+	}
+	info, err := readInfo(path)
 	if err != nil {
 		return nil, false
 	}

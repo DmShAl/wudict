@@ -60,7 +60,7 @@ var setupCSS []byte // palette and controls shared by setup.html and lemmas.html
 var frameJS []byte // bridge script for sandboxed article iframes
 
 //go:embed web/pick.js
-var pickJS []byte // shared word hit-testing for both article renderers
+var pickJS []byte // word-at-point for a double tap, loaded by both article surfaces
 
 //go:embed web/app.css
 var appCSS []byte // main page styles
@@ -101,7 +101,7 @@ type Server struct {
 	Version string
 
 	// indexOnce caches the substitutions index.html needs that never change
-	// after startup ({{VERSION}} in the About box, {{FRAMEJS}}'s hash,
+	// after startup ({{VERSION}} in the About box, the {{FRAMEJS}} and {{PICKJS}} hashes,
 	// {{ARTCSS}}).
 	// Version is assigned after the Server is built, so this cannot be done at
 	// embed time; doing it per request would re-copy the whole page on every
@@ -393,6 +393,7 @@ func (s *Server) basePage() []byte {
 		page = strings.ReplaceAll(page, "{{HISTORYJS}}", assetTag(historyJS))
 		page = strings.ReplaceAll(page, "{{GROUPCSS}}", assetTag(groupEditorCSS))
 		page = strings.ReplaceAll(page, "{{GROUPJS}}", assetTag(groupEditorJS))
+		page = strings.ReplaceAll(page, "{{PICKJS}}", assetTag(pickJS))
 		// The role stylesheet for articles wudict writes itself
 		// (internal/artmark). It is a floor under BOTH article surfaces, so
 		// it is substituted once here and index.html hands it to the shadow

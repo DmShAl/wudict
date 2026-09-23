@@ -13,10 +13,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/wuweidict/wudict/internal/dict"
 	"github.com/wuweidict/wudict/internal/resource"
 )
 
@@ -545,5 +547,27 @@ func TestDamagedCompanionTailKeepsEntries(t *testing.T) {
 	}
 	if res, err := d.Exact("corazón", 5); err != nil || len(res) != 1 {
 		t.Fatalf("first entry lost: %v %+v", err, res)
+	}
+}
+
+// parseIfo keeps every .ifo line for Meta.Header in file order, minus the two
+// Meta carries by name and minus empty values; a value may itself contain "=".
+func TestParseIfoHeader(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.ifo")
+	ifo := "StarDict's dict ifo file\r\nversion=3.0.0\r\nbookname=D\r\nwordcount=2\r\n" +
+		"author=A=B\r\ndescription=long\r\nwebsite=\r\ndate=2026.09.22\r\n"
+	if err := os.WriteFile(p, []byte(ifo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, fields, err := parseIfo(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []dict.Field{{Name: "version", Value: "3.0.0"}, {Name: "wordcount", Value: "2"}, {Name: "author", Value: "A=B"}, {Name: "date", Value: "2026.09.22"}}
+	if !reflect.DeepEqual(fields, want) {
+		t.Errorf("fields = %q, want %q", fields, want)
+	}
+	if m["bookname"] != "D" || m["description"] != "long" {
+		t.Errorf("map lost bookname/description: %q", m)
 	}
 }

@@ -490,7 +490,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   <div class="group-toolbar"><button type="button" class="btn" id="pickApply">Apply</button></div>
 </dialog>
 
-<script src="/assets/pick.js"></script>
+<script src="/assets/pick.js?v={{PICKJS}}"></script>
 <script src="/assets/history.js?v={{HISTORYJS}}"></script>
 <script>
 "use strict";
@@ -2381,7 +2381,7 @@ function frameDoc(content,fid,dark,dictID,frag){
     'html.dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.92)}'+
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+
     ARTCSS+
-    '</style><script src="/assets/pick.js"><\/script><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
+    '</style><script src="/assets/pick.js?v={{PICKJS}}"><\/script><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
     '" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
     /* A stylesheet written for a full page sizes html and body from the
        VIEWPORT — LDOCE's ldoce.css opens with `html, body{height:100%}`. Here the
@@ -3550,6 +3550,16 @@ document.addEventListener("dblclick",e=>{
   if(!path.some(el=>el.classList?.contains("article")))return;
   const root=path.find(el=>el instanceof ShadowRoot);
   if(!root)return;
+  /* Two ways in, and they are NOT the same lookup. A real double click SELECTS
+     the word, and a selection is prose - it may carry a trailing comma or a
+     footnote digit - so it takes lookupSelection's tidying. A double TAP on
+     Android selects nothing (the platform selects on long-press only), so the
+     word under the point stands in (pick.js): a Unicode word boundary is
+     already exact, and it goes to searchFor verbatim, which is what keeps a
+     headword ending in digits ("CO2", "1984") from being trimmed. */
+  let sel="";
+  try{sel=(root.getSelection?root.getSelection():document.getSelection()).toString().trim()}catch(_){ }
+  if(sel){lookupSelection(sel);return;}
   const word=window.wuWordAt?.(e,root);
   if(word)searchFor(word);
 },true);

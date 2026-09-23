@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -54,5 +55,41 @@ func TestSaveKeyRawConcurrentSavesKeepEveryKey(t *testing.T) {
 		for _, e := range entries {
 			t.Errorf("config directory holds %q", e.Name())
 		}
+	}
+}
+
+// TestSaveKeyRawKeepsWhatWriteFileKept: the atomic replace must not change
+// what the plain write it replaced left alone - a symlinked config stays a
+// link (the save lands in its target), and an existing file keeps its mode.
+func TestSaveKeyRawKeepsWhatWriteFileKept(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles.toml")
+	if err := os.WriteFile(target, []byte("# mine\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, 0o600); err != nil { // umask-proof
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "wudict.toml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	if err := SaveKey(link, "port", "8080"); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the config symlink was replaced (%v, %v)", fi, err)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || !strings.Contains(string(data), `port = "8080"`) || !strings.Contains(string(data), "# mine") {
+		t.Fatalf("the save did not land in the link's target: %q %v", data, err)
+	}
+	// Windows has no permission bits to keep: Chmod toggles only read-only,
+	// and every writable file stats as 0666.
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if fi, err := os.Stat(target); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("mode after save = %v (%v), want 0600", fi.Mode().Perm(), err)
 	}
 }

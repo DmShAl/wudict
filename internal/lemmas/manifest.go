@@ -43,6 +43,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -242,17 +243,40 @@ func parseSource(src string) (source, error) {
 	}
 	p := src
 	if strings.HasPrefix(src, "file://") {
-		u, err := url.Parse(src)
-		if err != nil {
+		var err error
+		if p, err = filePath(src); err != nil {
 			return source{}, fmt.Errorf("%s: %w", src, err)
 		}
-		p = u.Path
 	}
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return source{}, err
 	}
 	return source{dir: filepath.Dir(abs), file: abs}, nil
+}
+
+// filePath is the local path a file:// URL names. Besides the standard forms
+// (file:///C:/x on Windows, file:///x elsewhere) it takes "file://" glued to a
+// Windows path as written, file://C:\x - not a URL, but what a person types,
+// and it cannot mean anything else. A host other than localhost is refused
+// rather than dropped: file://server/share/x read as /share/x would be a
+// different file.
+func filePath(src string) (string, error) {
+	if rest := src[len("file://"):]; filepath.VolumeName(rest) != "" {
+		return rest, nil // only ever non-empty on Windows
+	}
+	u, err := url.Parse(src)
+	if err != nil {
+		return "", err
+	}
+	if u.Host != "" && u.Host != "localhost" {
+		return "", fmt.Errorf("file URL names host %q: only local files can be read", u.Host)
+	}
+	p := u.Path
+	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+		p = p[1:] // /C:/x is the drive path C:/x
+	}
+	return filepath.FromSlash(p), nil
 }
 
 // String is what an error message shows the user: the thing they configured.

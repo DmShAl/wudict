@@ -574,7 +574,7 @@ func EnsureConfigFile() (path string, created bool, err error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", false, err
 	}
-	if err := os.WriteFile(p, []byte(configTemplate), 0o644); err != nil {
+	if err := writeFileAtomic(p, []byte(configTemplate), 0o644); err != nil {
 		return "", false, err
 	}
 	return p, true, nil
@@ -666,14 +666,24 @@ func SaveKeyRaw(path, key, raw string) error {
 // Lock would deadlock the one caller that already holds it.
 var saveMu sync.Mutex
 
-// writeConfigFile replaces path with data: written to a temp file in the
+// writeFileAtomic replaces path with data: written to a temp file in the
 // config's own directory, flushed, then renamed over the target. The config
 // file is the only copy of its settings, so a crash mid-write must not leave
 // a truncated file behind - the same atomicity an ingest's temp+rename gives
 // a text.db. The temp sits beside the target because a rename across
 // devices is a copy, and a copy has exactly the torn-write window this
 // exists to close. Callers that read-modify-write must hold saveMu.
+//
+// What os.WriteFile left alone stays alone: a symlinked config (a dotfiles
+// checkout) is written at its target rather than replaced by a plain file,
+// and an existing file keeps its mode - perm is for a file this write creates.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	if fi, err := os.Stat(path); err == nil {
+		perm = fi.Mode().Perm()
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp")
 	if err != nil {
 		return err

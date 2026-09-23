@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -141,7 +142,7 @@ func androidAliases(paths []string) [][2]string {
 		if p == "" {
 			continue
 		}
-		p = filepath.Clean(p)
+		p = path.Clean(p) // not filepath: these are Android paths on any host
 		if _, ok := under(p, "/sdcard"); ok {
 			// the legacy symlink for the primary volume
 			add("/sdcard", "Internal storage")

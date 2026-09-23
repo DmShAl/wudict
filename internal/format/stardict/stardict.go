@@ -88,7 +88,7 @@ type Dict struct {
 
 // Open opens NAME.ifo and its companion files.
 func Open(ifoPath string) (*Dict, error) {
-	ifo, err := parseIfo(ifoPath)
+	ifo, fields, err := parseIfo(ifoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +135,7 @@ func Open(ifoPath string) (*Dict, error) {
 		Path:        ifoPath,
 		Description: strings.TrimSpace(ifo["description"]),
 		EntryCount:  len(d.entries),
+		Header:      fields,
 	}
 	return d, nil
 }
@@ -143,7 +144,7 @@ func Open(ifoPath string) (*Dict, error) {
 // load, no fold-maps) for the cheap dictionary-list path. Name mirrors
 // Open's derivation so both report the same display name.
 func probe(ifoPath string) (dict.Meta, error) {
-	ifo, err := parseIfo(ifoPath)
+	ifo, _, err := parseIfo(ifoPath)
 	if err != nil {
 		return dict.Meta{}, err
 	}
@@ -191,22 +192,30 @@ func (d *Dict) openDictData(base string) error {
 	return nil
 }
 
-func parseIfo(path string) (map[string]string, error) {
+// parseIfo reads the .ifo into a lookup map and, for Meta.Header, the same
+// lines in file order minus bookname and description, which Meta carries under
+// their own names.
+func parseIfo(path string) (map[string]string, []dict.Field, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
 	if len(lines) == 0 || !strings.Contains(lines[0], "StarDict's dict ifo file") {
-		return nil, fmt.Errorf("%s: not a StarDict .ifo file", path)
+		return nil, nil, fmt.Errorf("%s: not a StarDict .ifo file", path)
 	}
 	m := map[string]string{}
+	var fields []dict.Field
 	for _, ln := range lines[1:] {
 		if k, v, ok := strings.Cut(ln, "="); ok {
-			m[strings.TrimSpace(k)] = strings.TrimSpace(v)
+			k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+			m[k] = v
+			if k != "" && v != "" && k != "bookname" && k != "description" {
+				fields = append(fields, dict.Field{Name: k, Value: v})
+			}
 		}
 	}
-	return m, nil
+	return m, fields, nil
 }
 
 // compressedSuffixes are the spellings a StarDict companion may be compressed

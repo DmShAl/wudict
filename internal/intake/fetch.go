@@ -463,6 +463,10 @@ func (f Fetcher) buildClient() *http.Client {
 			ResponseHeaderTimeout: 60 * time.Second,
 			ForceAttemptHTTP2:     true,
 			Proxy:                 http.ProxyFromEnvironment,
+			// The client is cached for the life of the process (clients), so
+			// an idle keep-alive must not outlive the import that opened it -
+			// http.DefaultTransport's figure.
+			IdleConnTimeout: 90 * time.Second,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {

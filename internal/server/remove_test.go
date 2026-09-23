@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -272,5 +273,31 @@ func TestRemoveKeepsAFolderThatStillHoldsSomething(t *testing.T) {
 	}
 	if _, err := os.Stat(notes); err != nil {
 		t.Fatalf("the user's own file went with the dictionary: %v", err)
+	}
+}
+
+type countingCloser struct{ n atomic.Int32 }
+
+func (c *countingCloser) Close() error { c.n.Add(1); return nil }
+
+// A backend in its closeGrace still holds its files, and on Windows an open
+// file cannot be deleted or renamed over - so removal must be able to close it
+// now, and the grace timer firing later must not close it a second time.
+func TestRetiredBackendClosesOnceWhenClosedEarly(t *testing.T) {
+	var rs retiring
+	c := &countingCloser{}
+	rs.retire(c)
+	var pending *retiree
+	for r := range rs.pending {
+		pending = r
+	}
+	rs.closeAll()
+	if got := c.n.Load(); got != 1 {
+		t.Fatalf("closeAll closed it %d times, want 1", got)
+	}
+	pending.close() // what the grace timer does when it fires
+	rs.closeAll()   // nothing is left pending
+	if got := c.n.Load(); got != 1 {
+		t.Fatalf("closed %d times in total, want 1", got)
 	}
 }

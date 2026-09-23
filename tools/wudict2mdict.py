@@ -15,7 +15,8 @@ source checkout instead.
 
 Examples:
   tools/wudict2mdict.py ~/.wudict/db/OALD10
-  tools/wudict2mdict.py ~/.wudict/db/OALD10 -o ~/out/OALD10 --no-media
+  tools/wudict2mdict.py ~/.wudict/db/OALD10 -o ~/out/          # ~/out/OALD10.mdx
+  tools/wudict2mdict.py ~/.wudict/db/OALD10 -o ~/out/oald.mdx --no-media
   tools/wudict2mdict.py OALD10 --title 'OALD 10' \\
       --append-description 'Exported from WuWeiDict on 2026-09-21.' \\
       --meta Left2Right=Yes --meta StyleSheet=''
@@ -83,6 +84,43 @@ def resolve_input(path):
         return path, media_db if os.path.isfile(media_db) else None, \
             res if os.path.isdir(res) else None, os.path.basename(stem)
     die("not a wudict library: %s (expected a folder, text.db or <name>.text.db)" % path)
+
+
+def resolve_output(spec, base, dry_run):
+    """--output -> (mdx_path, mdd_path), resolved the way `go build -o` does:
+
+      DIR/ (trailing separator)  -> DIR/<base>.mdx; DIR is created if missing
+      existing DIR               -> DIR/<base>.mdx
+      PATH.mdx / PATH.mdd        -> PATH.mdx + PATH.mdd
+      anything else              -> treated as a base path: PATH.mdx + PATH.mdd
+
+    To get abs.mdx beside an existing folder abs, pass -o abs.mdx.
+    """
+    if spec is None:
+        out = os.path.join(os.getcwd(), base)
+    else:
+        if not spec:
+            die("--output is empty")
+        raw = os.path.expanduser(spec)
+        as_dir = raw.endswith(tuple(s for s in (os.sep, os.altsep) if s))
+        path = os.path.abspath(raw)                  # drops the trailing separator
+        if as_dir or os.path.isdir(path):
+            if os.path.exists(path) and not os.path.isdir(path):
+                die("not a directory: %s" % path)
+            if not os.path.isdir(path) and not dry_run:
+                try:
+                    os.makedirs(path, exist_ok=True)
+                except OSError as e:
+                    die("cannot create %s: %s" % (path, e))
+            out = os.path.join(path, base)
+            return out + ".mdx", out + ".mdd"
+        out = path
+        if out.lower().endswith((".mdx", ".mdd")):
+            out = out[:-4]
+    outdir = os.path.dirname(out)
+    if outdir and not os.path.isdir(outdir):
+        die("no such directory: %s" % outdir)
+    return out + ".mdx", out + ".mdd"
 
 
 def open_ro(path):
@@ -443,7 +481,9 @@ def parse_args(argv):
                "dictionary wrote them, which is what MDict resolves.")
     p.add_argument("input", help="library folder, text.db, or <name>.text.db")
     p.add_argument("-o", "--output", metavar="PATH",
-                   help="output base path or .mdx path (default: ./<name>.mdx)")
+                   help="an existing folder or DIR/ (writes DIR/<name>.mdx, creating DIR/ "
+                        "if missing), a .mdx file path, or a base path "
+                        "(default: ./<name>.mdx)")
     p.add_argument("-f", "--force", action="store_true", help="overwrite existing output")
     p.add_argument("-n", "--dry-run", action="store_true", help="report what would be written")
     p.add_argument("-q", "--quiet", action="store_true", help="no progress output")
@@ -541,14 +581,7 @@ def main(argv=None):
         die("%s has user_version %d, expected %d" % (text_db, ver, SCHEMA_VERSION))
     meta = read_meta(conn)
 
-    out = args.output or os.path.join(os.getcwd(), default_base)
-    out = os.path.abspath(os.path.expanduser(out))
-    if out.lower().endswith(".mdx") or out.lower().endswith(".mdd"):
-        out = out[:-4]
-    mdx_path, mdd_path = out + ".mdx", out + ".mdd"
-    outdir = os.path.dirname(mdx_path)
-    if outdir and not os.path.isdir(outdir):
-        die("no such directory: %s" % outdir)
+    mdx_path, mdd_path = resolve_output(args.output, default_base, args.dry_run)
     for path in (mdx_path, mdd_path):
         if os.path.exists(path) and not args.force and not args.dry_run:
             die("%s exists (use --force)" % path)

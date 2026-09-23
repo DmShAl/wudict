@@ -547,11 +547,22 @@
 
 	// "pick", not "ref": a double-clicked word is the user asking what
 	// something means, not following the author's reference. The app tidies it
-	// (trailing punctuation, footnote digits) and searches everywhere.
+	// (trailing punctuation, footnote digits) and searches everywhere. A double
+	// TAP selects nothing on Android, so the word under it stands in (pick.js,
+	// loaded just before this file - taken now, while the window is still
+	// ours and not yet the article's scripts'). The two cases are NOT the same
+	// message: a selection is that prose and gets tidied, while a Unicode word
+	// boundary is already exact and goes by "pickword", searched verbatim - so
+	// a headword ending in digits ("CO2", "1984") survives either path. A tap
+	// that lands on a link, a button or a media element belongs to that
+	// element, not to a lookup.
+	var wordAt = window.wuWordAt;
 	document.addEventListener("dblclick", function (e) {
-		var el = e.target;
-		if (el.closest && el.closest("a,button,input,textarea,select,audio,video,[contenteditable]")) return;
-		var word = window.wuWordAt && window.wuWordAt(e, document.body);
+		var el = e.composedPath ? e.composedPath()[0] : e.target;
+		if (el && el.closest && el.closest("a,button,input,textarea,select,audio,video,[contenteditable]")) return;
+		var sel = String(document.getSelection() || "").trim();
+		if (sel) { HOST.postMessage({ t: "pick", w: sel }, "*"); return; }
+		var word = wordAt && wordAt(e, document.body);
 		if (word) HOST.postMessage({ t: "pickword", w: word }, "*");
 	}, true);
 
