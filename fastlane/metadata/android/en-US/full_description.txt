@@ -30,7 +30,7 @@ in the dictionary panel.
   through the system file picker into the app's own storage.
 
 <h2>OPEN SOURCE</h2>
-uDict is free software, licensed under GPL-3.0. The same program runs on
+wuDict is free software, licensed under GPL-3.0. The same program runs on
 Linux, macOS, Windows, and even Raspberry Pi.
 
 Source code: https://github.com/wuweidict/wudict
