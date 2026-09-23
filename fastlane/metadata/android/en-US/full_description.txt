@@ -1,56 +1,36 @@
-wuDict searches all your MDict, StarDict, AARD2, Lingvo DSL, Babylon and ZIM dictionaries on your device.
+wuDict searches all your MDict, StarDict, AARD2, Lingvo DSL, Babylon and ZIM dictionaries on your device, providing instant offline search across your entire dictionary collection.
 
-The app runs the wudict server locally and shows definitions in an embedded WebView. Nothing is uploaded, nothing is tracked,
-there is no sign-in — the app works fully offline.
-
-SUPPORTED FORMATS
-
-- MDict (.mdx/.mdd)
-- StarDict (.ifo/.idx/.dict)
-- Aard 2 (.slob)
-- Lingvo DSL (.dsl)
-- Babylon (.bgl)
-- ZIM (.zim) - library.kiwix.org
-
-Pictures, audio pronunciation and the dictionary's own styles render the
-way the dictionary authors intended.
-
-SEARCH
-
-Four ways to find a word up:
-
-- Prefix — all entries starting with your search term
-- Exact — just the headword itself
-- Contains — any text anywhere in a headword
-- Full text — the word or phrase anywhere in an article
-
-All dictionaries are searched concurrently, with results displayed live as they become available.
-
-BUILT FOR LARGE COLLECTIONS
+<h2>FEATURES</h2>
+- Formats: MDict (.mdx/.mdd), StarDict (.ifo/.idx/.dict), Aard2 (.slob), Lingvo DSL (.dsl), Babylon (.bgl), ZIM (.zim) - library.kiwix.org
+- Instant search across all dictionaries with four modes: prefix, exact, contains, and full-text search
+- Dictionaries are automatically grouped by language, publisher, direction, etc.
+- Double-tap any word in a wudict dictionary article to instantly look up its definition
+- Adjust the font size via the ☰ → <b>+/-</b> widget
+- Custom lemmatization (word-form morphology) for 24 languages, configurable via ☰ → ⚙️ → <b>Lemmatization</b>; English lemmatization comes pre-installed
+- Immersive mode (full screen), with an option to draw content edge-to-edge, including the camera cutout area; enable by long-tapping the wudict icon in the launcher → <b>Settings</b>
+- Browse <b>all headwords</b> in any dictionary via ☰ → <b>Browse</b>
+- Select text in any app and pick → <b>wuDict</b> from the context menu
+- Apply custom CSS styles and fonts via the embedded Styler: ☰ → ⚙️ → <b>Custom Style</b>
+- Import dictionaries into wudict directly from your file manager: tap a .mdx/.dsl/.bgl/.zim/.slob/.zip/.7z file → Share > <b>wuDict</b>
+- Long-tap a dictionary download link on any web page (.mdx/.slob/.dsl/.zip/.7z) and pick Share → wuDict to install it locally
 
 Dictionaries are searchable immediately after adding them. wudict
-builds a compact headword index in the background, after which lookups are
+builds a compact headword index in the background, making lookups
 almost instant even across hundreds of dictionaries. Preparation is
-automatic and needs no configuration; contains-search, full-text search and
-media packing are per-dictionary switches you can turn on only for the dictionaries
-that you select — these will take extra space with the estimated size displayed in the dictionary panel.
+automatic and requires no configuration; contains-search, full-text search and
+media packing are optional per-dictionary switches — enable them only where
+you need them. They require extra space, with the estimated size displayed
+in the dictionary panel.
 
-FEATURES
-- Long tap on a URL to a dictionary (.mdx/.slob/.dsl, etc) or a .zip/.7z and pick Share to wuDict to install it
-- Apply custom CSS styles and custom fonts via the embedded Styler ☰ → ⚙️ → Custom Style
-
-PRIVACY
-
-- No account, no cloud, no telemetry
-- No advertising
+<h2>PRIVACY</h2>
+- No account, no cloud, no telemetry. No ads.
 - The only network permission is used to reach the server running inside the
-  app itself, on 127.0.0.1
-- This build declares no storage permission at all: dictionaries are imported
-  through the system file picker into the app's own storage
+  app itself, on 127.0.0.1:6888
+- No storage permission is required: dictionaries are imported
+  through the system file picker into the app's own storage.
 
-OPEN SOURCE
-
-wuDict is free software, licensed under GPL-3.0. The same program runs on
+<h2>OPEN SOURCE</h2>
+uDict is free software, licensed under GPL-3.0. The same program runs on
 Linux, macOS, Windows, and even Raspberry Pi.
 
 Source code: https://github.com/wuweidict/wudict
