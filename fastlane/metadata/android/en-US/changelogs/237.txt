@@ -1,0 +1,6 @@
+- Auto-group dictionaries by language, publisher, type
+- All headwords browse mode via ☰ → <b>Browse</b>
+- Double-tap to search word, backend optimization (cherry-picks from @DmShAl)
+- Full-text search query language docs at https://wuweidict.github.io/wudict/start/search/#full-text-search-syntax
+- Prevent screen flickering on cold launch
+- Prevent accordion header clipping in full screen mode with camera cutout
