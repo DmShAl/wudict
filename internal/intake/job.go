@@ -246,6 +246,10 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 		pub: Job{ID: jobID(), State: StateDownloading, Host: u.Hostname()},
 	}
 	m.cur = j
+	// Snapshot under the lock: the worker below starts writing pub fields
+	// (Source arrives with the first progress report) as soon as it runs, and
+	// the copy would otherwise race it.
+	pub := j.pub.copy()
 	m.mu.Unlock()
 
 	m.wg.Add(1)
@@ -254,7 +258,7 @@ func (m *Manager) BeginURL(dest, raw string, f Fetcher) (Job, error) {
 		defer cancel()
 		m.download(ctx, j, f, raw)
 	}()
-	return j.pub.copy(), nil
+	return pub, nil
 }
 
 // download is the fetching side, on its own goroutine: acquire, then sniff,
@@ -397,6 +401,9 @@ func (m *Manager) Confirm(dest string, pick []int, opts Options) (Job, error) {
 		defer cancel()
 		m.run(ctx, j, chosen, opts, extras)
 	}()
+	// Still under m.mu (it unlocks via defer, after the return is evaluated),
+	// and the worker writes pub only through m.mu - so this snapshot cannot
+	// race, unlike BeginURL's.
 	return j.pub.copy(), nil
 }
 
@@ -534,8 +541,21 @@ func fileSize(path string) int64 {
 // still arriving, and a failure leaves nothing to tidy but the stage.
 func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, opts Options) {
 	a, err := openArchive(j.src.Path)
+	// The reader holds the SOURCE file open, and the tail below removes it:
+	// Windows refuses to remove an open file, so "delete the source
+	// afterwards" would silently keep it (POSIX unlinks open files, which is
+	// why only Windows ever showed this). closeArchive therefore runs
+	// explicitly before the removals; the defer is only the backstop for a
+	// panic out of Extract, and closing twice is a no-op.
+	closeArchive := func() {}
 	if err == nil {
-		defer a.Close()
+		closeArchive = func() {
+			if a != nil {
+				_ = a.Close()
+				a = nil
+			}
+		}
+		defer closeArchive()
 	}
 	var installed []string
 	var consumed []string
@@ -567,6 +587,7 @@ func (m *Manager) install(ctx context.Context, j *jobState, chosen []Candidate, 
 			consumed = append(consumed, pa.realPaths(c.Files)...)
 		}
 	}
+	closeArchive()
 	// The stage goes whatever happened, including on cancel: everything still
 	// inside it is half a dictionary by definition, since a whole one has
 	// already been renamed out.

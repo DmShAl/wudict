@@ -53,6 +53,19 @@ type Meta struct {
 	// simply omits the row. Same rule as IndexLang: what the dictionary
 	// declared, never what a file name suggested.
 	ContentsLang string
+
+	// Header is the rest of what the dictionary says about itself: every
+	// non-empty field of its own header that none of the fields above already
+	// carries (author, copyright, creation date, engine version…), in file
+	// order and under the file's own key names. Informational only - nothing
+	// decides behaviour from it; `wudict info` prints it. Cheap probes leave it
+	// nil.
+	Header []Field
+}
+
+// Field is one name/value pair from a dictionary header, as the file spells it.
+type Field struct {
+	Name, Value string
 }
 
 // DisplayText decodes the character references a dictionary's human-readable

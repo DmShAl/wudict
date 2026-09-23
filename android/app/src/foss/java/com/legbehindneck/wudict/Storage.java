@@ -14,20 +14,49 @@ package com.legbehindneck.wudict;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.Settings;
+import android.util.Log;
 import android.webkit.WebView;
 
+import org.json.JSONObject;
+
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
 final class Storage {
+
+    private static final String TAG = "wudict";
+
+    // The folder dialog behind the setup page's 📁. Distinct from Shell's
+    // REQ_FILES and Intake's REQ_PICK: every result reaches all three.
+    private static final int REQ_DIR = 0x5AF3;
+
+    // The page to answer when the dialog returns. Weak: the activity owns the
+    // WebView, and a result after it is gone has no one to tell.
+    private static WeakReference<WebView> page = new WeakReference<>(null);
+
+    // The page side of the dialog (D54): a capability, not a platform. The
+    // setup page shows 📁 only while data-folder-picker is set, and learns
+    // nothing about who set it. wudict://folder opens the dialog; the path
+    // comes back through __wdFolderPicked to the one row that asked. Only this
+    // flavour offers it - its all-files access is what makes a path worth
+    // typing; the Play flavour's typed paths are unreadable, so it never
+    // defines the hook and the button never appears there.
+    private static final String FOLDER_PICKER_JS =
+            "(function(){if(window.wudictPickFolder)return;var done=null;"
+                    + "window.wudictPickFolder=function(f){done=f;location.href='wudict://folder';};"
+                    + "window.__wdFolderPicked=function(p){var f=done;done=null;if(f)f(p);};"
+                    + "document.documentElement.setAttribute('data-folder-picker','');})()";
 
     private Storage() {
     }
@@ -66,17 +95,77 @@ final class Storage {
         }
     }
 
-    /** No shell-private URLs in this flavour: the folder is reached directly. */
+    /**
+     * wudict://folder is the setup page's 📁. Anything else is not this
+     * flavour's, and goes on to the browser as before.
+     */
     static boolean handleShellUri(Activity a, Uri uri) {
+        if (uri != null && "wudict".equalsIgnoreCase(uri.getScheme())
+                && "folder".equalsIgnoreCase(uri.getHost())) {
+            pickFolder(a);
+            return true;
+        }
         return false;
     }
 
-    /** No import flow to receive a result for. */
+    /** The folder dialog's answer, handed to the page as a path. */
     static void onActivityResult(Activity a, int requestCode, int resultCode, Intent data) {
+        if (requestCode != REQ_DIR || resultCode != Activity.RESULT_OK || data == null) return;
+        String path = treePath(data.getData());
+        WebView web = page.get();
+        if (path == null || web == null || !web.isAttachedToWindow()) return;
+        web.evaluateJavascript("window.__wdFolderPicked&&window.__wdFolderPicked("
+                + JSONObject.quote(path) + ")", null);
     }
 
-    /** Nothing to add to the page: the user manages the folder in a file manager. */
+    /** Offers the folder dialog to the page; the user manages files in a file manager. */
     static void onPageFinished(WebView web) {
+        page = new WeakReference<>(web);
+        web.evaluateJavascript(FOLDER_PICKER_JS, null);
+    }
+
+    @SuppressWarnings("deprecation") // startActivityForResult: no androidx here, by design
+    private static void pickFolder(Activity a) {
+        // No grant flags: nothing is read through the tree URI. It is only
+        // translated to the path it names, which all-files access then reads.
+        try {
+            a.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_DIR);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            Log.w(TAG, "no folder picker on this device", e);
+        }
+    }
+
+    /**
+     * The filesystem path behind a tree the external-storage provider chose,
+     * or null for any other provider (Drive, Downloads' virtual roots, ...):
+     * those name no path the server could open. A tree id is "volume:relative"
+     * - "primary" the shared storage, "home" its Documents folder, anything
+     * else a removable volume mounted at /storage/<id>. Whether the folder is
+     * readable is not checked here: the setup page validates every row and
+     * says so beside it.
+     */
+    static String treePath(Uri tree) {
+        if (tree == null || !"com.android.externalstorage.documents".equals(tree.getAuthority())) {
+            return null;
+        }
+        String id;
+        try {
+            id = DocumentsContract.getTreeDocumentId(tree);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        int cut = id == null ? -1 : id.indexOf(':');
+        if (cut <= 0) return null;
+        String vol = id.substring(0, cut), rel = id.substring(cut + 1);
+        File base;
+        if ("primary".equalsIgnoreCase(vol)) {
+            base = Environment.getExternalStorageDirectory();
+        } else if ("home".equalsIgnoreCase(vol)) {
+            base = new File(Environment.getExternalStorageDirectory(), "Documents");
+        } else {
+            base = new File("/storage", vol);
+        }
+        return rel.isEmpty() ? base.getPath() : new File(base, rel).getPath();
     }
 
     /**

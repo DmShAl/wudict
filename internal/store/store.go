@@ -15,6 +15,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/wuweidict/wudict/internal/artmark"
 	"io"
@@ -23,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/wuweidict/wudict/internal/dict"
+	"github.com/wuweidict/wudict/internal/logx"
 )
 
 func init() {
@@ -168,6 +170,7 @@ func Open(path string) (*Store, error) {
 		Description:  dict.DisplayText(m["description"]),
 		IndexLang:    m["index_lang"],    // declared at ingest; "" for most formats
 		ContentsLang: m["contents_lang"], // DSL only, and absent from older libraries
+		Header:       headerOf(m),
 	}
 	s.ftsOK = m["ingest_level"] != string(LevelHeadwords)
 	s.srcPath = m["source_path"]
@@ -216,6 +219,17 @@ func (s *Store) mediaDB() *Media {
 	}
 	s.media = md
 	return md
+}
+
+// headerOf decodes the source header ingest recorded. Absent from libraries
+// prepared before it was kept, and a value that will not decode is treated
+// the same way: it is informational, never worth failing an open over.
+func headerOf(m map[string]string) []dict.Field {
+	var h []dict.Field
+	if s := m["header"]; s != "" && json.Unmarshal([]byte(s), &h) != nil {
+		return nil
+	}
+	return h
 }
 
 func readMeta(db *sql.DB) (map[string]string, error) {
@@ -568,6 +582,11 @@ func (s *Store) Keywords(offset, n int) []string {
 		if rows.Scan(&w) == nil {
 			out = append(out, w)
 		}
+	}
+	// The signature cannot carry it, but a read that died part way must not
+	// pass for a short list: name the degradation where it happened.
+	if err := rows.Err(); err != nil {
+		logx.Warn("keywords: %v (returning the %d read so far)", err, len(out))
 	}
 	return out
 }

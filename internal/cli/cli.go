@@ -678,8 +678,39 @@ func cmdInfo(args []string) error {
 		}
 		fmt.Printf("             %s\n", line)
 	}
+	// The rest of the header, as the file names it. A value may be markup or
+	// span lines like the description; its continuation lines are indented
+	// under the value, not under the key.
+	for i, f := range m.Header {
+		label := "             "
+		if i == 0 {
+			label = "header:      "
+		}
+		for j, line := range textLines(f.Value) {
+			if j == 0 {
+				fmt.Printf("%s%s: %s\n", label, f.Name, line)
+				continue
+			}
+			fmt.Printf("             %*s  %s\n", len(f.Name), "", line)
+		}
+	}
 	printDictFiles(files)
 	return nil
+}
+
+// textLines flattens one header value for a terminal: markup reduced to its
+// text, one trimmed line per line, blank lines dropped.
+func textLines(text string) []string {
+	if strings.ContainsRune(text, '<') {
+		text = htmlref.Text(text, nil)
+	}
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
 }
 
 // aboutLines is the annotation, flattened for a terminal: one line per section,
@@ -689,17 +720,12 @@ func cmdInfo(args []string) error {
 func aboutLines(format, srcPath, desc string) []string {
 	var out []string
 	add := func(lang, text string) {
-		if strings.ContainsRune(text, '<') {
-			text = htmlref.Text(text, nil)
-		}
-		for _, line := range strings.Split(text, "\n") {
-			if line = strings.TrimSpace(line); line != "" {
-				if lang != "" {
-					line = "[" + lang + "] " + line
-					lang = ""
-				}
-				out = append(out, line)
+		for _, line := range textLines(text) {
+			if lang != "" {
+				line = "[" + lang + "] " + line
+				lang = ""
 			}
+			out = append(out, line)
 		}
 	}
 	if a, ok := dict.AboutFor(format, srcPath); ok {

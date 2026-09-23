@@ -58,6 +58,9 @@ type Reader struct {
 	// metadata gathered during the first pass
 	title          []byte
 	desc           []byte
+	author         []byte
+	email          []byte
+	copyright      []byte
 	numEntries     int
 	sourceLang     *language
 	targetLang     *language
@@ -130,6 +133,12 @@ func isStreamEnd(err error) bool {
 	return err == io.EOF || err == gzip.ErrChecksum || err == io.ErrUnexpectedEOF
 }
 
+// maxBlockBytes caps one BGL block. Blocks are per-article deflated groups -
+// kilobytes to a few megabytes even with an embedded audio clip - so this is
+// orders of magnitude of headroom, and it is the only thing between a corrupt
+// length field and a 4 GB allocation (cf. gomdict's maxLZOBlock).
+const maxBlockBytes = 64 << 20
+
 // readBlockStream reads one block header + data. ok=false with err==nil marks
 // a clean end of stream (EOF or the type-4 end marker).
 func readBlockStream(br *bufio.Reader) (typ byte, data []byte, ok bool, err error) {
@@ -157,6 +166,9 @@ func readBlockStream(br *bufio.Reader) (typ byte, data []byte, ok bool, err erro
 	}
 	if length < 0 {
 		return 0, nil, false, nil
+	}
+	if length > maxBlockBytes {
+		return 0, nil, false, fmt.Errorf("bgl block of %d bytes exceeds the %d byte limit", length, maxBlockBytes)
 	}
 	if length > 0 {
 		data = make([]byte, length)
@@ -223,6 +235,26 @@ func NewReader(path string) (*Reader, error) {
 	// embedded newline. Only when the file carries none does the language pair
 	// stand in - which is what every BGL used to show, description or not.
 	desc := plainInfo(r.targetEncoding, r.desc)
+	var header []dict.Field
+	for _, f := range []struct {
+		name string
+		raw  []byte
+	}{{"author", r.author}, {"email", r.email}, {"copyright", r.copyright}} {
+		if v := plainInfo(r.targetEncoding, f.raw); v != "" {
+			header = append(header, dict.Field{Name: f.name, Value: v})
+		}
+	}
+	if pairAsDesc := desc == "" && r.sourceLang != nil && r.targetLang != nil; !pairAsDesc {
+		// The pair stands in for a missing description below; any time it
+		// does not (a real description, or only one side declared), it is
+		// kept here instead of vanishing.
+		if r.sourceLang != nil {
+			header = append(header, dict.Field{Name: "source language", Value: r.sourceLang.name})
+		}
+		if r.targetLang != nil {
+			header = append(header, dict.Field{Name: "target language", Value: r.targetLang.name})
+		}
+	}
 	if desc == "" && r.sourceLang != nil && r.targetLang != nil {
 		desc = r.sourceLang.name + " → " + r.targetLang.name
 	}
@@ -241,6 +273,7 @@ func NewReader(path string) (*Reader, error) {
 		// GROUPS ("Other Russian languages"); those name no language and
 		// internal/lang resolves them to "", which is the honest answer.
 		IndexLang: lang.FromDeclared(srcLang),
+		Header:    header,
 	}
 	return r, nil
 }
@@ -321,6 +354,12 @@ func (r *Reader) readType3(blk []byte) {
 	switch code {
 	case 0x01:
 		r.title = val
+	case 0x02:
+		r.author = val // raw, decoded after the pass like the title
+	case 0x03:
+		r.email = val
+	case 0x04:
+		r.copyright = val
 	case 0x09:
 		// The glossary's own description. Kept raw: the charset codes that say
 		// how to decode it (0x1A/0x1B) arrive AFTER it in the block stream, so
@@ -440,7 +479,10 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 	}
 	wl := uintBE(data[pos : pos+5])
 	pos += 5
-	if pos+wl > len(data) {
+	// A negative length exists only where int is 32-bit and the u40 the field
+	// declares wraps; on such a build pos+wl can wrap past the check below and
+	// slice out of range.
+	if wl < 0 || pos+wl > len(data) {
 		return e, false
 	}
 	e.word = data[pos : pos+wl]
@@ -460,7 +502,7 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 		if al == 0 {
 			break
 		}
-		if pos+al > len(data) {
+		if al < 0 || pos+al > len(data) {
 			return e, false
 		}
 		e.alts = append(e.alts, data[pos:pos+al])
@@ -472,7 +514,7 @@ func splitEntryType11(data []byte) (e rawEntry, ok bool) {
 	}
 	dl := uintBE(data[pos : pos+4])
 	pos += 4
-	if pos+dl > len(data) {
+	if dl < 0 || pos+dl > len(data) {
 		return e, false
 	}
 	e.defi = data[pos : pos+dl]

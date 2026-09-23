@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -398,12 +399,46 @@ func (f Fetcher) do(ctx context.Context, u *url.URL, offset int64, prev partMeta
 	return f.client().Do(req)
 }
 
-// client builds the one http.Client this package uses. Two policies are wired
+// clients caches the one http.Client per distinct configuration. Building a
+// Transport per call meant a probe-then-download import did ~25 fresh TCP+TLS
+// handshakes to the same host with no connection reuse, and abandoned
+// Transports sat on idle connections until GC. The two policies wired into
+// the client - redirect re-validation and the connect-time address judgment -
+// depend only on the Fetcher's own settings, so equal settings share one
+// client safely; the Transport is safe for concurrent use.
+var clients struct {
+	sync.Mutex
+	m map[string]*http.Client
+}
+
+// client returns the http.Client this Fetcher's configuration uses. Two policies are wired
 // into it rather than checked afterwards, because "afterwards" is too late for
 // both: a redirect is re-validated before it is followed, and the address a
 // name resolves to is judged at connect time, which is the only place a DNS
 // answer that points somewhere else on the second lookup cannot slip past.
 func (f Fetcher) client() *http.Client {
+	key := strconv.FormatBool(f.Insecure) + "\x00" + strings.Join(f.Hosts, "\x00")
+	clients.Lock()
+	c := clients.m[key]
+	clients.Unlock()
+	if c != nil {
+		return c
+	}
+	c = f.buildClient()
+	clients.Lock()
+	if clients.m == nil {
+		clients.m = map[string]*http.Client{}
+	}
+	if got := clients.m[key]; got != nil {
+		c = got // another goroutine built it first; equal by construction
+	} else {
+		clients.m[key] = c
+	}
+	clients.Unlock()
+	return c
+}
+
+func (f Fetcher) buildClient() *http.Client {
 	d := &net.Dialer{Timeout: 20 * time.Second, KeepAlive: 30 * time.Second}
 	if !f.Insecure {
 		d.Control = func(network, address string, _ syscall.RawConn) error {
@@ -428,6 +463,10 @@ func (f Fetcher) client() *http.Client {
 			ResponseHeaderTimeout: 60 * time.Second,
 			ForceAttemptHTTP2:     true,
 			Proxy:                 http.ProxyFromEnvironment,
+			// The client is cached for the life of the process (clients), so
+			// an idle keep-alive must not outlive the import that opened it -
+			// http.DefaultTransport's figure.
+			IdleConnTimeout: 90 * time.Second,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {

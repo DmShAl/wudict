@@ -91,7 +91,7 @@ func writeBGL(t *testing.T, dir string) string {
 	// arrives before the entries. Counting it AND the entries doubled
 	// EntryCount, so the fixture states it deliberately.
 	stream = append(stream, info3(0x0C, []byte{0, 0, 0, 2})...)
-	stream = append(stream, block(0, []byte{8, 0x42})...)       // default charset cp1252
+	stream = append(stream, block(0, []byte{8, 0x42})...) // default charset cp1252
 	stream = append(stream, stdEntry("apple", "<b>a fruit</b>", "apples")...)
 	stream = append(stream, type11Entry("banana", "<i>yellow</i>")...)
 	stream = append(stream, resourceBlock("pic.png", "PNGDATA")...)

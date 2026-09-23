@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -140,7 +141,8 @@ func TestInstall(t *testing.T) {
 	if sum, err := Hash(path); err != nil || sum != e.SHA256 {
 		t.Fatalf("Hash = %q, %v", sum, err)
 	}
-	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o644 {
+	// Windows has no permission bits: every writable file stats as 0666.
+	if fi, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o644) {
 		t.Fatalf("mode = %v, %v", fi.Mode(), err)
 	}
 	// A second install over the top must succeed, not trip over the first.
@@ -210,7 +212,12 @@ func TestLocalSource(t *testing.T) {
 	if err := os.WriteFile(man, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, src := range []string{man, "file://" + man} {
+	// The URL as RFC 8089 spells it on every host: file:///C:/x on Windows.
+	slashed := filepath.ToSlash(man)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+	for _, src := range []string{man, "file://" + man, "file://" + slashed, "file://localhost" + slashed} {
 		cat, err := Fetch(context.Background(), src)
 		if err != nil {
 			t.Fatalf("%s: %v", src, err)
@@ -220,6 +227,10 @@ func TestLocalSource(t *testing.T) {
 		if _, err := cat.Install(context.Background(), dir, e, nil); err != nil {
 			t.Fatalf("%s: %v", src, err)
 		}
+	}
+	// A remote host is refused, not silently read as a local path.
+	if _, err := Fetch(context.Background(), "file://elsewhere"+slashed); err == nil {
+		t.Fatal("a file URL naming another host was accepted")
 	}
 }
 

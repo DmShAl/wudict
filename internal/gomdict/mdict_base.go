@@ -134,6 +134,7 @@ func (mdict *MdictBase) readDictHeader() error {
 	meta.creationDate = headerInfo.CreationDate
 	meta.generatedByEngineVersion = headerInfo.GeneratedByEngineVersion
 	meta.stylesheet = headerInfo.StyleSheet
+	meta.headerAttrs = headerInfo.Attrs
 
 	// v3: stash the UUID so we can derive the encryption key later if needed.
 	if meta.version >= 3.0 {
@@ -162,13 +163,14 @@ func readMDictFileHeader(filename string) (*mdictHeader, error) {
 		return nil, err
 	}
 
-	// Read dictionary header info bytes
-	headerInfoBytes := make([]byte, headerBytesSize)
-	dictHeaderPartByteSize += int64(headerBytesSize)
-	_, err = file.Read(headerInfoBytes)
+	// Read dictionary header info bytes. Via readFileFromPos, so a hostile
+	// length cannot allocate before the file is known to hold that many
+	// bytes - the header is an XML string, kilobytes in every real dictionary.
+	headerInfoBytes, err := readFileFromPos(file, 4, int64(headerBytesSize))
 	if err != nil {
 		return nil, err
 	}
+	dictHeaderPartByteSize += int64(headerBytesSize)
 
 	// Read adler32 checksum
 	var adler32Checksum uint32
@@ -364,7 +366,7 @@ func (mdict *MdictBase) decodeKeyBlockInfo(data []byte) error {
 		}
 
 		var err error
-		decompressKeyInfoBuffer, err = zlibDecompress(keyBlockInfoDecryptedBuffer, 8, mdict.keyBlockMeta.keyBlockInfoCompressedSize-8)
+		decompressKeyInfoBuffer, err = zlibDecompress(keyBlockInfoDecryptedBuffer, 8, mdict.keyBlockMeta.keyBlockInfoCompressedSize-8, maxLZOBlock)
 		if err != nil {
 			return err
 		}
@@ -570,7 +572,7 @@ func (mdict *MdictBase) decodeKeyEntries(keyBlockDataCompressBuffer []byte) erro
 			//} else if (kbCompType.toString('hex') === '02000000') {
 		} else if kbCompType[0] == 2 {
 			// decompress key block, zlib decompress
-			out, err2 := zlibDecompress(keyBlockDataCompressBuffer, start+8, end-(start+8))
+			out, err2 := zlibDecompress(keyBlockDataCompressBuffer, start+8, end-(start+8), maxLZOBlock)
 			if err2 != nil {
 				return err2
 			}
@@ -871,10 +873,6 @@ func (mdict *MdictBase) decodeRecordBlockInfo(data []byte, startOffset, endOffse
 	return nil
 }
 
-func (mdict *MdictBase) buildRecordRangeTree() {
-	BuildRangeTree(mdict.recordBlockInfo.recordInfoList, mdict.rangeTreeRoot)
-}
-
 // recordBlockAt returns the record block holding a decompressed offset.
 //
 // recordInfoList is built by readRecordBlockInfo in file order, so
@@ -1036,7 +1034,7 @@ func (mdict *MdictBase) decodeRecordBlock(startOffset, compLen int64, info *Mdic
 			}
 			recordBlock = out
 		case 2:
-			out, err2 := zlibDecompress(dec, 0, int64(len(dec)))
+			out, err2 := zlibDecompress(dec, 0, int64(len(dec)), maxLZOBlock)
 			if err2 != nil {
 				return nil, err2
 			}

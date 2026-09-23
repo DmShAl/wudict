@@ -59,10 +59,20 @@ type Dictionary struct {
 	UUID                 string
 	ContentType          string
 	DefaultSortingLocale string
+
+	// Attrs is every attribute of the header tag, in file order, entities
+	// undone - the typed fields above are the ones the parser acts on, this is
+	// what the dictionary declared, including keys nobody here knows.
+	Attrs [][2]string
 }
 
-// headerAttrRe matches `name="value"` pairs inside the header tag.
-var headerAttrRe = regexp.MustCompile(`(\w+)="(.*?)"`)
+// headerAttrRe matches `name="value"` (or `name='value'`) pairs inside the
+// header tag. The value is "anything but the closing quote", NOT `.*?`: a
+// Description is routinely a small HTML document with literal line breaks
+// inside the attribute, and `.` stops at a newline, which silently dropped
+// the whole attribute. An XML attribute value cannot contain its own raw
+// quote, so this is exact rather than lenient.
+var headerAttrRe = regexp.MustCompile(`(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')`)
 
 // unescapeEntities reverses the five standard XML predefined entities. The
 // MDict header never uses numeric character references, so we don't bother
@@ -81,11 +91,9 @@ func unescapeEntities(s string) string {
 func parseXMLHeader(xmldata string) (*Dictionary, error) {
 	dic := &Dictionary{}
 	for _, m := range headerAttrRe.FindAllStringSubmatch(xmldata, -1) {
-		if len(m) != 3 {
-			continue
-		}
 		key := m[1]
-		val := unescapeEntities(m[2])
+		val := unescapeEntities(m[2] + m[3]) // at most one alternative is non-empty
+		dic.Attrs = append(dic.Attrs, [2]string{key, val})
 		switch key {
 		case "GeneratedByEngineVersion":
 			dic.GeneratedByEngineVersion = val

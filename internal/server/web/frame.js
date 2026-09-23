@@ -547,9 +547,14 @@
 
 	// "pick", not "ref": a double-clicked word is the user asking what
 	// something means, not following the author's reference. The app tidies it
-	// (trailing punctuation, footnote digits) and searches everywhere.
-	document.addEventListener("dblclick", function () {
+	// (trailing punctuation, footnote digits) and searches everywhere. A double
+	// TAP selects nothing on Android, so the word under it stands in (pick.js,
+	// loaded just before this file - taken now, while the window is still
+	// ours and not yet the article's scripts').
+	var wordAt = window.wuWordAt;
+	document.addEventListener("dblclick", function (e) {
 		var sel = String(document.getSelection() || "").trim();
+		if (!sel && wordAt) sel = wordAt(e, document.body);
 		if (sel) HOST.postMessage({ t: "pick", w: sel }, "*");
 	});
 

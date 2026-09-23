@@ -49,7 +49,8 @@ func Open(path string) (*Dict, error) {
 	d.lo, d.hi = c.nsRange(c.contentNS())
 
 	name := strings.TrimSpace(c.metadata("Title"))
-	if name == "" {
+	nameFromName := name == ""
+	if nameFromName {
 		name = strings.TrimSpace(c.metadata("Name"))
 	}
 	if name == "" {
@@ -64,7 +65,24 @@ func Open(path string) (*Dict, error) {
 		EntryCount:  d.hi - d.lo,
 		IndexLang:   lang.FromDeclared(c.metadata("Language")),
 	}
+	for _, k := range headerKeys {
+		if k == "Name" && nameFromName {
+			continue
+		}
+		if v := strings.TrimSpace(dict.DisplayText(c.metadata(k))); v != "" {
+			d.meta.Header = append(d.meta.Header, dict.Field{Name: k, Value: v})
+		}
+	}
 	return d, nil
+}
+
+// headerKeys are the openZIM metadata keys (wiki.openzim.org/wiki/Metadata)
+// that hold text and are not already in Meta: Title, Description and Language
+// are, Counter is bookkeeping and Illustration_* are images. Name is the
+// machine name, shown unless it stood in for a missing Title.
+var headerKeys = []string{
+	"Name", "Creator", "Publisher", "Date", "LongDescription",
+	"License", "Tags", "Relation", "Flavour", "Source", "Scraper",
 }
 
 func (d *Dict) Meta() dict.Meta { return d.meta }

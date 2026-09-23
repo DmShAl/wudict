@@ -88,7 +88,7 @@ type Dict struct {
 
 // Open opens NAME.ifo and its companion files.
 func Open(ifoPath string) (*Dict, error) {
-	ifo, err := parseIfo(ifoPath)
+	ifo, fields, err := parseIfo(ifoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +135,7 @@ func Open(ifoPath string) (*Dict, error) {
 		Path:        ifoPath,
 		Description: strings.TrimSpace(ifo["description"]),
 		EntryCount:  len(d.entries),
+		Header:      fields,
 	}
 	return d, nil
 }
@@ -143,7 +144,7 @@ func Open(ifoPath string) (*Dict, error) {
 // load, no fold-maps) for the cheap dictionary-list path. Name mirrors
 // Open's derivation so both report the same display name.
 func probe(ifoPath string) (dict.Meta, error) {
-	ifo, err := parseIfo(ifoPath)
+	ifo, _, err := parseIfo(ifoPath)
 	if err != nil {
 		return dict.Meta{}, err
 	}
@@ -191,22 +192,30 @@ func (d *Dict) openDictData(base string) error {
 	return nil
 }
 
-func parseIfo(path string) (map[string]string, error) {
+// parseIfo reads the .ifo into a lookup map and, for Meta.Header, the same
+// lines in file order minus bookname and description, which Meta carries under
+// their own names.
+func parseIfo(path string) (map[string]string, []dict.Field, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
 	if len(lines) == 0 || !strings.Contains(lines[0], "StarDict's dict ifo file") {
-		return nil, fmt.Errorf("%s: not a StarDict .ifo file", path)
+		return nil, nil, fmt.Errorf("%s: not a StarDict .ifo file", path)
 	}
 	m := map[string]string{}
+	var fields []dict.Field
 	for _, ln := range lines[1:] {
 		if k, v, ok := strings.Cut(ln, "="); ok {
-			m[strings.TrimSpace(k)] = strings.TrimSpace(v)
+			k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+			m[k] = v
+			if k != "" && v != "" && k != "bookname" && k != "description" {
+				fields = append(fields, dict.Field{Name: k, Value: v})
+			}
 		}
 	}
-	return m, nil
+	return m, fields, nil
 }
 
 // compressedSuffixes are the spellings a StarDict companion may be compressed
@@ -239,6 +248,12 @@ func readCompanion(base, ext string) ([]byte, error) {
 		filepath.Base(base+ext), compressedSuffixes[1])
 }
 
+// maxIndexBytes bounds one decompressed companion. An .idx of a real
+// dictionary runs to tens of MB, and it is loaded whole by design - but a gzip
+// bomb, a few KB that inflate to gigabytes, must cost one refused dictionary,
+// not the process.
+const maxIndexBytes = 256 << 20
+
 // readGzAll decompresses f whole, keeping what it got when the stream is
 // damaged at its TAIL. gzip verifies a CRC and a length that sit after the last
 // byte of data, so a file whose final bytes are malformed - the same class of
@@ -251,10 +266,19 @@ func readGzAll(f *os.File) ([]byte, error) {
 		return nil, err
 	}
 	defer gr.Close()
-	data, err := io.ReadAll(gr)
+	return readGzBounded(gr, maxIndexBytes)
+}
+
+// readGzBounded is readGzAll's body with the ceiling made a parameter, so a
+// test can exercise the bomb path without materializing 256 MiB.
+func readGzBounded(gr io.Reader, max int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(gr, int64(max)+1))
 	if err != nil && len(data) > 0 &&
 		(errors.Is(err, gzip.ErrChecksum) || errors.Is(err, io.ErrUnexpectedEOF)) {
 		return data, nil
+	}
+	if len(data) > max {
+		return nil, fmt.Errorf("decompressed index exceeds the %d byte limit", max)
 	}
 	return data, err
 }
@@ -592,7 +616,9 @@ func cutPart(data []byte, t byte, last bool) (part, rest []byte) {
 			return nil, nil
 		}
 		n := int(binary.BigEndian.Uint32(data))
-		if 4+n > len(data) {
+		// Negative only where int is 32-bit and the u32 wraps; on such a build
+		// 4+n compares below len(data) and the slice would panic.
+		if n < 0 || 4+n > len(data) {
 			n = len(data) - 4
 		}
 		return data[4 : 4+n], data[4+n:]
@@ -623,9 +649,12 @@ func partToHTML(t byte, data []byte) string {
 	}
 }
 
+// htmlEscaper is built once: strings.NewReplacer compiles a trie, and this
+// runs for every plain-text record part of every lookup.
+var htmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
 func htmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
-	return r.Replace(s)
+	return htmlEscaper.Replace(s)
 }
 
 // wordCount reports the .ifo wordcount (used by tests).

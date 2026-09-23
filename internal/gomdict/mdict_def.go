@@ -59,8 +59,6 @@ type MdictBase struct {
 	recordBlockInfo *mdictRecordBlockInfo
 	//RecordBlockData *MDictRecordBlockData
 
-	rangeTreeRoot *RecordBlockRangeTreeNode
-
 	// decompressed record-block cache (bounded FIFO): adjacent headword
 	// lookups and inline resources usually share a record block, so caching
 	// the decompressed block skips the dominant re-open + re-decompress cost.
@@ -102,6 +100,7 @@ type mdictMeta struct {
 	creationDate             string
 	generatedByEngineVersion string
 	stylesheet               string
+	headerAttrs              [][2]string
 
 	// v3-only fields
 	uuid         string

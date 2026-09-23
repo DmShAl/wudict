@@ -46,6 +46,10 @@ const maxPlainRes = 20_000
 type plainArchive struct {
 	dir     string
 	entries []Entry
+	// byName indexes entries for Open and realPaths: a StarDict resource
+	// folder reaches maxPlainRes files, and a linear scan per requested file
+	// turned a candidate's extraction into an O(files²) string comparison run.
+	byName map[string]int // entry name -> position in entries
 }
 
 // OpenPlain presents the dictionary file at path, together with the files
@@ -76,7 +80,10 @@ func OpenPlain(path string) (Archive, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &plainArchive{dir: dir}
+	a := &plainArchive{dir: dir, byName: map[string]int{}}
+	// The index is rebuilt after the walk rather than kept in add(): the same
+	// name can arrive from several passes, and entries only ever grows before
+	// the archive is handed out.
 	stardict := false
 	for _, e := range ents {
 		name := e.Name()
@@ -102,6 +109,11 @@ func OpenPlain(path string) (Archive, error) {
 	}
 	if len(a.entries) > maxEntries {
 		return nil, ErrTooManyEntries
+	}
+	// Indexed once, after every add: the passes above can hand the archive a
+	// name more than once, and the map should answer with the last one.
+	for i, e := range a.entries {
+		a.byName[e.Name] = i
 	}
 	return a, nil
 }
@@ -205,10 +217,8 @@ func (a *plainArchive) Entries() []Entry { return a.entries }
 // never offered - the same discipline the extractor applies to a name coming
 // out of a zip directory.
 func (a *plainArchive) Open(name string) (io.ReadCloser, error) {
-	for _, e := range a.entries {
-		if e.Name == name {
-			return os.Open(filepath.Join(a.dir, filepath.FromSlash(name)))
-		}
+	if _, ok := a.byName[name]; ok {
+		return os.Open(filepath.Join(a.dir, filepath.FromSlash(name)))
 	}
 	return nil, errors.New("no such file: " + name)
 }
@@ -224,11 +234,8 @@ func (a *plainArchive) Close() error { return nil }
 func (a *plainArchive) realPaths(names []string) []string {
 	out := make([]string, 0, len(names))
 	for _, n := range names {
-		for _, e := range a.entries {
-			if e.Name == n {
-				out = append(out, filepath.Join(a.dir, filepath.FromSlash(n)))
-				break
-			}
+		if _, ok := a.byName[n]; ok {
+			out = append(out, filepath.Join(a.dir, filepath.FromSlash(n)))
 		}
 	}
 	return out

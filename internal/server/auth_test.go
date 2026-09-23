@@ -186,7 +186,7 @@ func TestBadKeyLinkSetsNoCookie(t *testing.T) {
 
 func TestOpenRoutesStayOpen(t *testing.T) {
 	s := authServer(t)
-	for _, p := range []string{"/", "/setup", "/lemmas", "/favicon.ico", "/assets/frame.js", "/api/openapi.yaml"} {
+	for _, p := range []string{"/", "/setup", "/lemmas", "/favicon.ico", "/assets/frame.js", "/assets/pick.js", "/api/openapi.yaml"} {
 		if rec := serve(s, newRequest("GET", p, nil)); rec.Code == http.StatusUnauthorized {
 			t.Errorf("%s requires the key: the page cannot explain itself", p)
 		}
