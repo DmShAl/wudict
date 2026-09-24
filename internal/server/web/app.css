@@ -1185,9 +1185,18 @@ dialog.panel-card:not([open]){display:none}
   .pill input[type=search]{width:100%;min-width:0;font-size:16px;
     border:0;background:none;border-radius:0;padding:.4em 0 .4em 1.55em}
   .pill input[type=search]:focus{box-shadow:none;border-color:transparent}
-  /* flush with the pill's own left padding: inside the pill the field has no
-     border of its own for the glyph to sit within */
-  .pill .qled{left:0}
+  /* One frame around four controls, and inside it nothing said where one ended
+     and the next began: the pin has no fill, the field is borderless by the
+     rule above, and a chip wears a background only when it is NOT the default
+     — so the row read as one undivided strip, over the reader's paper as much
+     as over the plain one. A hairline between them, with .45em of air on its
+     right to match the gap the pill's own padding leaves on the left. */
+  .pill>*+*{border-left:1px solid var(--line);padding-left:.45em}
+  /* Flush with the FIELD's own left edge, which the rule above has just moved
+     .45em right — so the glyph travels with it instead of touching the new
+     hairline. Inside the pill the field has no border of its own for the glyph
+     to sit within. */
+  .pill .qled{left:.45em}
 
   /* A scope control is a chip with its real <select> laid transparently over
      it. The select keeps the native full-screen picker, the keyboard, the
@@ -1210,15 +1219,15 @@ dialog.panel-card:not([open]){display:none}
     border:3px solid transparent;border-top-color:var(--fg-faint)}
   .chip .lbl{overflow:hidden;text-overflow:ellipsis}
   .chip .bk{width:14px;height:14px;flex:none}
-  /* The selected name identifies the dictionary without covering the search background. */
-  #dictChip{background:none}
-  /* The default carries no information, so it costs no attention: it recedes
-     to the faint colour, and the dictionary drops its label outright —
-     "All dictionaries" is what every session already is. Only a departure
-     from the default is worth naming, which is also when the user needs
-     reminding of it. (Same argument as the ~/… paths in the folders panel.) */
-  .chip.dflt{background:none;color:var(--fg-faint)}
-  .chip.dflt .lbl{display:none}
+  /* Both chips look the same in every state. Neither wears the accent tint — a
+     scope names a PLACE to search, it is not a departure to announce — and
+     neither has a state that recedes. The mode chip used to fade to the faint
+     colour while the mode was the default; the dictionary chip did the same
+     while the scope was "all" AND dropped its own label. That second one is a
+     difference this fork does not have: its picker has ONE mode, so "All
+     dictionaries" is an ordinary group with a name like any other, not the
+     nameless "all" mode it was upstream. */
+  #dictChip,#modeChip{background:none;color:var(--fg)}
 
   /* Desktop gutters, reclaimed. Three nested insets of .618em — column, list
      and article — put 30px of a 360px screen into margins before a word of a

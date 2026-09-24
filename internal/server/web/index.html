@@ -1371,18 +1371,26 @@ function moveDict(id,where){
    result summaries all use, and a chip that renamed "full-text" would sever
    the link to every other place it appears. */
 const MODE_SHORT={prefix:"starts",exact:"exact",contains:"contains",fts:"full-text"};
+/* The one scope name the app supplies itself, and the only one short enough to
+   be worth a map: the chip's own cap is 11ch, and it cannot be widened - a chip
+   wide enough for "All dictionaries" would leave the 320px field about 25px.
+   The picker's list keeps the full wording, exactly as the mode dropdown keeps
+   "starts with". */
+const SCOPE_SHORT={all:"All"};
 function syncChips(){
   const m=$("mode"),d=$("dict");
   $("modeChip").textContent=MODE_SHORT[m.value]||m.value;
-  $("modeChip").classList.toggle("dflt",m.value==="prefix");
-  // No option selected is the default too, not a nameless scope: a saved id
-  // is written to .value before /api/dicts has put that option in the list,
-  // and assigning an id the <select> does not have yet leaves value "".
-  const opt=d.selectedOptions[0],all=!opt||d.value==="all";
+  // A saved id is written to .value before /api/dicts has put that option in
+  // the list, and assigning an id the <select> does not have yet leaves value
+  // "" — that transient is the only nameless state left, and it shows the bare
+  // glyph. "All dictionaries" is NOT one of those: this picker has a single
+  // mode, so the all-scope is an ordinary group and is named like one. It used
+  // to hide its own name as "the default", which is the difference the fork
+  // removed — there is no all-mode left to contrast it against.
+  const opt=d.selectedOptions[0];
   // dataset.label is set on the group rows, whose text carries a count the
   // chip has no room for; a dictionary row has no dataset and reads as before.
-  $("dictLbl").textContent=all?"":(opt.dataset.label||opt.text);
-  $("dictChip").classList.toggle("dflt",all);
+  $("dictLbl").textContent=opt?(opt.dataset.label||SCOPE_SHORT[opt.value]||opt.text):"";
 }
 /* Picking a dictionary is already a statement that it is about to be searched,
    so its index is demanded on the selection itself and not on the first query

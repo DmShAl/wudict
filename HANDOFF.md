@@ -105,6 +105,63 @@ on `dev` on top of `3178bc1`.
   it could not have been verified. `android-go-x86_64` plus an emulator APK
   target is the obvious follow-up for the Unix side.
 
+## The chips name their scope, with no receding state (2026-09-24, this session)
+
+Two reports from the phone, one cause: `.chip.dflt`, which upstream gave the
+"all" scope because All was a MODE there (the picker's All/Found toggle). This
+fork removed that toggle — its picker has one mode — so "All dictionaries" is
+an ordinary group, and a state that hides its own name and fades to the faint
+colour no longer describes anything.
+
+- **`.chip.dflt` is gone** — both rules and both `classList.toggle("dflt", …)`
+  call sites. What is left is `#dictChip,#modeChip{background:none;
+  color:var(--fg)}`: no accent tint, no receding state, one look in every mode
+  and every scope.
+- **`syncChips` names the all-scope** like any group. The only nameless state
+  left is the transient where a saved id is not in the `<select>` yet, and it
+  shows the bare glyph. `groupLabel()` already returned "All dictionaries" for
+  the same value, so the chip now agrees with the rest of the page.
+- **Measured on the device**: `all`, `g:dir:mono` and back to `all` all give
+  `rgba(0,0,0,0)` + `rgb(59,50,41)`.
+- **The name is shortened for the chip, not dropped.** "All dictionaries" is 16
+  characters, the chip's cap is 11ch, and the cap cannot grow — a chip wide
+  enough for the full name would leave the 320px field about 25px. So the chip
+  says "All" (`SCOPE_SHORT`), the same bargain `MODE_SHORT` already strikes for
+  "starts with", and the picker's list keeps the full wording exactly as the
+  mode dropdown does.
+- **The cost is the field**: the bare glyph was 40px and "All" is 49px, so the
+  all-scope takes 9px rather than the 31px the full name would have. 320px goes
+  118 → 101px, 540px goes 338 → 321px; a group name still renders at the 71px
+  cap, and nothing overflows at 320/360/412/540.
+
+## The mode chip looks the same in every mode (2026-09-24, this session)
+
+Superseded by the above, kept because the reasoning is the same one: `.chip.dflt`
+receded the mode chip to the faint colour while the mode was the default and
+wore the accent tint otherwise, so the control the reader taps most often was
+drawn as if it were off.
+
+## The search bar's four controls are separated now (2026-09-24, this session)
+
+Reported from the phone: the pill draws ONE frame around the pin, the field,
+the mode chip and the dictionary chip, and inside it nothing said where one
+control ended and the next began — the pin has no fill, the field is borderless
+by design, and a chip wears a background only when it is NOT the default.
+`.pill>*+*` now carries a hairline and .45em of left padding, and
+`.pill .qled` moved with it (it sat flush with the field's edge).
+
+- **The colour is `--line`**, so the hairline follows whatever theme or host
+  background is in force — measured `#cdbb96` under the emulator's sepia +
+  wallpaper + presets, not a fixed grey.
+- **Measured on the device**: three 1px borders, all 32px tall (the pill's own
+  inner height), at x=47/397/458; the glyph and the field both at x=56. No
+  overflow at 320/360/412/540px; the field gives the separators ~19px at every
+  width and still holds 118px at 320px.
+- **Not touched**: the native mode/dictionary picker. An emulator screenshot
+  made it look as if it painted white instead of the host background — the
+  install's own presets (`background_image`, `compact`) had simply not applied
+  at that moment, and with them on the dialog wears the background as designed.
+
 ## The Browse page wears the host background now (2026-09-24, this session)
 
 Both doors — `Browse A–Z…` in the Settings panel (which lands on the chooser)
