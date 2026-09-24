@@ -72,6 +72,114 @@ commit's message. Three facts that are not derivable from the code:
   two.** The server resource/index, `dsl` and `lemmas` failures were upstream's
   fixes arriving, not something left to re-fix.
 
+## Emulator builds: `build-android.cmd debug intel` (2026-09-24, this session)
+
+The user's Android Studio AVD is x86_64 (`sdk_gphone16k_x86_64`, Android
+17/API 37, 16 KiB pages), where the app's Java half starts and the exec'd Go
+server never does. The diagnosis is in the verification-recipes section below;
+what this session CHANGED is the build path that follows from it. Uncommitted
+on `dev` on top of `3178bc1`.
+
+- **`build-android.cmd [debug|release] [intel]`** — the token is accepted in
+  either position, a bare `intel` means a debug build, and `release intel` plus
+  any unknown token are refused before anything is built. `%~2` is no longer
+  "retired"; `-PemuX86=1` is what the script hands Gradle.
+- **The trap worth remembering**: `androidComponents.onVariants` runs for EVERY
+  variant, `fossRelease` included, even when only `assembleFossDebug` was asked
+  for. An earlier version of this change THREW from there on a non-debug
+  variant and failed the debug build outright. The abi token is therefore
+  decided per VARIANT (`emuX86 && variant.buildType == 'debug'`) and nothing
+  throws there — a release built with the flag is simply arm64, and its name
+  says arm64.
+- **Verified** (2026-09-24, Windows cmd): `debug intel` puts both ABIs in
+  `wudict2-android-arm64-x86_64-foss-debug.apk`; the x86_64 lib taken back OUT
+  of that APK runs on the emulator and prints `wudict2-v0.1.0-43-g3178bc1-dirty`;
+  plain `debug` and plain `release` stay arm64-only with the x86_64 lib sitting
+  on disk the whole time; `release intel` and `debug arm` are refused.
+- **AGP deletes the other APK from the variant's output dir**: building plain
+  `debug` after `debug intel` removes the emulator APK (different output file
+  name, same directory). Normal hygiene, but the two cannot sit side by side.
+- **Owed**: the APK was never installed, so no device has run the app on the
+  emulator. `adb install -r android/app/build/outputs/apk/foss/debug/wudict2-android-arm64-x86_64-foss-debug.apk`.
+- **No Makefile target was added** — `make` is not installed on this machine, so
+  it could not have been verified. `android-go-x86_64` plus an emulator APK
+  target is the obvious follow-up for the Unix side.
+
+## The Browse page wears the host background now (2026-09-24, this session)
+
+Both doors — `Browse A–Z…` in the Settings panel (which lands on the chooser)
+and a card's `Browse` in Dictionary settings (`?dict=<id>`, the word list) — are
+ONE page in two states, and `browse.html` was the only page that did not wear
+the host background. It now carries setup.html's/lemmas.html's hook and recipe.
+
+- **The hook runs from sessionStorage, not from the URL.** This page is reached
+  by TAPPING A LINK inside the WebView, so it never carries `shell_bg`/
+  `shell_image`; what fires is the pair the app page wrote there (its own
+  `applyBackground` runs on every `onPageFinished`). The URL half is kept
+  because the sibling pages spell it and a reload of a page opened with it must
+  not lose it.
+- **It is the PAGES' recipe, not the app windows':** the page goes transparent
+  over what the host paints, its surfaces stay translucent
+  (`rgba(255,255,255,.14)` for the bar and the chooser card — the bar keeps its
+  blur and loses its 94% fill), and the palette follows the TONE of the colour
+  the host sent. `#styler`/`.menu-card` wear a different one (`--paper-bg` +
+  `--paper-bk-image`) because they are surfaces drawn INSIDE the app.
+- **The tone rules are `html:root[tone]`, not `html[tone]` — load-bearing.**
+  This page's own dark blocks are `:root:not([data-theme=light])` and
+  `:root[data-theme=dark]`, both (0,2,0); a bare `html[data-shell-tone=…]` is
+  (0,1,1) and would LOSE, putting light text on a light paper. The type
+  selector makes it (0,2,1). Verified on the device under an emulated dark
+  system preference AND with `wudict_theme=dark` pinned — the tone still wins.
+- **Scoped, not global**: with the three attributes removed the page computes
+  exactly what it did before (`body` `#fbfaf8`, `--bar` `rgba(251,250,248,.94)`).
+- **Verified on the emulator** (which turned out to have five indexed
+  dictionaries): the chooser and `?dict=f24921fc1083` (300 word links, 29 chips)
+  both report a transparent body, `rgba(255,255,255,.14)` bar and card, word
+  links `#4d6b86`, `--bg` `#edd1a6`; the screenshots read correctly.
+- **Left alone**: `browse.html` keeps its own palette and its own dark-mode
+  handling for the no-background case, and still does not load `setup.css` —
+  that sheet centres a single card, and this page is a full-bleed list.
+
+## The colour window flickered on every launch (2026-09-24, this session)
+
+Reported from the phone as "the colour picker window flashes when the app
+starts", with video frames of it. The shell has no native colour picker, so it
+is the page's `#colorDialog` — and it is not being OPENED: a trap on
+`showModal`/`show`/the `open` property, installed before the page's own scripts
+run, recorded nothing. It is being PAINTED.
+
+- **Cause**: `app.css`'s `.panel-card` — the ☰ drawer's card, a class the four
+  `<dialog class="group-dialog panel-card">`s also wear — sets `display:flex`.
+  An author `display` outranks the user-agent's `dialog:not([open]){display:none}`
+  whatever either specificity is, so a CLOSED dialog is drawn. The windows' own
+  guard is `dialog.group-dialog:not([open]){display:none}` in
+  `group-editor.css`, and index.html links that sheet at the END of `<body>`, so
+  it arrives after the windows have been parsed. Measured over CDP: at 58 ms
+  `#colorDialog` computed `display:flex` at 420x209 and `#dictSettings` at
+  420x94, both gone by 63 ms. A phone spends long enough on the same two
+  requests to read it as a flicker, which is why only the colour window was
+  reported — it is the one of the two with content already in the markup.
+- **Fix**: the same guard added to `app.css` beside `.panel-card` — in the sheet
+  that INTRODUCES the display, not the one that owns the windows.
+  `group-editor.css` keeps its copy with a note that neither may be dropped
+  alone.
+- **Verified on the emulator** (the debug APK installs there now): after the fix,
+  338 frames over 6 s with no window ever painted, and both windows still open
+  through their real paths — `colorDialogOpen` → `flex` 508x286,
+  `showDictSettings` → `flex` 508x928 — and close back to `display:none`.
+- **Recipe worth reusing**: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`
+  (the pid changes on every app start), then `Page.addScriptToEvaluateOnNewDocument`
+  + `Page.reload` to instrument BEFORE the page's scripts, and sample
+  `getComputedStyle` per `requestAnimationFrame` for the first seconds — a
+  one-frame flash is invisible to `screencap` in a loop and to the eye's own
+  timing. This machine's python3 has no `websocket` module, so the client is
+  written over `socket` by hand (~60 lines); the app's own server is on 6889 and
+  its devtools target is a `page` called `wudict`.
+- **Left as found**: the same author-`display`-beats-`hidden` trap is documented
+  in app.css for `#styler [hidden]` and guarded per element. `#colorDialog` is
+  NOT inside `#styler` (its `</div>` closes the sheet first), so that rule was
+  never going to cover it — checked, not assumed.
+
 ## The launcher icon carries a "2" now (2026-09-22, this session)
 
 The user asked for a "2" in the bottom-left corner of the wuDict2 icon ("рядом с
@@ -895,6 +1003,34 @@ under `## Changes`.
   `-race` cannot run (cgo). Do not burn time on either.
 - `gofmt -l` flags nearly every tracked Go file — CRLF working-copy noise,
   not real. `git diff --check` is the meaningful check.
+- **The Android emulator (AVD `Small`) is x86_64 and cannot run the arm64 Go
+  binary** — measured 2026-09-24 on `sdk_gphone16k_x86_64`, Android 17/API 37,
+  16 KiB pages. ARM translation IS present (`ro.dalvik.vm.native.bridge =
+  libndk_translation.so`, and a trivial arm64 C binary execs and returns its
+  exit code), but EVERY Go binary — down to a `CGO_ENABLED=0` hello-world —
+  dies with SIGSEGV inside the translated code (tombstone:
+  `ndk_translation_program_runner_binfmt_misc_arm64`, guest arch arm64, `pc`
+  in the guest image). That is why the app's Java half starts and the exec'd
+  server never does. Arm64-v8a system images are not the answer either: on an
+  x86 host they run under full QEMU emulation, slower than the translation
+  they would replace.
+- **`build-android.cmd debug intel` builds for the emulator.** It cross-builds
+  the server for `GOARCH=amd64` too and ships both ABIs in
+  `wudict2-android-arm64-x86_64-foss-debug.apk`. The token may be written in
+  either position (`intel debug` too, a bare `intel` means debug) and `release
+  intel` is refused. The x86_64 lib lands in `android/app/src/emuX86/jniLibs/`
+  — a default source dir for NO source set — and only `-PemuX86=1` (which
+  build.gradle wires to the DEBUG source set alone) makes AGP read it, so a
+  release APK is arm64 whatever is on disk. Verified 2026-09-24: both ABIs in
+  the APK, the x86_64 one taken back OUT of the APK runs on the emulator and
+  prints its version stamp, plain `debug`/`release` stay arm64-only, and both
+  refusals fire.
+- **The NDK recipe for a second ABI**: the Windows NDK has no Unix-style
+  `x86_64-linux-android26-clang` wrapper, so name the target on `clang.exe`
+  itself — `CC="$NDK_BIN/clang.exe --target=x86_64-linux-android26"`, `CXX`
+  likewise, `CGO_ENABLED=1 GOOS=android GOARCH=amd64`, same `-tags sqlite_fts5
+  -trimpath` and the same ldflags including
+  `-extldflags=-Wl,-z,max-page-size=16384`.
 - Known Windows test failures that fail identically on clean HEAD (do NOT
   chase them as regressions — compare against a clean checkout via
   `git worktree add /tmp/x HEAD`):

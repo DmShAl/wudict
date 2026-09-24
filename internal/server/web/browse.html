@@ -1,6 +1,55 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
+<script>
+// An optional host background, the same hook setup.html and lemmas.html carry:
+// the Android host paints the chosen image (or colour) behind a transparent
+// WebView, and this is what tells the page it is there, before the first paint.
+// Session storage preserves it across page reloads; an explicit empty URL
+// value withdraws it on the next launch.
+//
+// This page is reached by TAPPING A LINK, so it never carries the shell_* URL
+// parameters itself - sessionStorage, written by the hook on the app page, is
+// the path that actually fires here. The parameter half is kept because it is
+// what the two sibling pages spell and because a reload of a page that was
+// opened with them must not lose them.
+window.wudictShellBackground = function (color, image) {
+  var root = document.documentElement;
+  root.toggleAttribute('data-shell-image', !!image);
+  var valid = /^#[0-9a-f]{6}$/i.test(color);
+  root.toggleAttribute('data-shell-custom', valid || !!image);
+  if (valid) {
+    var rgb = color.slice(1).match(/../g).map(function (v) { return parseInt(v, 16); });
+    root.setAttribute('data-shell-tone', rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 > 160 ? 'light' : 'dark');
+  } else root.removeAttribute('data-shell-tone');
+  if (valid) root.style.setProperty('--bg', color, 'important');
+  else root.style.removeProperty('--bg');
+  try {
+    if (image) sessionStorage.setItem('wudict_shell_image', '1');
+    else sessionStorage.removeItem('wudict_shell_image');
+    if (valid) sessionStorage.setItem('wudict_shell_bg', color);
+    else sessionStorage.removeItem('wudict_shell_bg');
+  } catch (_) {}
+};
+(function () {
+  var params = new URLSearchParams(location.search);
+  var color = params.get('shell_bg');
+  var image = params.get('shell_image');
+  if (params.has('shell_bg') || params.has('shell_image')) {
+    params.delete('shell_bg');
+    params.delete('shell_image');
+    var query = params.toString();
+    history.replaceState(history.state, '', location.pathname + (query ? '?' + query : '') + location.hash);
+  }
+  if (color === null) {
+    try { color = sessionStorage.getItem('wudict_shell_bg'); } catch (_) {}
+  }
+  if (image === null) {
+    try { image = sessionStorage.getItem('wudict_shell_image'); } catch (_) {}
+  }
+  window.wudictShellBackground(color || '', image === '1');
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Browse</title>
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
@@ -41,6 +90,32 @@
   --bg:#191a1c; --bar:rgba(25,26,28,.94); --fg:#d8d5d0; --soft:#96938d;
   --faint:#5f5c57; --accent:#e69a33; --line:#33363b; --line-soft:#2a2c30;
   --link:#8fb0cc; --focus:#7aa7d1;
+}
+/* ── the host background ────────────────────────────────────────────────
+   The Android host paints the chosen colour — and the wallpaper, when one is
+   set — behind a transparent WebView, and the hook above says so before the
+   first paint. Spelled the way setup.html and lemmas.html spell it: the page
+   goes transparent, its surfaces stay translucent, and the palette follows the
+   TONE of the colour the host sent rather than this page's own light/dark rule
+   — a reader who chose a light paper must not be handed light text on it. */
+html[data-shell-image], html[data-shell-image] body { background:transparent !important; }
+/* The bar is glass over the wallpaper rather than an opaque band across it:
+   the blur stays, the 94% fill goes. Hover fills go the same way, or a row
+   turns into a white stripe lying on a dark paper. */
+html[data-shell-custom] { --bar:rgba(255,255,255,.14); --line-soft:rgba(255,255,255,.2); }
+html[data-shell-custom] .msg { background:rgba(255,255,255,.14); }
+html[data-shell-custom] #jump { background:rgba(255,255,255,.18); }
+/* html:root, not a bare html: alone it is (0,1,1) and a bare :root[tone] is
+   (0,2,0) — either ties or loses against the two dark blocks above, and the
+   tone MUST win, because it describes the surface the text actually sits on.
+   The type selector is what settles it at (0,2,1). */
+html:root[data-shell-tone="light"]{
+  color-scheme:light; --fg:#2b2a28; --soft:#625b4d; --faint:#766e60;
+  --line:rgba(89,75,56,.45); --accent:#865000; --link:#4d6b86; --focus:#7aa7d1;
+}
+html:root[data-shell-tone="dark"]{
+  color-scheme:dark; --fg:#f4f1eb; --soft:#ded8cc; --faint:#c6beaf;
+  --line:rgba(230,220,201,.45); --accent:#ffc773; --link:#a9c9e4; --focus:#7aa7d1;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,
