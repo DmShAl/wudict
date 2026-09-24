@@ -43,6 +43,19 @@ The APKs are named `wudict2-android-arm64-<flavour>[-debug|-unsigned].apk`.
 The Play bundle is `wudict2-play-release.aab`. Release builds without a
 configured keystore produce an unsigned APK; do not treat that as installable.
 
+`build-android.cmd debug intel` cross-compiles the server for x86_64 as well
+and ships both ABIs in one debug APK
+(`wudict2-android-arm64-x86_64-foss-debug.apk`), so it installs on an x86_64
+emulator and on arm64 hardware alike. This is not a convenience: the emulator's
+ARM translation runs ordinary arm64 binaries but crashes every Go binary, a
+hello-world included, so without an x86_64 server there is no way to run the
+app on one. The flag is debug-only and the x86_64 library lives in
+`android/app/src/emuX86/jniLibs/`, a source directory no variant reads unless
+the build passes `-PemuX86=1` — which only the debug source set does — so a
+release APK stays arm64 and nothing else. Arm64-v8a emulator images are not an
+alternative: on an x86 host they run under full emulation, slower than the
+translation they would be replacing.
+
 The old `_sh` application ID and this ID are separate Android apps. Android
 does not move preferences, prepared dictionaries, or app-owned files between
 them automatically. Do not remove the old installation before independently

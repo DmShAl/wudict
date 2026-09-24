@@ -17,6 +17,10 @@ android/build/
 android/app/build/
 android/app/build-sh/
 android/app/src/main/jniLibs/
+# The x86_64 server for the emulator (build-android.cmd `intel`). It sits in a
+# source dir no variant reads unless build.gradle is told to, so it can never
+# reach an APK by accident - but it is still a 16 MB build product, not source.
+android/app/src/emuX86/jniLibs/
 android/local.properties
 /build-android.local.bat
 /CLAUDE.local.md

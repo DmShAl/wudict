@@ -13,6 +13,18 @@ if (providers.gradleProperty('appVariant').isPresent()) {
     throw new GradleException('appVariant is retired; build wuDict2 with the normal foss/play Gradle tasks')
 }
 
+// -PemuX86=1 (build-android.cmd `intel`) adds a SECOND ABI to the debug build,
+// so one APK runs on the x86_64 emulator as well as on arm64 hardware. The
+// emulator's ARM translation cannot execute the Go server at all - every Go
+// binary dies with SIGSEGV inside the translated code, a hello-world included
+// - so an x86_64 libwudict.so is the only way to run the app there.
+//
+// A property, not a "does the file exist" test, because the extra lib sits
+// OUTSIDE every default source dir (see sourceSets below): without the flag it
+// is invisible to all variants, which is what keeps a release APK arm64-only
+// (D52) no matter what is lying around on disk.
+def emuX86 = providers.gradleProperty('emuX86').isPresent()
+
 // Same stamp the Makefile puts into the Go binary: git describe, or "dev".
 // build-android.yml overrides versionName with the release TAG; versionCode is
 // computed here and nowhere else, so a local build and a CI build of the same
@@ -119,6 +131,19 @@ android {
         }
     }
 
+    // The emulator ABI (see emuX86 above). `src/emuX86/jniLibs` is a default
+    // location for no source set, so this is the only thing that can make AGP
+    // look at it - and it is wired to `debug` alone, so a release build cannot
+    // package x86_64 even if someone passes the flag (which androidComponents
+    // refuses outright below).
+    if (emuX86) {
+        sourceSets {
+            debug {
+                jniLibs.srcDir 'src/emuX86/jniLibs'
+            }
+        }
+    }
+
     packaging {
         jniLibs {
             // The server ships as jniLibs/<abi>/libwudict.so and is exec'd
@@ -138,9 +163,13 @@ android {
 //   wudict2-android-arm64-foss-unsigned.apk   release built without a keystore
 //   wudict2-android-arm64-foss-debug.apk      debug
 //   wudict2-android-arm64-play-*.apk          the same, Play flavour
+//   wudict2-android-arm64-x86_64-foss-debug.apk   debug built with -PemuX86=1
 //
 // The flavour token is not editorial: it is `variant.flavorName` verbatim, so a
-// third flavour names itself and nobody has to decide what to call it.
+// third flavour names itself and nobody has to decide what to call it. The abi
+// token is the same bargain, per VARIANT: it names the ABIs that variant will
+// actually package, so an emulator APK never wears the plain arm64 name - and a
+// release APK never wears the emulator one.
 //
 // This is AGP's supported Variant API (VariantOutput.outputFileName, present in
 // 9.3.1) - no plugin, no dependency, no custom task. The earlier comment here
@@ -148,18 +177,23 @@ android {
 // not to this property. AGP appends "-unsigned" only when it names the file
 // itself, so an explicit name has to carry that marker on its own - an unsigned
 // APK wearing the release name is exactly the mistake worth spending a line on.
-def apkAbi = 'arm64'
 def apkSigned = System.getenv("KEYSTORE") != null
 
 androidComponents {
     // selector().all() is passed explicitly: the no-selector overload is a
     // Kotlin default argument and is not callable from the Groovy DSL.
     onVariants(selector().all()) { variant ->
+        // The abi token is decided per variant, not per build: the x86_64 lib
+        // is wired to the debug source set alone, so on a release variant
+        // -PemuX86=1 is inert and the name must not claim otherwise. (This hook
+        // runs for EVERY variant, release ones included, even when only
+        // assembleFossDebug was asked for - so it must never throw.)
+        def abi = emuX86 && variant.buildType == 'debug' ? 'arm64-x86_64' : 'arm64'
         def suffix = variant.buildType == 'release'
                 ? (apkSigned ? '' : '-unsigned')
                 : "-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("wudict2-android-${apkAbi}-${variant.flavorName}${suffix}.apk")
+            output.outputFileName.set("wudict2-android-${abi}-${variant.flavorName}${suffix}.apk")
         }
     }
 }
