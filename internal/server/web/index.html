@@ -76,6 +76,37 @@ window.wudictShellBackground = function (color, image, imageName) {
      render-blocking it is already in force at first paint, so a reader who
      chose sepia never sees a white flash. /?style=off omits it and them. -->
 {{USERCSS}}
+<script>
+/* One user stylesheet per THEME, both linked and one disabled. The server
+   cannot choose between them - the theme lives here, in localStorage - and
+   linking BOTH is what makes the switch instant and the cache honest: each
+   file keeps its own content-addressed URL, so editing the day sheet does not
+   invalidate the night one, and the sheet the reader is about to need is
+   already in memory when they flip. An EMPTY file is not linked at all, which
+   is the right answer too: no user CSS at night is a state, not a missing
+   file.
+
+   Runs during head parsing, before anything paints, so the wrong sheet is
+   never applied even for a frame. The switch itself is re-run from
+   syncAutoDark(), which is the one place that knows the RESOLVED theme -
+   including when "auto" follows the system at sunset. */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("wudict_theme"); } catch (_) {}
+  function resolvedDark() {
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  window.wudictSkinLinks = function (wantDark) {
+    var links = document.querySelectorAll("link[data-skin]");
+    for (var i = 0; i < links.length; i++) {
+      links[i].disabled = (links[i].getAttribute("data-skin") === "dark") !== !!wantDark;
+    }
+  };
+  window.wudictSkinLinks(resolvedDark());
+})();
+</script>
 </head>
 <body>
 <header class="bar" id="bar">
@@ -670,6 +701,10 @@ function themeIsDark(){
   if(t==="light")return false;
   return matchMedia("(prefers-color-scheme: dark)").matches;
 }
+/* The resolved theme the page is currently showing, so syncAutoDark can tell a
+   real change from a re-run. null until the first call - boot, which must not
+   look like a switch to anything downstream. */
+let skinDark=null;
 /* hosts get .autodark so the invert rule also applies in auto mode */
 function syncAutoDark(){
   const dark=themeIsDark();
@@ -679,6 +714,26 @@ function syncAutoDark(){
      have to know any of them. [data-dark] means the same thing here, on a
      shadow host and inside a frame, and it is the only spelling documented. */
   document.documentElement.toggleAttribute("data-dark",dark);
+  // The theme's own stylesheet, on or off. Done HERE and not in applyTheme,
+  // because this is the function that knows the RESOLVED theme: it runs for a
+  // pinned light/dark and for "auto" following the system at sunset alike.
+  if(window.wudictSkinLinks)window.wudictSkinLinks(dark);
+  // A theme change moves the EDITOR's files with it. The swap is in memory, so
+  // unsaved edits survive it, and the live preview is re-run from the pair
+  // that is now active - the path a save already takes. Guarded on a real
+  // change and on the sheet having been loaded: the very first call here is
+  // boot, where there is nothing to swap and no sheet open.
+  if(skinDark!==null&&skinDark!==dark&&stylerLoaded){
+    const t=stylerText;stylerText=stylerOther.text;stylerOther.text=t;
+    const s=stylerSaved;stylerSaved=stylerOther.saved;stylerOther.saved=s;
+    stylerPreviewAll(stylerText);
+  }
+  // The window's background is per theme too, so the sheet has to re-read: a
+  // colour and a wallpaper that are not the ones on screen are worse than no
+  // window at all. Guarded like Shell.applyBackground guards it, because this
+  // also runs at boot, before the appearance layer exists.
+  if(typeof appearanceRead==="function")appearanceRead();
+  skinDark=dark;
   document.querySelectorAll(".article").forEach(el=>{
     if(el.tagName==="IFRAME"){
       el.contentWindow&&el.contentWindow.postMessage({t:"theme",dark},"*");
@@ -3841,16 +3896,71 @@ $("q").addEventListener("blur",()=>setTimeout(()=>{
        reader has to know belong together. */
 
 const BOXNAME={app:"App",article:"Article"};
+/* What an EMPTY box says. A placeholder, not seeded text: it is a hint, not
+   content - it never reaches the file, never shows up in a diff, and it is
+   gone the moment the reader types a character. Both lists name the app's own
+   custom properties, which are defined on :root in app.css and inherit into
+   every article, shadow root and iframe alike (see style.go), so they are the
+   same names in both boxes. */
+const STYLE_HINT={
+app:`CSS for the app itself — its colours and its own layout.
+Tokens set on :root reach articles too.
+
+The app's colours are CUSTOM PROPERTIES, so restyle by changing a value rather
+than every rule that reads it:
+
+  --bg           page and sheet background   --fg          main text
+  --bg-card      cards, fields, buttons      --fg-soft     secondary text
+  --bg-bar       the search bar              --fg-faint    hints, labels
+  --accent       highlights, pressed states  --line        borders
+  --accent-soft  the accent's tint           --line-soft   hairlines
+  --link         result headwords            --focus       focus rings
+  --paper-bg     the reader's paper          --paper-bk-image  its texture
+  --wd-article-bg / --wd-article-fg   the article surface inside a frame
+
+html[data-dark] is true whenever the page is dark, "auto" included;
+html[data-theme="dark"] is true only when the reader pinned dark by hand.
+
+This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
+own, and switching the theme switches which one you are editing.`,
+article:`CSS for what dictionaries render, in every article.
+Use :host, :root > body to reach the article's own root.
+
+An article is a frame of its own, and the app's custom properties reach it, so
+the same names work here:
+
+  --wd-article-bg   the article surface      --wd-article-fg   its text
+  --fg, --fg-soft, --fg-faint   the app's text registers
+  --link, --accent              headwords and highlights
+  --bg-card, --line             surfaces and borders
+
+Selectors land INSIDE the article: p, a, table, div, body — and :host when the
+dictionary is drawn as a shadow root. Nothing here reaches the chrome; that is
+what the App box is for.
+
+This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
+own, and switching the theme switches which one you are editing.`
+};
 /* The wallpapers the Android shell unpacks into the files folder when they
    are absent. Deleting one from here would only make the next start copy it
-   back, so the manager offers no Delete for them - the row says so instead. */
-const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg"];
+   back, so the manager offers no Delete for them - the row says so instead.
+   The list is duplicated in WindowBackground.directory, and the two must
+   agree: this one decides what the manager says about a file, that one
+   decides whether the file is there at all. */
+const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg","paper_03.jpg"];
 
 let stylerTab="app",
     stylerText={app:"",article:""},
     // What is actually on disk. Closing without saving must put the page back
     // to this: a preview that outlives the editor is a change nobody made.
     stylerSaved={app:"",article:""},
+    // The OTHER theme's pair, held aside - both what is on disk for it and
+    // what was typed into it, because a reader who edits the day sheet and
+    // flips the theme to look has unsaved work in a theme they are no longer
+    // in. stylerText stays "the pair being edited", so every one of its
+    // twenty-odd readers is untouched, and a theme switch is a SWAP of the two
+    // rather than a fetch.
+    stylerOther={text:{app:"",article:""},saved:{app:"",article:""}},
     stylerDir="",
     stylerLoaded=false,
     stylerTimer=null,
@@ -4009,9 +4119,7 @@ function stylerShowTab(tab){
   $("stylerCSS").value=stylerText[tab];
   stylerBox=tab;
   stylerSync();
-  $("stylerCSS").placeholder=tab==="app"
-    ? "CSS for the app itself — its colours and its own layout.\nTokens set on :root reach articles too."
-    : "CSS for what dictionaries render, in every article.\nUse :host, :root > body to reach the article's own root.";
+  $("stylerCSS").placeholder=STYLE_HINT[tab]||"";
   stylerSetView("css");
 }
 
@@ -4745,6 +4853,13 @@ function colorFieldWire(input,menu,apply){
 function appearanceRequest(request){
   if(!window.wudictNativeShell)return null;
   try{
+    // Which THEME this round trip is about. The sheet shows the ACTIVE theme's
+    // values - the shell answers for the theme it is told - and a write lands
+    // in that theme's slot, so setting a colour just after switching to day
+    // cannot land on the night one, and vice versa. Sent rather than inferred,
+    // because the shell's idea of the theme arrives by a slower road (the
+    // watcher's subresource request) and would race a switch.
+    request.night=themeIsDark();
     const answer=window.prompt("wudict:appearance",JSON.stringify(request));
     return answer===null?null:JSON.parse(answer);
   }catch(e){console.warn("appearance bridge:",e);return null}
@@ -4896,6 +5011,14 @@ function appearanceSet(field,value){
   appearanceRender(state);
   return state;
 }
+/* The pair a theme edits, out of /api/style's four files. The API names the
+   night files with a suffix rather than nesting them under a theme, so this is
+   the one place on the page that knows which is which - the twin of the
+   server's styleNamesFor, and the two must agree. */
+function stylePairFrom(j,night){
+  return night?{app:j.appNight||"",article:j.articleNight||""}
+              :{app:j.app||"",article:j.article||""};
+}
 async function stylerOpen(){
   hidePanel();
   $("styler").classList.add("show");
@@ -4907,8 +5030,12 @@ async function stylerOpen(){
       const r=await fetch("/api/style");
       if(!r.ok)throw new Error("HTTP "+r.status);
       const j=await r.json();
-      stylerText={app:j.app||"",article:j.article||""};
+      // The pair the RESOLVED theme edits is the working copy; the other
+      // theme's pair is held beside it, so a switch is a swap and not a fetch.
+      const night=themeIsDark();
+      stylerText=stylePairFrom(j,night);
       stylerSaved={...stylerText};
+      stylerOther={text:stylePairFrom(j,!night),saved:stylePairFrom(j,!night)};
       stylerDir=j.writable?(j.dir||""):"";
       stylerLoaded=true;
       // Alongside, not on first click of the Files tab: the dot that says
@@ -5008,10 +5135,14 @@ if(stylerVV){
 }
 async function stylerSave(){
   stylerCommit();
-  const body={};
+  // `theme` names the pair being written. The editor shows ONE theme's files,
+  // so a save at night must not overwrite the day sheet - which is what a
+  // single pair of files could not help doing.
+  const night=themeIsDark();
+  const body={theme:night?"dark":"light"};
   if(stylerDirty("app"))body.app=stylerText.app;
   if(stylerDirty("article"))body.article=stylerText.article;
-  if(!Object.keys(body).length){stylerNote("No changes");setTimeout(stylerNote,1400);return}
+  if(!("app" in body)&&!("article" in body)){stylerNote("No changes");setTimeout(stylerNote,1400);return}
   stylerNote("Saving…");
   try{
     const r=await fetch("/api/style",{method:"PUT",
@@ -5020,8 +5151,14 @@ async function stylerSave(){
       ? "there is nowhere to save: no configuration folder"
       : r.status===413 ? "that stylesheet is too large" : "HTTP "+r.status);
     const j=await r.json();
-    stylerText={app:j.app||"",article:j.article||""};
+    // Both pairs are refilled from the answer, and by the theme that is
+    // resolved NOW: a save is a round trip, and the reader can flip the theme
+    // while it is in flight.
+    const dark=themeIsDark();
+    stylerText=stylePairFrom(j,dark);
     stylerSaved={...stylerText};
+    // The other theme's DISK copy only: whatever was typed into it stays.
+    stylerOther.saved=stylePairFrom(j,!dark);
     $("stylerCSS").value=stylerText[stylerTab];
     stylerSync();
     stylerNote(Object.values(stylerText).some(Boolean)?"Saved":"Saved — nothing left, both files removed");

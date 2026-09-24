@@ -105,6 +105,149 @@ on `dev` on top of `3178bc1`.
   it could not have been verified. `android-go-x86_64` plus an emulator APK
   target is the obvious follow-up for the Unix side.
 
+## Branch `Night-Day`: a look per theme (2026-09-25, this session)
+
+The user's request: switching day/night should switch the appearance with it -
+the window background, the BACKGROUND presets, and the user's App/Article CSS.
+A branch off `dev` (`e1304c9`); `dev` is untouched and nothing is committed.
+
+**"Per theme" means the RESOLVED theme** (`themeIsDark()`, `data-dark`), not the
+stored mode - so "auto" following the system at sunset moves everything too.
+`syncAutoDark()` is the one place that knows it, and it drives the whole switch.
+
+- **The user CSS is four files now.** Day keeps `app.css`/`article.css`; night
+  gets `app_night.css`/`article_night.css`. `styleNamesFor(theme)` is the whole
+  mapping, and empty is a state rather than a gap: an empty night file emits no
+  `<link>` at all, so "no user CSS at night" IS the app's own dark theme.
+  Existing installs need no migration - their `app.css` is already the day file.
+- **Both pairs are linked and one is disabled** (`data-skin="light|dark"`),
+  rather than the server picking: the theme is a fact of the browser, not of the
+  request. Linking both keeps each file's own content-addressed URL, so editing
+  the day sheet does not invalidate the night one, and the sheet the reader is
+  about to need is already in memory.
+- **The editor edits the theme it is in.** `stylerText`/`stylerSaved` stay "the
+  pair being edited", so their twenty-odd readers are untouched; `stylerOther`
+  holds the other theme's text AND its disk copy, so a switch mid-edit swaps
+  instead of discarding. `PUT /api/style` gained `theme`.
+- **The presets needed no storing at all.** All four BACKGROUND presets were
+  ALREADY theme-scoped in their own CSS (`Sepia` is `html:not([data-dark])`,
+  `True black`/`Warm dark` are `html[data-dark]`); what stopped "Sepia by day,
+  True black by night" was the radio rule switching every group-mate off. It now
+  switches off only group-mates IN THE SAME THEME (`preset.Theme`, a new
+  manifest field), so both are simply on and each applies in its own theme.
+- **The window background is per theme in the SHELL**, chosen by
+  `ShellPrefs.pageDark` - the resolved theme it already tracks. That is what
+  lets the window be painted correctly BEFORE the page exists rather than
+  corrected a frame later. Every reader is theme-aware (`sepia`, `sepiaColor`,
+  `sepiaColorText`, `backgroundImage`), so the dozen call sites elsewhere in the
+  Java are untouched. The bridge carries `night` explicitly: inferring it from
+  `pageDark` would race, because the watcher's report comes by a slower road.
+- **A real bug found on the way, and it is the one reported from the start.**
+  `takeThemeReport` set `pageDark` and repainted the WebView but never re-told
+  the PAGE, so `data-shell-image`/`data-shell-sepia` kept the old theme's values
+  - a dark app whose history window still wore the day wallpaper. It now calls
+  `Shell.applyBackground(web)`, which is what pushes the new theme to the page.
+- **Verified on the emulator**, all of it: the skin links read
+  `light:ON,dark:off` and the reverse; a marker written into each file comes
+  back as the applied sheet (`rgb(1,2,3)` at light, `rgb(4,5,6)` at dark); the
+  window background reads `#112233` at light and `#445566` at dark; `sepia`
+  (light) and `true_black` (dark) are enabled TOGETHER; and on a LIVE switch -
+  no reload, the path that was broken - `data-shell-image` goes false and the
+  history window goes `rgb(10,10,10)`.
+- **Tests**: `go build`, `go vet`, the Go suite and the Java compile are clean.
+  The server suite leaves `TestOpenAPICoversEveryRoute` and `TestSetupFlow`,
+  both re-checked on a clean `dev` worktree and failing there identically.
+- **`paper_03.jpg` joined the built-in wallpapers** as the night one. The list
+  is duplicated - `WindowBackground.directory`'s array decides whether the file
+  is unpacked at all, `BUILTIN_BACKGROUNDS` in the page decides what the manager
+  says about it - and both now name it; the page's comment says so, because the
+  two must agree and nothing enforces it. Verified on the emulator: the shell
+  copied it into `.wudict/style/assets/` at startup and `appearanceRequest`'s
+  `images` offers all three.
+- **A second raw-key read, found from the phone and fixed.** `applyBackground`
+  asked the THEME-AWARE `WindowBackground.active(c)` whether there was an image
+  but read the image's NAME from the un-suffixed key, so at night it sent a
+  true image flag with the DAY wallpaper's name. The page then layered paper_01
+  over the night colour - which is what the reader saw and reported as "the
+  Appearance sheet kept the day's picture". It now reads through
+  `ShellPrefs.backgroundImage(c)`, and `grep '"background_image"'` across the
+  Java finds only the constant's own declaration.
+- **`background_image_article.css` lost every `:not([data-dark])`** (the user's
+  call): the article's paper treatment now applies in BOTH themes, which is what
+  the day/night pair made necessary - a rule restricted to the light theme left
+  a reader whose night background IS a paper looking at articles with no paper
+  behind them. Nothing names a theme now; every value comes from `--paper-bg`
+  and `--paper-bk-image`, which the host sets from the current theme, so an
+  article wears whichever paper is in force and a reader with no night paper
+  gets the app's own dark surface. The comments that said "LIGHT MODE ONLY"
+  were rewritten with it - a comment that describes a restriction that is gone
+  is worse than none. Verified: the served preset CSS has zero `data-dark`
+  occurrences and the page's `presetArticleCSS` carries the paper rules.
+- **`background_image_app.css` was wrong in two ways, both fixed** (the user's
+  call): it keyed on `:is([data-shell-sepia], [data-shell-image])` although the
+  preset is the IMAGE one (`requiresImage` in the manifest says so - a colour
+  with no wallpaper is the Sepia preset's case), and it carried the same
+  `:not([data-theme="dark"])` as the article half. The sepia hook is gone
+  entirely; the theme guard is gone everywhere EXCEPT the palette block, and
+  that exception is load-bearing rather than leftover: that block sets WARM, DARK
+  text (`--fg:#3b3229`), which is what reads on a light paper and is exactly what
+  must not be put on a dark one. So it was split - the two SURFACE variables
+  (`--bg-card`, `--wd-article-bg`) apply in both themes, the palette does not -
+  and it is now the only theme condition left in the file, with a comment saying
+  why. Measured with the preset on: light gives `--fg:#3b3229`,
+  `--bg-card:transparent`, `.bar` `rgb(237,209,166)`; dark gives `--fg:#d8d5d0`
+  (the app's own dark palette, untouched), `--bg-card:transparent`, `.bar`
+  `rgb(51,33,17)` - the night paper.
+- **The night theme was getting the light paper's colours - the reader's second
+  report, and the reason the Settings panel was unreadable on a near-black
+  paper.** `background_image_app.css` was 37 lines of LITERAL warm values -
+  cream washes, `rgba(120,90,45,…)` borders, `color:#79654b !important` on
+  `.meta` and friends - against only 7 rules whose values come from the host. So
+  the file is now split by what each rule is ABOUT: the 7 that paint the paper
+  itself (`--bg-card`, `--wd-article-bg`, `body`, the bar/panel/card paper
+  colour, a disabled card's opacity) carry no theme condition, and the other 26
+  - the palette and every warm wash - are light-only, with a comment saying why.
+  The article half got the same treatment for its two multiply rules: multiply
+  is what makes a white JPEG background read as the paper, and against a
+  near-black one it would crush the picture into it instead. Measured with the
+  preset on: light gives `--fg:#3b3229`, `--fg-soft:#5d4d3a`, `.meta`
+  `rgb(121,101,75)`; dark gives `--fg:#d8d5d0`, `--fg-soft:#96938d`, `.meta`
+  `rgb(95,92,87)` - the app's own, untouched - with `--bg-card` transparent and
+  the bar and cards on the NIGHT paper in both themes.
+- **Why not the two night files that were asked for**:
+  `background_image_app_night.css` would contain exactly the 7 rules the guard
+  leaves unguarded - the same behaviour - but it needs a per-theme half in the
+  manifest, in `presets.go`, in `presetLinksHTML` and in `presetApplyAll`, plus
+  the server's first-paint links carrying `data-skin` like the user CSS pair
+  does. Worth it if a preset ever needs a DIFFERENT dark look rather than no
+  dark look; not needed to keep the browns off a dark paper.
+- **A paper lifts the muted registers under a dark theme.** The dark palette's
+  `--fg-soft`/`--fg-faint` are tuned for the app's own near-black surface, and
+  on a paper of ANY kind - a colour or a texture - they landed within a shade of
+  it: the sheet's seg labels and the hints under the Screen dropdowns came out
+  unreadable, reported from the phone both with an image and without one. So
+  the rule lives in app.css, not in a preset: a preset would only cover the
+  paper it belongs to, and the complaint covered both. Keyed on
+  `html:is([data-shell-sepia],[data-shell-image])[data-dark]` it sets
+  `--fg-soft:#ded8cc`, `--fg-faint:#c6beaf`, `--line`/`--line-soft` - the values
+  lemmas.html and browse.html already use for their dark tone, so a paper reads
+  the same wherever the reader meets one. `--fg`, `--link` and `--accent` are
+  left alone. Measured: dark+paper gives `--fg-faint:#c6beaf` and the seg label
+  `rgb(198,190,175)`; light+paper keeps the app's own `#a5a19a`.
+- **The empty App and Article boxes now list their variables.** `stylerShowTab`
+  already set a two-line placeholder per tab; `STYLE_HINT` keeps those opening
+  sentences and adds the token list behind them - `--bg`/`--bg-card`/`--bg-bar`,
+  `--fg`/`--fg-soft`/`--fg-faint`, `--accent`, `--line`, `--link`, `--focus`,
+  `--paper-bg`/`--paper-bk-image`, `--wd-article-*` - plus what
+  `html[data-dark]` and `html[data-theme="dark"]` mean, and that the box edits
+  the LIGHT theme's file. A placeholder and not seeded text: it never reaches
+  the file, never shows in a diff, and is gone on the first keystroke. Both
+  lists were checked against app.css's `:root`; `--paper-bg` and
+  `--paper-bk-image` are not defined there because the HOST sets them at run
+  time, which is also why they are worth documenting.
+- **Not done**: nothing is committed; `README`/`pages/docs` still describe one
+  stylesheet.
+
 ## The theme button said "night" in daylight (2026-09-25, this session)
 
 Reported from the phone: at launch the button beside the ✕ showed night while

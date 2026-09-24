@@ -48,6 +48,15 @@ const (
 	appCSSName     = "app.css"
 	articleCSSName = "article.css"
 
+	// The night pair. A theme is a look, and the look is largely these two
+	// files: one pair per theme means switching the theme switches what the
+	// reader wrote FOR it, instead of a single sheet having to serve both -
+	// which is what left a day sheet's paper colours on a dark page. The DAY
+	// pair is the original two names, so an install that predates this keeps
+	// editing exactly what it always did and needs no migration.
+	appNightCSSName     = "app_night.css"
+	articleNightCSSName = "article_night.css"
+
 	// maxUserCSSBytes caps one file. Generous for hand-written CSS by three
 	// orders of magnitude, and the only thing standing between a PUT and the
 	// user's disk.
@@ -56,8 +65,19 @@ const (
 
 // styleNames is the whole namespace, stated once. Membership is checked by
 // equality against it rather than by cleaning a path: there is no traversal to
-// defend against when the only two reachable names are literals.
-var styleNames = []string{appCSSName, articleCSSName}
+// defend against when the only reachable names are literals.
+var styleNames = []string{appCSSName, articleCSSName, appNightCSSName, articleNightCSSName}
+
+// styleNamesFor maps a theme to the pair it edits. The API speaks the page's
+// vocabulary - light/dark, the RESOLVED theme - while the files are named
+// day/night, which is what the reader sees them as. The mapping lives here and
+// nowhere else, so a third theme would be one more line rather than a hunt.
+func styleNamesFor(theme string) (app, article string) {
+	if theme == "dark" {
+		return appNightCSSName, articleNightCSSName
+	}
+	return appCSSName, articleCSSName
+}
 
 func isStyleName(n string) bool {
 	for _, s := range styleNames {
@@ -136,10 +156,12 @@ func (s *Server) styleWrite(name, body string) error {
 }
 
 // appStyleTag is the content hash index.html stamps into its <link>, or "" when
-// there is no app stylesheet. Same content addressing as assetTag's other
-// callers (D45): the URL changes exactly when the bytes do.
-func (s *Server) appStyleTag() string {
-	b := s.styleRead(appCSSName)
+// there is no stylesheet under that name. Same content addressing as
+// assetTag's other callers (D45): the URL changes exactly when the bytes do.
+// One name per call, because the day and night pairs are hashed separately -
+// editing the day sheet must not invalidate the night one's cache entry.
+func (s *Server) appStyleTag(name string) string {
+	b := s.styleRead(name)
 	if len(b) == 0 {
 		return ""
 	}
@@ -154,7 +176,7 @@ func styleOff(r *http.Request) bool {
 	return r.URL.Query().Get("style") == "off"
 }
 
-// GET /style/app.css and /style/article.css.
+// GET /style/app.css, /style/article.css and their night pair.
 //
 // no-cache, exactly like a res/ override and for the same reason: this is a
 // file the user is actively editing, and a cache that outlives their next
@@ -164,7 +186,7 @@ func styleOff(r *http.Request) bool {
 // for a bug that is not there.
 func (s *Server) handleUserCSS(w http.ResponseWriter, r *http.Request) {
 	// The exact path, not filepath.Base: /style/anything/app.css must be a 404
-	// and not a second URL for the same file. There are two names here, and
+	// and not a second URL for the same file. There are four names here, and
 	// each of them has one address.
 	name := strings.TrimPrefix(r.URL.Path, "/style/")
 	if !isStyleName(name) {
@@ -179,29 +201,34 @@ func (s *Server) handleUserCSS(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(s.styleRead(name))
 }
 
-// GET /api/style - both files, plus where they live and whether they can be
-// written. The path is reported because the editor shows it: an in-app editor
-// that hides which file it is editing turns a plain text file into a black
-// box, and the point of using files was that an external editor works too.
+// GET /api/style - all four files, plus where they live and whether they can
+// be written. The path is reported because the editor shows it: an in-app
+// editor that hides which file it is editing turns a plain text file into a
+// black box, and the point of using files was that an external editor works
+// too.
 func (s *Server) handleStyle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
-		"app":      string(s.styleRead(appCSSName)),
-		"article":  string(s.styleRead(articleCSSName)),
-		"dir":      s.StyleDir,
-		"writable": s.StyleDir != "",
+		"app":          string(s.styleRead(appCSSName)),
+		"article":      string(s.styleRead(articleCSSName)),
+		"appNight":     string(s.styleRead(appNightCSSName)),
+		"articleNight": string(s.styleRead(articleNightCSSName)),
+		"dir":          s.StyleDir,
+		"writable":     s.StyleDir != "",
 	})
 }
 
-// PUT /api/style - replace either file, or both.
+// PUT /api/style - replace either file of ONE theme's pair, or both.
 //
 // Pointers, not strings: absent and empty are different. The App tab and the
 // Article tab are the same editor sending different bodies, and a request that
 // omits one must never be read as clearing it - the same trap /api/prefs has
-// with `ui`.
+// with `ui`. `theme` names WHICH pair, and its absence is the day pair, which
+// is what every request written before the night files existed meant.
 func (s *Server) handleSaveStyle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		App     *string `json:"app"`
 		Article *string `json:"article"`
+		Theme   string  `json:"theme"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4*maxUserCSSBytes+(1<<12))).Decode(&req); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -211,10 +238,11 @@ func (s *Server) handleSaveStyle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no config directory: there is nowhere to save custom styles", http.StatusConflict)
 		return
 	}
+	appName, articleName := styleNamesFor(req.Theme)
 	for _, f := range []struct {
 		name string
 		body *string
-	}{{appCSSName, req.App}, {articleCSSName, req.Article}} {
+	}{{appName, req.App}, {articleName, req.Article}} {
 		if f.body == nil {
 			continue
 		}

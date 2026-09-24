@@ -335,7 +335,16 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> {
             if (gone) return;
             if (!ShellPrefs.setPageDark(this, dark)) return;
-            web.setBackgroundColor(WindowBackground.active(this) ? android.graphics.Color.TRANSPARENT : ShellPrefs.pageBg(this));
+            // The background is per THEME, and this is the moment the theme
+            // changed - so the PAGE has to be told again, not just the window.
+            // Setting pageDark and repainting the WebView was enough while
+            // there was one background for both: now the page's own
+            // data-shell-image / data-shell-sepia decide whether it paints the
+            // paper (the history window, the sheet, the cards), and those came
+            // from the last report. Without this the reader saw exactly the
+            // split this feature exists to remove: a dark app whose history
+            // window still wore the day wallpaper.
+            Shell.applyBackground(web);
             applyEdges();
         });
         return true;

@@ -375,6 +375,18 @@ html[data-shell-image] #styler{
   background-color:var(--paper-bg,var(--bg));
   background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
   background-size:100% 100%}
+/* A PAPER LIFTS THE MUTED REGISTERS UNDER A DARK THEME. The dark palette's
+   --fg-soft and --fg-faint are tuned for the app's own near-black surface, and
+   on a paper of any kind - a colour or a texture, chosen by the reader - they
+   land within a shade of it: the sheet's row labels and the hints under the
+   Screen dropdowns came out unreadable, which is what a reader reported from
+   the phone. The values are the ones lemmas.html and browse.html already use
+   for their dark tone, so a paper reads the same wherever the reader meets
+   one. --fg, --link and --accent are left alone: the dark theme's are already
+   light enough over a paper. */
+html:is([data-shell-sepia],[data-shell-image])[data-dark]{
+  --fg-soft:#ded8cc; --fg-faint:#c6beaf;
+  --line:rgba(230,220,201,.4); --line-soft:rgba(230,220,201,.2)}
 body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
 /* The three headings are kept apart by hairlines rather than by spacing
    alone: the sheet is tall, sections scroll past each other, and a line under
