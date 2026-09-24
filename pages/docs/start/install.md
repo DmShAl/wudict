@@ -37,7 +37,7 @@ For macOS you can also download a macOS bundle, for Windows a traditional setup 
 
     ??? tip "Looking for a macOS app bundle?"
 
-        The same release contains `wudict-macos-app.zip`. It unzips to
+        The same release contains `wudict-macos-universal-app-<version>.zip`. It unzips to
         **wuDict.app**: the identical server, built universal, with a menu-bar
         icon instead of a terminal. See [the macOS app](../apps/macos.md).
 

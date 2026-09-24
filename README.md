@@ -95,7 +95,7 @@ theme. Search URLs are bookmarkable.
 ## Run as an app (macOS)
 
 For macOS you can either run the `wudict` binary from a terminal, or as an 
-alternative use the wudict-macos-app.zip from [releases](https://github.com/wuweidict/wudict/releases) 
+alternative use the wudict-macos-universal-app-<version>.zip from [releases](https://github.com/wuweidict/wudict/releases) 
 which wraps `wudict` into a macOS app bundle.
 
 ## Run wudict as a service (macOS)

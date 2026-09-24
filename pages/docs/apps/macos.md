@@ -12,7 +12,7 @@ Unlike the CLI version, it adds a **menu-bar icon**, so you can see when it is r
 
 ## Install
 
-1.  Download **`wudict-macos-app.zip`** from
+1.  Download **`wudict-macos-universal-app-<version>.zip`** from
     [the releases page](https://github.com/wuweidict/wudict/releases).
     It is universal — one file for Apple Silicon and Intel.
 2.  Unzip it. Drag **wuDict.app** to *Applications*.

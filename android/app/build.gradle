@@ -43,6 +43,16 @@ def gitCount = {
     }
 }
 
+// The one versionName, computed once: defaultConfig stamps it and the APK file
+// name carries it (below), so the two cannot disagree. The Makefile passes it
+// as -PversionName=$(VERSION) and CI as the release tag; gitVersion() is only
+// the fallback for a bare `./gradlew`.
+def appVersion = project.hasProperty('versionName') ? project.property('versionName') as String : gitVersion()
+// File-name form: no leading "v" (v3.7.5 -> 3.7.5, as the Windows installer
+// already does) and no "/" (legal in a tag, a directory in a path). The
+// Makefile's APK_VERSION applies the same two rules - change both or neither.
+def apkVersion = appVersion.replaceFirst(/^v/, '').replace('/', '_')
+
 android {
     namespace = 'com.legbehindneck.wudict'
     compileSdk = 36
@@ -71,7 +81,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode(project.hasProperty('versionCode') ? project.property('versionCode') as int : gitCount())
-        versionName(project.hasProperty('versionName') ? project.property('versionName') as String : gitVersion())
+        versionName(appVersion)
     }
 
     // Two distributions, one source tree (D62). `foss` is the GitHub/F-Droid
@@ -129,10 +139,14 @@ android {
 // build-android.yml - which is why the workflow no longer copies the file to a
 // second name of its own. Two names for one artifact is the whole bug class.
 //
-//   wudict-android-arm64-foss.apk            signed release (the published one)
-//   wudict-android-arm64-foss-unsigned.apk   release built without a keystore
-//   wudict-android-arm64-foss-debug.apk      debug
-//   wudict-android-arm64-play-*.apk          the same, Play flavour
+//   wudict-android-arm64-foss-3.7.5.apk            signed release (the published one)
+//   wudict-android-arm64-foss-unsigned-3.7.5.apk   release built without a keystore
+//   wudict-android-arm64-foss-debug-3.7.5.apk      debug
+//   wudict-android-arm64-play-*-3.7.5.apk          the same, Play flavour
+//
+// The version is last, as in wudict-windows-x64-setup-3.7.5.exe: a downloaded
+// APK says which release it is, and a working-tree build says so too
+// (...-foss-3.7.5-4-gfcd6edb-dirty.apk), so it cannot pass for a release.
 //
 // The flavour token is not editorial: it is `variant.flavorName` verbatim, so a
 // third flavour names itself and nobody has to decide what to call it.
@@ -154,7 +168,7 @@ androidComponents {
                 ? (apkSigned ? '' : '-unsigned')
                 : "-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${suffix}.apk")
+            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${suffix}-${apkVersion}.apk")
         }
     }
 }
