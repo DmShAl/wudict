@@ -133,7 +133,7 @@ window.wudictShellBackground = function (color, image, imageName) {
      never waits for a keypress at all, because the input handler searches
      as you type. The button's only remaining ground was a magnifier next
      to a magnifier. -->
-<button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">◐</button>
+<button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">☀☾</button>
 <button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
 <button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
 <button type="button" class="btn tools" id="panelBtn" title="Settings" aria-label="Settings">☰</button>
@@ -155,7 +155,7 @@ window.wudictShellBackground = function (color, image, imageName) {
 <!-- The theme control's narrow-viewport home. Not a second control: both
      elements carry .themeBtn and one handler drives the pair, the way the
      wordmark has two mount points selected by media query. -->
-<button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">◐</button>
+<button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">☀☾</button>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
 <!-- Five sections, one subject each, in the order a reader arrives: what the
@@ -652,9 +652,15 @@ function applyTheme(t){
   // Two mount points, one state: the bar's button above 600px, the panel's
   // below it (see the responsive block). A NodeList rather than two ids keeps
   // this one code path — nothing about the pair can drift.
+  // Three states, three glyphs - and the AUTO one is a PAIR: ☀☾ says "follows
+  // day and night". It used to be ◐, which at this size is a black half-disc
+  // and reads as a MOON, so an app sitting in auto over a light system
+  // announced "night" at every launch; the first press (auto -> light) then
+  // changed nothing on screen, because both are light. The pair says what the
+  // state actually is, and every press of the cycle is now visible.
   for(const b of document.querySelectorAll(".themeBtn")){
-    b.textContent=t==="auto"?"◐":(t==="light"?"☀":"☾");
-    b.title="Theme: "+t;
+    b.textContent=t==="auto"?"☀☾":(t==="light"?"☀":"☾");
+    b.title=t==="auto"?"Theme: auto — following the system":"Theme: "+t;
   }
   syncAutoDark();
 }

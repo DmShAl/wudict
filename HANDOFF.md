@@ -105,6 +105,29 @@ on `dev` on top of `3178bc1`.
   it could not have been verified. `android-go-x86_64` plus an emulator APK
   target is the obvious follow-up for the Unix side.
 
+## The theme button said "night" in daylight (2026-09-25, this session)
+
+Reported from the phone: at launch the button beside the ✕ showed night while
+the app was light, the first press changed nothing, and the second turned night
+on. All three are one cause, and the cycle itself is fine: the stored mode is
+`auto`, whose glyph was `◐` — at this size a black half-disc that reads as a
+MOON. So `auto` announced night; the first press is `auto → light` and both are
+light over a light system, so nothing moved; the second is `light → dark`.
+
+- **`auto` now shows `☀☾`** — "follows day and night". It says what the state
+  actually is, it cannot be read as night, and every press of the cycle is now
+  visible. `light` stays ☀, `dark` stays ☾.
+- **Verified on the emulator**, all three: auto → `☀☾` (41px) with a light page;
+  light → `☀` (32px), light; dark → `☾` (27px), dark. Titles are
+  "Theme: auto — following the system" / "Theme: light" / "Theme: dark".
+- **A page can never be light while the glyph is ☾**: `dark` sets
+  `data-theme=dark` and the crescent together. Checked by driving all three
+  through localStorage and reading the resolved `data-dark` and the text colour,
+  so the report could only have been the glyph.
+- **The old glyph was named in two documents** — README's shortcut list and
+  `pages/docs/start/search.md`. Both updated; the docs page is upstream's, so
+  that one line is a trivial conflict owed on the next sync.
+
 ## The Settings panel: one shape per setting, and a door that names itself (2026-09-24, this session)
 
 Three reports from the phone: the Results strip's controls were unlike each

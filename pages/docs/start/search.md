@@ -242,7 +242,7 @@ dictionary has no such entry.
 | double-click a word in an article | look up selected word                         |
 | <kbd>⊞</kbd> | expand / collapse results                     |
 | <kbd>⇔</kbd> | switch to a wide layout                 |
-| <kbd>◐</kbd> | cycle light, dark and automatic theme         |
+| <kbd>☀☾</kbd> | cycle light, dark and automatic theme        |
 
 ## The <kbd>☰</kbd> dictionary panel
 

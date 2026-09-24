@@ -102,7 +102,7 @@ Tips: `/` focuses the search box; double-click any word in an article to
 look it up; click links inside articles to follow cross-references;
 audio plays on click; ⊞ expands all results (⊟ closes
 them again — for the current page only, never remembered);
-⇔ toggles a wide layout; ◐ cycles auto/light/dark
+⇔ toggles a wide layout; ☀☾ cycles auto/light/dark
 theme. Search URLs are bookmarkable.
 
 ## Run as an app (macOS)

@@ -1174,8 +1174,8 @@ dialog.panel-card:not([open]){display:none}
   /* Dropped rather than shrunk, because each is a big-screen affordance.
      ⇔: below 600 .col is already auto, so wide mode has nothing left to
      widen. ⊞: putting a hundred articles on screen at once is not a phone
-     act. ◐ keeps working from the panel — see #panelTheme. (🔍 is not here:
-     it is gone at every width, see the form markup.) */
+     act. The theme control keeps working from the panel — see #panelTheme.
+     (🔍 is not here: it is gone at every width, see the form markup.) */
   #wideBtn,#expandBtn,#frm .themeBtn{display:none}
   #panelTheme{display:block}
 
