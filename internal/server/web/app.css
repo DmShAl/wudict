@@ -1007,10 +1007,12 @@ dialog.panel-card:not([open]){display:none}
    font-family:inherit is not optional: these controls are real <button>s, and a
    button that does not ask for it renders in the UA stack, not var(--font). */
 .facts{display:flex;flex-wrap:wrap;gap:.45em;align-items:center;margin-top:.7em}
-/* The reading strip's row. Same left edge as the section that holds it (its
+/* The reading strip's rows. Same left edge as the section that holds it (its
    .sect's own inline margin), so the row reads as part of the section and not
-   as a control floating above one. */
-.facts.reading{margin:.6em 0 var(--sp-1)}
+   as a control floating above one. One setting per LINE, not wrapped: the
+   controls are meant to be compared, and a wrap put whichever two happened to
+   fit beside each other. */
+.facts.reading{flex-direction:column;align-items:flex-start;margin:.6em 0 var(--sp-1)}
 .facts .act{display:inline-flex;align-items:center;gap:.4em;
   font-family:inherit;font-size:11.5px;line-height:1.2;padding:.28em .6em;margin:0;
   color:var(--fg-soft);background:var(--bg-card);
@@ -1025,7 +1027,11 @@ dialog.panel-card:not([open]){display:none}
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
 .facts .seg{display:inline-flex;align-items:center;justify-content:flex-start;gap:.4em}
-.facts .seg>span{font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
+/* The label takes the row's slack, so the pair sits at the RIGHT edge and the
+   rows read as two columns — labels down one, buttons down the other. Without
+   it every pair hugs its own label and the button column comes out ragged,
+   which is what a wrapped row used to hide. */
+.facts .seg>span{flex:1 1 auto;font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
 .facts .seg .act{position:relative;border-radius:0}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
 .facts .seg .act:last-of-type{border-radius:0 8px 8px 0;margin-left:-1px}

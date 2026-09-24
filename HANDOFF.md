@@ -105,6 +105,35 @@ on `dev` on top of `3178bc1`.
   it could not have been verified. `android-go-x86_64` plus an emulator APK
   target is the obvious follow-up for the Unix side.
 
+## The Settings panel: one shape per setting, and a door that names itself (2026-09-24, this session)
+
+Three reports from the phone: the Results strip's controls were unlike each
+other and wrapped into whatever column the width allowed, "Highlight matches"
+was a lone toggle among two pairs, and the Appearance section named its door
+after the heading it sits under.
+
+- **The Results strip is a column of same-shaped rows.** `.facts.reading` is
+  `flex-direction:column;align-items:flex-start`; every control is a `.seg` — a
+  label, then a pair of buttons. Measured on the device: three rows at x=147,
+  y=339/368/398, all 367 wide, no overflow.
+- **`#hlBtn` is gone**; it is `#hlOn`/`#hlOff` now, wired through the same
+  `for(const [id,want] of [...])` shape the other two pairs use. So `applyHL`
+  returns `moved` and the search re-runs only on a real change — the old single
+  toggle always moved, so it always re-ran. Its inline `style.color` went with
+  it (the accent on the pressed half is the `.seg` CSS's job), and so did the
+  highlighter's pen: the label it now wears says the same thing in the register
+  the other two labels use.
+- **The Appearance door is `Screen, background, CSS…`** — it names the sheet's
+  three groups instead of repeating the heading above it. The heading, the
+  sheet's own title, and the element's id and `title` are unchanged.
+- **Verified on the emulator**: the rows stack and their labels share one x;
+  clicking Off then On flips `aria-pressed` both ways; `hlOff` still
+  round-trips through state.json; `go build ./...` and the asset tests pass.
+- **The rows are two columns**: `.facts .seg>span{flex:1 1 auto}` lets the
+  label take the slack, so the pair sits at the row's right edge. Measured:
+  labels all at x=147, pairs all ending at 514, starting at 447/394/368 — the
+  pair's own width is what differs, which is the shape that was asked for.
+
 ## The chips name their scope, with no receding state (2026-09-24, this session)
 
 Two reports from the phone, one cause: `.chip.dflt`, which upstream gave the

@@ -209,16 +209,25 @@ window.wudictShellBackground = function (color, image, imageName) {
 <section class="sect">
   <h3 class="sect-h">Results</h3>
   <!-- The reading strip (D143), now under the heading it was denied when the
-       drawer had only one. Two controls, admitted by one rule: nothing here
+       drawer had only one. THREE controls, admitted by one rule: nothing here
        spends disk, CPU or navigation. They are what a reader reaches for WHILE
-       READING, so they are visible without opening anything. -->
+       READING, so they are visible without opening anything - and each is now
+       the same shape, a label and a pair of buttons on a line of its own, so
+       they are read down a column instead of across whatever a wrapped row
+       happened to make of them. -->
 <div class="facts reading">
   <!-- Not in the top bar: a control that only bites in ONE search mode has no
        business taking width away from the four that are used constantly (D102).
-       A highlighter pen, and aria-pressed rather than a checkbox, because the
-       row it joins is made of buttons and a lone checkbox would read as a
-       different kind of thing. -->
-  <button type="button" class="act" id="hlBtn" aria-pressed="true" title="Mark the words you searched for inside the article — full-text search only"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.4 1.9l4.7 4.7-5.6 5.6H3.8V7.5z"/><path d="M1.9 14.4h12.2"/></svg>Highlight matches</button>
+       A pair now rather than one pressed button, for the reason the two below
+       give — the row is made of pairs, and a lone toggle among them read as a
+       different kind of thing. Buttons and not a checkbox, as before; the
+       highlighter's pen went with the button, because the label it now wears
+       says the same thing in the register the other two labels use. -->
+  <span class="seg" role="group" aria-label="Highlight the words you searched for">
+    <span>Highlight matches</span>
+    <button type="button" class="act" id="hlOn" aria-pressed="true" title="Mark the words you searched for inside each article — full-text search only">On</button>
+    <button type="button" class="act" id="hlOff" aria-pressed="false" title="Show the article exactly as the dictionary wrote it, with nothing marked">Off</button>
+  </span>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
@@ -275,9 +284,12 @@ window.wudictShellBackground = function (color, image, imageName) {
   </div>
   <!-- The rest of the look lives one door down: the sheet holds the screen
        edges, the window background and the user's own CSS, and it is long
-       enough to fold its own sections. -->
+       enough to fold its own sections. The row names those three rather than
+       saying "Appearance…" again — the heading above it already says that, and
+       a door under a heading of its own name tells the reader nothing about
+       what is behind it. -->
   <div class="facts">
-    <button type="button" class="mrow door" id="stylerLink" title="Background, screen edges and custom styles">Appearance…</button>
+    <button type="button" class="mrow door" id="stylerLink" title="Screen edges, window background and custom styles">Screen, background, CSS…</button>
   </div>
 </section>
 
@@ -758,18 +770,19 @@ let hlOn=true;
 function applyHL(on,save){
   const v=!!on,moved=v!==hlOn;
   hlOn=v;
-  const b=$("hlBtn");
-  b.setAttribute("aria-pressed",v?"true":"false");
-  b.style.color=v?"var(--accent)":"";
+  for(const [id,want] of [["hlOff",false],["hlOn",true]])
+    $(id).setAttribute("aria-pressed",v===want?"true":"false");
   if(save&&moved)savePrefs();
+  return moved;
 }
 /* Re-run only what the change can alter. Toggling this with a full-text answer
    on screen must repaint it — the marks live in the HTML the server sent, so
-   the answer cannot be re-marked without asking again. */
-$("hlBtn").addEventListener("click",()=>{
-  applyHL(!hlOn,true);
-  if($("mode").value==="fts"&&$("q").value.trim())doSearch();
-});
+   the answer cannot be re-marked without asking again. Pressing the half that
+   is already in force is not a change, the rule both pairs below follow. */
+for(const [id,want] of [["hlOff",false],["hlOn",true]])
+  $(id).addEventListener("click",()=>{
+    if(applyHL(want,true)&&$("mode").value==="fts"&&$("q").value.trim())doSearch();
+  });
 applyHL(true,false);
 /* Which section auto-expands: the first dictionary in the user's own order
    that has a result (D142, and the default since D144), or the one that
