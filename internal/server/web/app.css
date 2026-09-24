@@ -747,6 +747,18 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
      last card slide out from under it. */
   padding-top:var(--wd-inset-top,0px);
   display:flex;flex-direction:column;overflow:hidden}
+/* A <dialog class="group-dialog panel-card"> is CLOSED until it is opened, and
+   the display:flex above paints it anyway: an author `display` outranks the
+   user-agent's `dialog:not([open]){display:none}` whatever either specificity
+   is. The windows carry their own guard in group-editor.css, and index.html
+   links that sheet at the END of <body> - so between this sheet arriving and
+   that one, the closed windows are on the page. Measured on the device: at 58ms
+   #colorDialog computed display:flex at 420x209 and Dictionary settings at
+   420x94, both gone by 63ms. A phone spends long enough on the same two
+   requests for the reader to see it - that is the flicker reported for the
+   colour window. The guard has to be in the sheet that introduces the display,
+   not only in the sheet that owns the windows. */
+dialog.panel-card:not([open]){display:none}
 /* One scroll container inside a fixed head, rather than a sticky head inside a
    scrolling card (D143). The Dictionary settings window reuses the class for
    its own head — the title above, the toolbar under it — and its cards scroll

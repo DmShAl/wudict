@@ -44,6 +44,11 @@ dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560p
 /* Scrolling past the end of the list must not move the page under the modal:
    the same guard the group rows carry. */
 #dictSettings .panel-scroll{overscroll-behavior:contain}
+/* Closed windows are not drawn. This sheet is linked at the END of <body>, so
+   it arrives after the windows have already been parsed - the guard that
+   actually keeps them off the page is the twin of this one in app.css, beside
+   the .panel-card rule whose display:flex would paint them. This copy keeps
+   the rule with the windows it belongs to; neither may be dropped alone. */
 dialog.group-dialog:not([open]){display:none}
 dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
 /* What is visible AROUND a window: the same background the Edit Folders and
