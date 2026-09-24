@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private TextView status;
     private WebView web;
+    private Speech speech;           // read-aloud (D148); binds no engine until asked
 
     private volatile boolean gone;   // onDestroy ran: late server callbacks must not touch the views
     private Object backCallback;     // OnBackInvokedCallback (API 33+), registered only while canGoBack()
@@ -82,6 +83,7 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(ShellPrefs.pageBg(this)); // no white flash before first paint
         Shell.configure(web);
         Ime.hideOnScroll(web);
+        speech = new Speech(this, web);
         web.setWebViewClient(new ShellWebViewClient());
         web.setWebChromeClient(Shell.windows(this));
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
@@ -404,6 +406,8 @@ public class MainActivity extends Activity {
                 return new WebResourceResponse("text/plain", "utf-8",
                         new ByteArrayInputStream(new byte[0]));
             }
+            WebResourceResponse r = speech.intercept(req.getUrl());
+            if (r != null) return r;
             return null; // everything else is the WebView's own business
         }
 
@@ -422,6 +426,9 @@ public class MainActivity extends Activity {
             // injection, so a reload or a navigation re-states the theme
             // rather than leaving the shell on a remembered one.
             view.evaluateJavascript(THEME_JS, null);
+            // Same rule for speech: the WebView's own speechSynthesis has no
+            // voices, so the shell supplies one per document (Speech.java).
+            speech.inject(view, url);
             // A new document starts with no custom properties at all, so the
             // shell has to say again - and the coalescing state has to forget
             // that it ever said.
@@ -551,6 +558,7 @@ public class MainActivity extends Activity {
         // by the platform shortly after this, and the child freezes with it.
         Power.exit(this);
         Notif.gone(this);
+        speech.stop(); // a reading does not follow the reader out of the app
     }
 
     private void showPage() {
@@ -653,6 +661,7 @@ public class MainActivity extends Activity {
         if (web.getParent() != null) {
             ((FrameLayout) web.getParent()).removeView(web);
         }
+        speech.shutdown(); // before the WebView goes: its callbacks post into it
         web.destroy();
         super.onDestroy();
     }

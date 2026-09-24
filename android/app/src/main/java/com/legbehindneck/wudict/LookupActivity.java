@@ -39,6 +39,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
@@ -61,6 +62,7 @@ public class LookupActivity extends Activity {
     private FrameLayout root;
     private TextView status;
     private WebView web;
+    private Speech speech;  // read-aloud (D148); null until the WebView exists
 
     private int winW, winH; // the popup's size in pixels; see sizeWindow
 
@@ -132,10 +134,21 @@ public class LookupActivity extends Activity {
         web.setBackgroundColor(getColor(R.color.window_bg));
         Shell.configure(web);
         Ime.hideOnScroll(web);
+        speech = new Speech(this, web);
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 return Shell.openExternal(LookupActivity.this, req.getUrl());
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                return speech.intercept(req.getUrl()); // null: the WebView's own business
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                speech.inject(view, url);
             }
         });
         web.setWebChromeClient(Shell.windows(this));
@@ -418,6 +431,7 @@ public class LookupActivity extends Activity {
         super.onStop();
         Power.exit(this);
         Notif.gone(this);
+        if (speech != null) speech.stop();
     }
 
     @Override
@@ -438,6 +452,7 @@ public class LookupActivity extends Activity {
         if (retained) ServerProcess.release(false);
         if (web != null) {
             if (web.getParent() != null) ((ViewGroup) web.getParent()).removeView(web);
+            if (speech != null) speech.shutdown(); // before the WebView its callbacks post into
             web.destroy(); // the popup's WebView is transient, not a second resident one
         }
         super.onDestroy();

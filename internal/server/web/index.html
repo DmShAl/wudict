@@ -700,6 +700,7 @@ body.styling{padding-bottom:var(--styler-h)}
    own inline margin), so the two lines read as one block and not as a control
    floating above a section. */
 .facts.reading{margin:.6em var(--sp-2) var(--sp-1)}
+.facts .act[hidden]{display:none}
 .facts .act{display:inline-flex;align-items:center;gap:.4em;
   font-family:inherit;font-size:11.5px;line-height:1.2;padding:.28em .6em;margin:0;
   color:var(--fg-soft);background:var(--bg-card);
@@ -723,6 +724,11 @@ body.styling{padding-bottom:var(--styler-h)}
    that is on its way to the other half. */
 .facts .seg .act[aria-pressed="true"],
 .facts .seg .act[aria-pressed="true"]:hover{color:var(--accent);border-color:var(--accent);z-index:1}
+/* Independent switches, not halves of one choice: each keeps its own corners
+   and edge. After the rules above, which it must override at equal weight. */
+.facts .seg.multi{flex-wrap:wrap}
+.facts .seg.multi .act{border-radius:8px;margin-left:0}
+.facts .seg[hidden]{display:none}
 /* One step fainter than the label, so the glyph reads as a mark on the control
    rather than as a second word. Both idioms below (fill and stroke) resolve
    through currentColor, so this one declaration colours all three — and they
@@ -1022,6 +1028,11 @@ body.styling{padding-bottom:var(--styler-h)}
        row it joins is made of buttons and a lone checkbox would read as a
        different kind of thing. -->
   <button type="button" class="act" id="hlBtn" aria-pressed="true" title="Mark the words you searched for inside the article — full-text search only"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.4 1.9l4.7 4.7-5.6 5.6H3.8V7.5z"/><path d="M1.9 14.4h12.2"/></svg>Highlight matches</button>
+  <!-- Selecting text in an article offers a speaker that reads it aloud in a
+       system voice (D148). Here because it costs nothing until a reader
+       selects something, and a reader who never wants it should be able to
+       make the offer stop appearing. Hidden where the browser cannot speak. -->
+  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.8a3 3 0 0 1 0 4.4"/><path d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
@@ -1046,6 +1057,17 @@ body.styling{padding-bottom:var(--styler-h)}
     <span>Sort dictionaries</span>
     <button type="button" class="act" id="sortAZ" aria-pressed="true" title="List the dictionaries A→Z in the picker, whatever order you arranged them in here">Alphabetical</button>
     <button type="button" class="act" id="sortOwn" aria-pressed="false" title="List the dictionaries in the picker the way you arranged them below">My order</button>
+  </span>
+  <!-- Which sections the picker offers above the names (D149). One switch per
+       section rather than one for all: a native <select> cannot fold a
+       section, so every open pays the full length, and what is worth that
+       length differs by reader - a one-language library has no use for
+       Publisher, a learner lives in Language pair. Independent toggles, so
+       not joined into one control like the pairs above. The buttons are
+       made from the sections the library actually yields; with none, the
+       row is hidden rather than offering switches that change nothing. -->
+  <span class="seg multi" id="groupSeg" role="group" aria-label="Sections the dictionary picker offers" hidden>
+    <span>Group by</span>
   </span>
 </div>
 <details id="folders">
@@ -1207,7 +1229,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false);applyGroupsOff(st.ui.groupsOff,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
     disabled=new Set(rows.filter(d=>d.off).map(d=>d.id));
@@ -1229,7 +1251,7 @@ function savePrefs(now){
   if(!prefsReady){setStatus("⚠ settings are not being saved — reload the page");return}
   if(!now){prefsTimer=setTimeout(()=>savePrefs(true),400);return}
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d),off:disabled.has(d.id)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
+    ui:{fontSize:articleFS,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,sortMine:sortOwn,groupsOff:[...groupsOff].sort()}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -1388,6 +1410,73 @@ $("hlBtn").addEventListener("click",()=>{
   if($("mode").value==="fts"&&$("q").value.trim())doSearch();
 });
 applyHL(true,false);
+/* Read aloud (D148). Off costs nothing: no listener, no fetch, no voice list.
+   On, and until a reader first selects text in an article, it costs two
+   listeners — speak.js itself, and with it the platform speech engine, is
+   fetched by that first selection and never before. After that speak.js owns
+   the listening and this gate steps aside.
+
+   Server state like hlOff and for the same reason: a reading habit follows
+   the reader to the phone. Stored negated, so the absent key is "on". */
+let speakOn=true,speakLoad=null,speakRoot=null,speakPtr="mouse";
+const speakCan=()=>"speechSynthesis" in window;
+const speakCtx={
+  // The dictionary's two languages: what its articles are written in, and
+  // what its headwords are. speak.js picks between them by script.
+  langs(id){
+    const d=dicts.find(x=>x.id===id);
+    const g=d&&(d.groups||[]).find(g=>g.f==="lang");
+    return {a:(d&&d.articleLang)||"",h:(g&&g.v)||""};
+  },
+  top(){return $("bar").getBoundingClientRect().bottom}
+};
+function speakDown(e){
+  speakPtr=e.pointerType||"mouse";
+  const host=e.composedPath().find(el=>el.classList&&el.classList.contains("article"));
+  speakRoot=(host&&host.shadowRoot)||null;
+}
+function speakSel(){
+  if(!speakRoot||!speakCan())return;
+  let t="";
+  try{t=String(speakRoot.getSelection?speakRoot.getSelection():document.getSelection()).trim()}catch(_){}
+  // Safari has no shadow-root selection and flattens the document's to the
+  // host; any non-empty selection after a press in an article is enough to
+  // fetch the script, which reads the shadow selection properly.
+  if(t||!speakRoot.getSelection&&String(document.getSelection()).trim())speakWake();
+}
+function speakGate(on){
+  const f=on?document.addEventListener:document.removeEventListener;
+  f.call(document,"pointerdown",speakDown,true);
+  f.call(document,"selectionchange",speakSel);
+}
+function speakWake(){
+  if(!speakLoad)speakLoad=new Promise((ok,no)=>{
+    const s=document.createElement("script");
+    s.src="/assets/speak.js?v={{SPEAKJS}}";
+    s.onload=()=>{
+      speakGate(false);
+      if(window.wuSpeak){window.wuSpeak.on(speakOn,speakCtx,{root:speakRoot,ptr:speakPtr});ok()}
+      else no(new Error("speak.js did not load"));
+    };
+    s.onerror=()=>{s.remove();speakLoad=null;no(new Error("speak.js did not load"))};
+    document.head.appendChild(s);
+  });
+  return speakLoad;
+}
+function applySpeak(on,save){
+  const v=!!on,moved=v!==speakOn;
+  speakOn=v;
+  const b=$("speakBtn");
+  b.setAttribute("aria-pressed",v?"true":"false");
+  b.style.color=v?"var(--accent)":"";
+  if(window.wuSpeak)window.wuSpeak.on(v);
+  else speakGate(v);
+  if(moved)for(const f of document.querySelectorAll("iframe.article"))
+    f.contentWindow&&f.contentWindow.postMessage({t:"speak",on:v},"*");
+  if(save&&moved)savePrefs();
+}
+$("speakBtn").addEventListener("click",()=>applySpeak(!speakOn,true));
+applySpeak(true,false);
 /* Which section auto-expands: the first dictionary in the user's own order
    that has a result (D142, and the default since D144), or the one that
    ANSWERS first (D73, now the opt-out). Stored as `fastFirst`, so an absent
@@ -1429,6 +1518,45 @@ function applySortOrder(on,save){
 for(const [id,want] of [["sortAZ",false],["sortOwn",true]])
   $(id).addEventListener("click",()=>applySortOrder(want,true));
 applySortOrder(false,false);
+/* Which picker sections are hidden, by facet id (D149). Server state like the
+   sort order, because it describes how this person reads the library, not the
+   device. Hiding never drops the group in force: that one option stays in the
+   picker until the reader chooses something else, so switching a section off
+   cannot silently turn their search into a different one. */
+let groupsOff=new Set();
+function applyGroupsOff(ids,save){
+  const next=new Set(Array.isArray(ids)?ids.filter(x=>typeof x==="string"&&x):[]);
+  const moved=next.size!==groupsOff.size||[...next].some(x=>!groupsOff.has(x));
+  groupsOff=next;
+  if(moved&&dicts.length)refreshDictUI(true);
+  if(save&&moved)savePrefs();
+}
+/* The switches are made from the sections the library yields, so a facet the
+   server adds tomorrow gets one with no change here. Rebuilt only when that
+   set changes: a click re-renders the picker, and a button replaced under the
+   pointer would drop keyboard focus. */
+let groupSegKey="";
+function renderGroupSeg(fs){
+  const seg=$("groupSeg"),key=fs.map(f=>f.id+"\t"+f.label).join("\n");
+  if(key!==groupSegKey){
+    groupSegKey=key;
+    seg.querySelectorAll("button").forEach(b=>b.remove());
+    for(const f of fs){
+      const b=Object.assign(document.createElement("button"),
+        {type:"button",className:"act",textContent:f.label,title:`Offer the ${f.label} groups in the dictionary picker`});
+      b.dataset.f=f.id;
+      b.addEventListener("click",()=>{
+        const next=new Set(groupsOff);
+        next.has(f.id)?next.delete(f.id):next.add(f.id);
+        applyGroupsOff([...next],true);
+      });
+      seg.appendChild(b);
+    }
+  }
+  seg.hidden=!fs.length;
+  for(const b of seg.querySelectorAll("button"))
+    b.setAttribute("aria-pressed",groupsOff.has(b.dataset.f)?"false":"true");
+}
 /* Re-run on a real change only. A policy control that visibly does nothing
    until the next query reads as broken — and pressing the half that is already
    in force is not a change, so it must not throw the answer away and rebuild
@@ -1740,7 +1868,11 @@ function refreshDictUI(now){
      knows how to search, key through and announce. A custom listbox would
      have had to re-implement all of that to gain a collapse this list is too
      short to need. */
-  const groups=facetGroups();
+  const all=facetGroups();
+  renderGroupSeg(all);
+  // A hidden section keeps only the group in force, if it is one of its own.
+  const groups=all.map(f=>groupsOff.has(f.id)?{...f,values:f.values.filter(v=>"g:"+f.id+":"+v.id===prev)}:f)
+    .filter(f=>f.values.length);
   for(const f of groups){
     const og=document.createElement("optgroup");
     og.label=f.label;
@@ -2169,7 +2301,11 @@ $("panelList").addEventListener("drop",e=>{
    searchable corpus changes under a live query, re-issue the query. */
 let panelSnap=null;
 function panelState(){return enabledOrderedIds().join("\u0000")}
-function showPanel(){panelSnap=panelState();$("panel").classList.add("show");loadFolders()}
+function showPanel(){panelSnap=panelState();
+  // Asked here, not at load: the Android shell installs its speech engine
+  // after the page has loaded (D148).
+  $("speakBtn").hidden=!speakCan();
+  $("panel").classList.add("show");loadFolders()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
   $("panel").classList.remove("show");
@@ -2822,7 +2958,7 @@ function frameDoc(content,fid,dark,dictID,frag){
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+
     ARTCSS+
     '</style><script src="/assets/pick.js?v={{PICKJS}}"><\/script><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
-    '" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
+    '" data-speak="'+(speakOn?1:0)+'" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
     /* A stylesheet written for a full page sizes html and body from the
        VIEWPORT — LDOCE's ldoce.css opens with `html, body{height:100%}`. Here the
        viewport is a frame we sized from what the frame measured, so every
@@ -2926,6 +3062,14 @@ addEventListener("message",e=>{
       s.title="This dictionary's own script failed: "+(d.msg||"script error");
       sum.appendChild(s);
     }
+  }else if(d.t==="sel"&&d.fid){
+    // A selection inside a sandboxed article (frame.js): read aloud (D148).
+    if(!speakOn)return;
+    const f=document.querySelector('iframe[data-fid="'+CSS.escape(d.fid)+'"]');
+    if(!f||e.source!==f.contentWindow)return;
+    const go=()=>window.wuSpeak.frame(f,String(d.s||""),d.r,d.p);
+    if(window.wuSpeak)go();
+    else if(d.s&&speakCan())speakWake().then(go,err=>console.warn("wudict:",err.message));
   }else if(d.t==="anchor"&&d.fid){
     // an in-article jump inside a sandboxed iframe. The iframe is sized to its
     // content and never scrolls itself, so the position it reports is relative

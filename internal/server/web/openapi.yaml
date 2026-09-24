@@ -1923,16 +1923,24 @@ components:
             and absent when nothing could be established, which is a normal
             answer. A client selects a group by intersecting the rows itself;
             there is no server-side group query.
+        articleLang:
+          type: string
+          description: >
+            ISO 639-1 code of the language the articles are written in - the
+            default voice for reading a selection aloud. Derived like groups:
+            the declared contents language, else the second code of a language
+            pair in the title, file name or an enclosing folder, else (no pair
+            anywhere) the headword language. Absent when nothing says.
       required: [id, name, format, path, entries, caps]
 
     DictGroup:
       type: object
       description: One (facet, value) membership, with the labels to show for it.
       properties:
-        f: { type: string, description: 'Facet id: lang | dir | kind | pub.' }
+        f: { type: string, description: 'Facet id: lang | pair | kind | pub.' }
         fl: { type: string, description: 'Facet label, heading the group in the picker.' }
         fo: { type: integer, description: 'Facet rank, ascending.' }
-        v: { type: string, description: 'Value id, unique within the facet.' }
+        v: { type: string, description: 'Value id, unique within the facet. For pair: two ISO 639-1 codes in code order, the same for either direction ("en-ru"), or one code for a stated monolingual pair ("es").' }
         vl: { type: string, description: 'Value label, naming the choice.' }
       required: [f, fl, fo, v, vl]
 
@@ -2058,6 +2066,20 @@ components:
             the opt-out, so that absent is the default strategy - the reader's
             own order. Remembered state for wudict's own UI - the search
             endpoint never reads it.
+        speakOff:
+          type: boolean
+          description: >
+            Turns OFF the read-aloud button shown over a text selection in an
+            article. Negated so that absent is the feature working. The voice
+            is not stored here: voices belong to the device, not the person.
+        groupsOff:
+          type: array
+          items: { type: string }
+          description: >
+            Facet ids (lang, pair, kind, pub) whose section the dictionary
+            picker hides. Absent or empty shows every section the library
+            supports. Stored de-duplicated and sorted; at most 16 ids of at
+            most 32 bytes each.
 
     Style:
       type: object

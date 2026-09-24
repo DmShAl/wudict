@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -98,6 +99,21 @@ type UIPrefs struct {
 	// dictionary answers first is a property of the collection, not of how a
 	// menu happens to be sorted.
 	SortMine bool `json:"sortMine,omitempty"`
+
+	// SpeakOff turns OFF the read-aloud button that appears over a text
+	// selection in an article. Negated like HLOff: the feature is on unless
+	// the person said otherwise. Which VOICE reads is not here - the voices
+	// are whatever the device in front of them has installed, so that choice
+	// stays in that browser's localStorage.
+	SpeakOff bool `json:"speakOff,omitempty"`
+
+	// GroupsOff lists the picker sections the person has hidden, by facet id
+	// ("pub", "kind"...; internal/facet). Negated for the same reason as the
+	// flags above: every section the library supports is shown unless the
+	// person said otherwise, and a facet added tomorrow appears without a
+	// migration. Ids are kept opaque here - the server never groups anything,
+	// and an id no facet uses any more simply hides nothing.
+	GroupsOff []string `json:"groupsOff,omitempty"`
 }
 
 // Article text-size bounds. The ceiling is deliberately past what the layout
@@ -113,15 +129,33 @@ const (
 // zeroing, because "40" is a legible statement of intent that deserves the
 // nearest size we offer, not a silent snap back to the default.
 func (u *UIPrefs) normalize() {
-	if u == nil || u.FontSize == 0 {
+	if u == nil {
 		return
 	}
-	if u.FontSize < FontSizeMin {
-		u.FontSize = FontSizeMin
+	if u.FontSize != 0 {
+		u.FontSize = max(FontSizeMin, min(FontSizeMax, u.FontSize))
 	}
-	if u.FontSize > FontSizeMax {
-		u.FontSize = FontSizeMax
+	u.GroupsOff = facetIDs(u.GroupsOff)
+}
+
+// facetIDs bounds a hand-edited or hostile groupsOff to what a facet id can
+// be: short, non-blank, unique, sorted so an unchanged set writes an unchanged
+// file. Always a fresh slice, so a stored record never shares its backing
+// array with the request it came from.
+func facetIDs(in []string) []string {
+	const maxIDs, maxLen = 16, 32
+	var out []string
+	for _, id := range in {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > maxLen || slices.Contains(out, id) {
+			continue
+		}
+		if out = append(out, id); len(out) == maxIDs {
+			break
+		}
 	}
+	slices.Sort(out)
+	return out
 }
 
 type prefsFile struct {

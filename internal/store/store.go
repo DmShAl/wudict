@@ -169,7 +169,7 @@ func Open(path string) (*Store, error) {
 		Path:         path,
 		Description:  dict.DisplayText(m["description"]),
 		IndexLang:    m["index_lang"],    // declared at ingest; "" for most formats
-		ContentsLang: m["contents_lang"], // DSL only, and absent from older libraries
+		ContentsLang: m["contents_lang"], // DSL and BGL only, and absent from older libraries
 		Header:       headerOf(m),
 	}
 	s.ftsOK = m["ingest_level"] != string(LevelHeadwords)
