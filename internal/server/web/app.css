@@ -862,6 +862,10 @@ dialog.panel-card:not([open]){display:none}
 .en:indeterminate{background:color-mix(in srgb,var(--accent) 45%,var(--line))}
 .en:indeterminate::after{transform:translateX(7px)}
 .en:disabled{opacity:.4;cursor:default}
+/* A button with nothing to do is dimmed rather than removed: the Presets row
+   keeps its shape, and the reader learns where the control lives instead of
+   watching it appear. */
+.btn:disabled{opacity:.45;cursor:default}
 .en:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .pd .meta{color:var(--fg-faint);font-size:11.5px;margin:.15em 0 .3em}
 .pd .feat{display:inline-block;border:1px solid var(--line);border-radius:99px;

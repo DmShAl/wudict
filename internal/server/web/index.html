@@ -314,13 +314,15 @@ window.wudictShellBackground = function (color, image, imageName) {
     <span class="rowlabel" id="looksLabel">Presets</span>
     <button type="button" class="choice-btn" id="looksChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="looksLabel"></button>
     <div class="choice-menu menu-card" id="looksMenu" role="listbox" aria-labelledby="looksLabel" data-w="anchor" hidden></div>
-    <!-- The one thing the drop-down cannot say: the screen has drifted from the
-         look in force, and the change exists nowhere. Two labels, because the
-         two answers differ - a look the reader owns can be overwritten, a
-         built-in cannot (a "Clean" that means something else is worse than no
-         Clean at all), and neither can nothing at all, which is what "Custom"
-         is. Shown only while there is something to save. -->
-    <button type="button" class="btn" id="looksSaveBtn" hidden></button>
+    <!-- The row's two actions, to the LEFT of the answer they act on: they
+         save what is on screen, and the answer beside them says what that
+         would become. Disabled and never hidden - the row keeps its shape, and
+         a control that comes and goes has to be found again.
+         "Update" only exists for a look the reader owns: a built-in cannot be
+         overwritten, because a "Clean" that means something else is worse than
+         no Clean at all. -->
+    <button type="button" class="btn" id="looksSaveAsBtn" disabled>Save as…</button>
+    <button type="button" class="btn" id="looksUpdateBtn" hidden disabled>Update</button>
   </div>
   <!-- The size stepper is adjusted WHILE reading, so it stays on the panel
        rather than behind the Appearance door — the promise the old layout made

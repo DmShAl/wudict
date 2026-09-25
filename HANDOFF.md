@@ -2154,3 +2154,64 @@ SAME file in both slots, so "works in both themes" is written down.
   regex with DOTALL matched from one loop to another function's closing brace
   and silently deleted four functions. Write the file, then check with
   `grep -c` that the functions are still there and the page still boots.
+
+## Two fixes on the Presets row (2026-09-25, from the reader)
+
+- **The button is disabled, not hidden**, when the screen matches the look in
+  force. Hidden was my first shape and it moved the drop-down beside it every
+  time the reader touched a stepper - a control that comes and goes has to be
+  found again. The label is the same whether or not there is anything to save
+  (it names the ANSWER: "Update current preset" for the reader's own look,
+  "Save preset as new" for a built-in or for nothing at all), and a disabled
+  click does nothing. `.btn:disabled` is dimmed in app.css, the same idea as
+  the font stepper's `.lim`.
+- **A look applied AT NIGHT was writing its halves into the wrong slots.**
+  `looksPushShell` walked `[[here, half.light], [!here, half.dark]]` - by the
+  theme on screen - instead of each half into its own slot. So Sepia applied at
+  night put its LIGHT half (colour enabled, #F4ECD8) into the NIGHT slot: the
+  reader reported exactly that, "at night the Color checkbox is ticked in the
+  Background tab", and the anti-clockwise half of the same bug put the night
+  half into the day. Now `[[false, half.light], [true, half.dark]]`, and a look
+  applied in either theme lands the same way.
+- Verified on the device, in both directions: applied while the app was in the
+  DARK theme, the light slot got `colorEnabled true` and the night slot
+  `false` with the sheet's Color checkbox off and no background image - the
+  night is Clean's, which is what the reader asked for from the start; applied
+  in the day, the checkbox is on. Then the button: saving through it turns it
+  disabled, a tap on the stepper turns it enabled, "Update current preset"
+  folds the change in and disables it again.
+- One thing worth knowing about the button: its state is only as fresh as the
+  last check, and the check runs at three moments (the panel opening, a change
+  the panel itself saved, the sheet closing). A change made while the panel is
+  closed - only reachable through the sheet - is answered when the panel is
+  opened, which is the moment the reader can see the button again.
+
+## The Presets row, as the reader specified it (2026-09-25)
+
+- **The bug behind "I switched to Clean and Save as was still active"**: the
+  drift check ran BEFORE the page put the new state on itself. `looksApplied`
+  drew the row (which asked) and only then pushed the shell's backdrop and the
+  size and weight - so the server compared the OLD screen with the look that
+  had just been applied and answered "changed" for a screen that already
+  matched. The check is the LAST thing an apply does now, after the push, the
+  font and the sheet reload; a load asks once the list is in, and nothing else
+  asks on the reader's behalf.
+- **The row has two buttons to the LEFT of the answer**, and the words say what
+  the state is:
+
+  | the screen | the drop-down | Save as… | Update |
+  |---|---|---|---|
+  | matches the look in force | the look's name | disabled | disabled (hidden for a built-in) |
+  | changed, built-in in force | **Custom** | enabled | hidden |
+  | changed, the reader's own look | the look's name | enabled | enabled |
+  | nothing in force | Custom | enabled | hidden |
+
+  "Custom" also means nothing is ticked in the menu: a tick on Clean beside the
+  word Custom is two answers to one question. A built-in has no Update because
+  a "Clean" that means something else is worse than no Clean at all, and the
+  reader's own look keeps its NAME while it is changed - that is what makes
+  "fold the change back into it" a thing they can do.
+- Verified on the device, all four rows of that table: Clean applied from the
+  menu → both disabled; a tap on the stepper → "Custom" with Save as… enabled
+  and no Update; saved as a look → the name with both disabled; a tap → both
+  enabled; Update → both disabled again.

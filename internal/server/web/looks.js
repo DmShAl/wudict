@@ -81,8 +81,11 @@ function looksShellNow() {
    is what says whether the colour is in use. */
 function looksPushShell(half) {
   if (!half || !window.wudictNativeShell) return;
-  const here = themeIsDark();
-  for (const [night, side] of [[here, half.light], [!here, half.dark]]) {
+  // Each half goes to the slot it belongs to, NOT to whichever theme happens
+  // to be on screen: a look applied at night was writing its LIGHT half into
+  // the night slot, which is how Sepia came to have the colour checkbox ticked
+  // at night - the one place its look says nothing.
+  for (const [night, side] of [[false, half.light], [true, half.dark]]) {
     if (!side) continue;
     appearanceRequest({ action: "set", night, field: "colorEnabled", value: !!side.colorEnabled });
     if (side.color) appearanceRequest({ action: "set", night, field: "color", value: side.color });
@@ -96,6 +99,32 @@ function looksPushShell(half) {
 
 // ── the row ──────────────────────────────────────────────────────────────
 
+/* The row, drawn from two facts: which look is in force, and whether the
+   screen still matches it. The second one is what the words depend on.
+   - It matches: the answer IS that look, whoever it belongs to.
+   - It does not, and the look is the reader's own: the name still stands,
+     because the reader can fold the change straight back into it ("Update").
+   - It does not, and the look is a built-in - or nothing is in force at all:
+     the answer is not that look any more, and "Custom" says so. Nothing is
+     ticked then either, because a tick on Clean beside the word Custom is two
+     answers to one question.
+   The two buttons beside the words are the actions they leave open, and both
+   are disabled rather than hidden: the row keeps its shape, and a control that
+   comes and goes has to be found again. */
+function looksRowRender() {
+  if (!LOOKS) return;
+  const cur = LOOKS.looks.find((l) => l.id === LOOKS.current) || null;
+  const custom = !cur || (LOOKS.currentDrifted && cur.builtin);
+  looksChoice.set(custom ? -1 : LOOKS.looks.indexOf(cur));
+  if (custom) looksEl("looksChoice").textContent = "Custom";
+
+  const save = looksEl("looksSaveAsBtn"), upd = looksEl("looksUpdateBtn");
+  // Update exists only where it can work: a look the reader owns.
+  upd.hidden = !cur || cur.builtin;
+  save.disabled = !LOOKS.currentDrifted;
+  upd.disabled = !LOOKS.currentDrifted;
+}
+
 function looksRender() {
   if (!LOOKS) return;
   LOOK_LABELS.length = 0;
@@ -106,14 +135,7 @@ function looksRender() {
   }
   for (const l of LOOKS.looks) LOOK_LABELS.push(l.name);
   LOOK_LABELS.push(LOOK_SAVE_LABEL);
-  const at = LOOKS.looks.findIndex((l) => l.id === LOOKS.current);
-  // Nothing in force is NOT the first look: it is a state this list does not
-  // name, which is what "Custom" says. -1 is the menu's "tick nothing" - a
-  // tick on Clean beside the word Custom is two answers to one question -
-  // and the label is then written here, because set() has no text to give it.
-  looksChoice.set(at);
-  if (at < 0) looksEl("looksChoice").textContent = "Custom";
-  looksCheckDrift();
+  looksRowRender();
 }
 
 async function looksLoad() {
@@ -124,6 +146,7 @@ async function looksLoad() {
     return;
   }
   looksRender();
+  await looksCheckDrift();
 }
 
 function looksLabelFor(id) {
@@ -153,14 +176,18 @@ async function looksApply(id) {
 
 async function looksApplied(answer) {
   LOOKS = answer.payload;
-  looksRender();
+  // The PAGE's own halves go back FIRST: the backdrop over the bridge, and the
+  // size and the weight onto the element - the server's copy of those is a
+  // file, and neither the stepper nor the article's custom property reads one.
+  // The drift check runs LAST, on purpose: it compares what is on screen with
+  // what the look says, and run before these it compared the OLD screen and
+  // left the buttons enabled for a state that already matched.
   looksPushShell(answer.shell);
-  // The size and the weight of the look, onto the page itself: the server's
-  // copy of them is a file, and neither the stepper nor the article's custom
-  // property reads a file.
   if (answer.fontSize !== undefined) applyFS(answer.fontSize, false);
   if (answer.fontWeight !== undefined) applyFW(answer.fontWeight, false);
   await looksReloadSheets();
+  await looksCheckDrift();
+  looksRender();
   const name = looksLabelFor(answer.applied);
   setStatus("Presets: “" + name + "” applied");
   setTimeout(() => setStatus(""), 2600);
@@ -274,25 +301,20 @@ async function looksSaveSubmit() {
    thing the drop-down cannot say: which of the two answers applies to what is
    on screen. */
 async function looksCheckDrift() {
-  const btn = looksEl("looksSaveBtn");
-  if (!LOOKS || !LOOKS.writable) { btn.hidden = true; return; }
+  if (!LOOKS || !LOOKS.writable) return;
   let answer;
   try {
     answer = await looksFetch("/api/looks/apply", "POST",
       Object.assign({ dry: true }, looksNow()));
   } catch (e) {
-    btn.hidden = true;
+    // A check that cannot run leaves the row inert rather than lying: the words
+    // stay as the last answer left them, and nothing is offered.
+    LOOKS.currentDrifted = false;
+    looksRowRender();
     return;
   }
-  const drifted = !!answer.drifted;
-  btn.hidden = !drifted;
-  if (!drifted) return;
-  const cur = answer.current || {};
-  // A built-in cannot be overwritten and neither can nothing at all: both mean
-  // "this is yours, give it a name".
-  const own = !!cur.id && !cur.builtin;
-  btn.textContent = own ? "Update current preset" : "Save preset as new";
-  btn.dataset.own = own ? "1" : "";
+  LOOKS.currentDrifted = !!answer.drifted;
+  looksRowRender();
 }
 
 /* The action the ask dialog's Update button performs, on its own: the panel's
@@ -336,15 +358,16 @@ looksEl("lookSaveForm").onsubmit = (e) => {
   looksSaveSubmit();
 };
 looksEl("lookCancel").onclick = () => looksEl("lookSaveDialog").close();
-looksEl("looksSaveBtn").onclick = async () => {
-  if (looksEl("looksSaveBtn").dataset.own && looksCurrentID()) {
-    await looksUpdateCurrent();
-    return;
-  }
-  // Nothing in force, or a built-in: there is nothing to overwrite, so the
-  // name is the only question left.
+looksEl("looksSaveAsBtn").onclick = () => {
+  if (looksEl("looksSaveAsBtn").disabled) return;
+  // A name is the only question: "Save as" makes a look, it never changes the
+  // one in force.
   looksPending = null;
   looksOpenSave("");
+};
+looksEl("looksUpdateBtn").onclick = async () => {
+  if (looksEl("looksUpdateBtn").disabled) return;
+  await looksUpdateCurrent();
 };
 looksEl("lookAskUpdate").onclick = looksAskUpdate;
 looksEl("lookAskSaveAs").onclick = () => {
