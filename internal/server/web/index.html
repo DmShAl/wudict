@@ -757,6 +757,10 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
    follow the theme, which is exactly what emoji could not do. */
 .facts .act svg{width:14px;height:14px;flex:none;color:var(--fg-faint)}
 .facts .act:hover svg{color:var(--fg-soft)}
+/* Read aloud off: the same speaker, silent. Only the waves go; the svg keeps
+   its fixed 14px box (flex:none above), and the cone stays where it was
+   inside it, so neither the glyph nor the label shifts on toggle. */
+#speakBtn[aria-pressed="false"] .wave{display:none}
 /* It belongs with the other things you came to this drawer to DO, so it wears
    the row's chrome — but it still reveals a choice rather than performing one,
    and it keeps the ▸/▾ every other disclosure in this app uses (#folders,
@@ -1054,7 +1058,7 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
        system voice (D148). Here because it costs nothing until a reader
        selects something, and a reader who never wants it should be able to
        make the offer stop appearing. Hidden where the browser cannot speak. -->
-  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.8a3 3 0 0 1 0 4.4"/><path d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
+  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
