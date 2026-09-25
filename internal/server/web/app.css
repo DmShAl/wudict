@@ -220,6 +220,12 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
 #status>.msg{overflow:hidden;min-height:0}
 #status .txt{padding:var(--sp-2) 0}
 #status.show{grid-template-rows:1fr;opacity:1}
+/* The line under the editor that names the FILE being edited. Small and faint
+   like the sheet's other reference text, and never hidden: it answers "which
+   of the four boxes is this" at the moment the reader is typing, which is
+   exactly when the placeholder above has already gone. */
+#stylerFile{font-size:11px;line-height:1.4;color:var(--fg-faint);padding:.25em .1em 0}
+
 #status[hidden]{display:none}
 /* one spinner, two homes: inline in #status, and large in the startup
    panel below (.empty) while the dictionary list is still arriving */
@@ -1009,11 +1015,18 @@ dialog.panel-card:not([open]){display:none}
 /* The pair is read as one column with the reading strip's pairs below it, so
    the label column is the same 96px theirs is — the whole panel then has ONE
    control column, which is what "like the font controls" means when the rows
-   are read down the sheet. Scoped to the rows that hold a stepper: no other
-   `.facts` row has a `.rowlabel` at all. */
-.facts:has(>#fsCtl)>.rowlabel,.facts:has(>#fwCtl)>.rowlabel{
+   are read down the sheet. Scoped to the rows that hold a stepper, and to the
+   Presets row, which is the third of them: no other `.facts` row in the panel
+   has a `.rowlabel` at all. */
+.facts:has(>#fsCtl)>.rowlabel,.facts:has(>#fwCtl)>.rowlabel,
+.facts:has(>#looksChoice)>.rowlabel{
   flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
+/* The Presets row's control is the app's drawn menu, which is a .choice-btn
+   and so carries the sheet's `width:100%`: here the row is a label and an
+   answer on one line, so it takes the width of the ANSWER - the current look's
+   name - and never less than the longest of the built-in ones. */
+.facts:has(>#looksChoice)>#looksChoice{width:auto;flex:0 1 auto;min-width:9em}
 #fsCtl,#fwCtl{flex:none;display:flex;align-items:center;gap:2px}
 #fsCtl button,#fwCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;

@@ -57,23 +57,62 @@ type preset struct {
 	// active - it has nothing to show otherwise, exactly like the old menu
 	// item it replaces.
 	RequiresImage bool
-	// Theme names the theme this preset is FOR: "light", "dark", or "" for one
-	// that belongs to neither. It is the presets' half of the same idea the
-	// two stylesheet pairs carry - a look is per theme - and it changes
-	// exactly one thing: the radio rule. Two presets in one group but in
-	// DIFFERENT themes no longer switch each other off, because they are not
-	// competing for the same surface: each applies in its own theme, which the
-	// preset's own CSS already decides (html[data-dark] and its inverse). So
-	// "Sepia by day, True black by night" needs no switching logic at all -
-	// both are simply on, and neither is a lie at any moment.
-	Theme string
-	// App / Article name the files inside Dir; "" when the preset has no
-	// half for that scope.
-	App, Article string
+	// App / Article name the DAY files inside Dir; AppNight / ArticleNight the
+	// NIGHT ones; "" when the preset has no half for that scope.
+	//
+	// WHICH THEME A HALF BELONGS TO IS THE FILE'S NAME, not a selector inside
+	// it. The theme is decided by which file is linked, so there is no guard to
+	// forget and no `data-theme` to get wrong - and that mistake is what this
+	// replaced: a guard reading "the reader pinned dark by hand" while the page
+	// was dark under Auto, which let a light preset's inks onto a dark page.
+	//
+	// A preset with a day half and no night half applies by day and does
+	// NOTHING at night. One with both applies in both, each half in its own
+	// theme. A preset that belongs to neither theme names the SAME file in
+	// both slots, so "works in both themes" is written down rather than
+	// implied.
+	App, Article           string
+	AppNight, ArticleNight string
 
-	appCSS, articleCSS     []byte
-	appTag, articleTag     string
-	appURL, articleURL     string
+	appCSS, articleCSS           []byte
+	appTag, articleTag           string
+	appURL, articleURL           string
+	appNightCSS, articleNightCSS []byte
+	appNightTag, articleNightTag string
+	appNightURL, articleNightURL string
+}
+
+// competes is the radio rule's question: do these two presets claim the same
+// surface? Inside a group it is the THEME that decides, and the test is
+// whether the two overlap - a day preset and a night one never compete, since
+// each applies in its own theme, while a preset that covers both competes
+// with either. Equality was the old test and it was too weak: "background"
+// and "sepia" could both be on, and both of them paint the paper.
+func (p *preset) competes(o *preset) bool {
+	if p.Dir != o.Dir {
+		return false
+	}
+	day := func(x *preset) bool { return x.appCSS != nil || x.articleCSS != nil }
+	night := func(x *preset) bool { return x.appNightCSS != nil || x.articleNightCSS != nil }
+	return (day(p) && day(o)) || (night(p) && night(o))
+}
+
+// Theme is DERIVED from the slots, never declared. A manifest that says one
+// thing while its files do another is the class of bug this replaced:
+// high_contrast was declared for both themes and guarded to the light one, so
+// the pane offered it at night and it did nothing there.
+func (p *preset) Theme() string {
+	day := p.appCSS != nil || p.articleCSS != nil
+	night := p.appNightCSS != nil || p.articleNightCSS != nil
+	switch {
+	case day && night:
+		return "both"
+	case night:
+		return "dark"
+	case day:
+		return "light"
+	}
+	return ""
 }
 
 type presetGroup struct {
@@ -82,7 +121,7 @@ type presetGroup struct {
 }
 
 var (
-	presetOnce  sync.Once
+	presetOnce   sync.Once
 	presetGroups []*presetGroup
 	presetIndex  map[string]*preset
 )
@@ -96,12 +135,12 @@ func presetRegistry() ([]*presetGroup, map[string]*preset) {
 		var man struct {
 			Groups []struct {
 				Dir, Title string
-					Presets    []struct {
-						ID, Title, Desc string
-						RequiresImage   bool
-						Theme           string
-						App, Article    string
-					}
+				Presets    []struct {
+					ID, Title, Desc        string
+					RequiresImage          bool
+					App, Article           string
+					AppNight, ArticleNight string
+				}
 			} `json:"groups"`
 		}
 		if err := json.Unmarshal(presetManifest, &man); err != nil {
@@ -116,8 +155,8 @@ func presetRegistry() ([]*presetGroup, map[string]*preset) {
 				preset := &preset{
 					ID: p.ID, Title: p.Title, Desc: p.Desc,
 					Dir: g.Dir, RequiresImage: p.RequiresImage,
-					Theme: p.Theme,
-					App:   p.App, Article: p.Article,
+					App: p.App, Article: p.Article,
+					AppNight: p.AppNight, ArticleNight: p.ArticleNight,
 				}
 				load := func(name string) ([]byte, string, string) {
 					if name == "" {
@@ -134,7 +173,10 @@ func presetRegistry() ([]*presetGroup, map[string]*preset) {
 				}
 				preset.appCSS, preset.appTag, preset.appURL = load(preset.App)
 				preset.articleCSS, preset.articleTag, preset.articleURL = load(preset.Article)
-				if preset.appCSS == nil && preset.articleCSS == nil {
+				preset.appNightCSS, preset.appNightTag, preset.appNightURL = load(preset.AppNight)
+				preset.articleNightCSS, preset.articleNightTag, preset.articleNightURL = load(preset.ArticleNight)
+				if preset.appCSS == nil && preset.articleCSS == nil &&
+					preset.appNightCSS == nil && preset.articleNightCSS == nil {
 					continue
 				}
 				group.Presets = append(group.Presets, preset)
@@ -237,14 +279,33 @@ func (s *Server) presetLinksHTML() string {
 	groups, _ := presetRegistry()
 	for _, g := range groups {
 		for _, p := range g.Presets {
-			if !on[p.ID] || p.appCSS == nil {
+			if !on[p.ID] {
 				continue
 			}
-			b.WriteString(`<link rel="stylesheet" data-preset="`)
-			b.WriteString(p.ID)
-			b.WriteString(`" href="`)
-			b.WriteString(p.appURL)
-			b.WriteString(`">` + "\n")
+			// Both halves of a paired preset, each marked with the theme it
+			// belongs to. The server does not know which theme this page will
+			// resolve to - that is localStorage's business - so it writes both
+			// and the page enables the one that applies, exactly as the
+			// reader's own two sheets are linked.
+			for _, half := range []struct {
+				css  []byte
+				url  string
+				attr string
+			}{
+				{p.appCSS, p.appURL, ""},
+				{p.appNightCSS, p.appNightURL, " data-night"},
+			} {
+				if half.css == nil {
+					continue
+				}
+				b.WriteString(`<link rel="stylesheet" data-preset="`)
+				b.WriteString(p.ID)
+				b.WriteString(`"`)
+				b.WriteString(half.attr)
+				b.WriteString(` href="`)
+				b.WriteString(half.url)
+				b.WriteString(`">` + "\n")
+			}
 		}
 	}
 	return b.String()
@@ -271,14 +332,23 @@ func (s *Server) presetPayload() map[string]any {
 				"title":         p.Title,
 				"desc":          p.Desc,
 				"requiresImage": p.RequiresImage,
-				"theme":         p.Theme,
+				"theme":         p.Theme(),
 				"enabled":       on[p.ID],
 			}
-			if p.appCSS != nil {
-				row["app"] = map[string]string{"url": p.appURL, "css": string(p.appCSS)}
-			}
-			if p.articleCSS != nil {
-				row["article"] = map[string]string{"url": p.articleURL, "css": string(p.articleCSS)}
+			// Every half the preset has, each with the URL the page needs to
+			// attach it and the text it needs to compose the article layer.
+			for key, half := range map[string]struct {
+				css []byte
+				url string
+			}{
+				"app":          {p.appCSS, p.appURL},
+				"article":      {p.articleCSS, p.articleURL},
+				"appNight":     {p.appNightCSS, p.appNightURL},
+				"articleNight": {p.articleNightCSS, p.articleNightURL},
+			} {
+				if half.css != nil {
+					row[key] = map[string]string{"url": half.url, "css": string(half.css)}
+				}
 			}
 			presets = append(presets, row)
 		}
@@ -331,7 +401,7 @@ func (s *Server) handlePresetSave(w http.ResponseWriter, r *http.Request) {
 		// theme at all, simply never find a mate to switch off.
 		next := make([]string, 0, len(enabled)+1)
 		for _, id := range enabled {
-			if other, ok := index[id]; ok && other.Dir == p.Dir && other.Theme == p.Theme {
+			if other, ok := index[id]; ok && other.competes(p) {
 				continue
 			}
 			next = append(next, id)

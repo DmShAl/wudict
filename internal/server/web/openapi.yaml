@@ -1276,6 +1276,164 @@ paths:
         '500':
           description: The state file could not be written.
 
+  /api/looks:
+    get:
+      tags: [internal]
+      operationId: listLooks
+      x-internal: true
+      summary: The saved appearances, and which one is in force
+      description: >
+        A look is the whole Appearance sheet under a name: the article's size
+        and weight, which built-in preset layers are on, the window's colour
+        and wallpaper per theme, what the screen margins and the bars do, and
+        the reader's own stylesheets. Three ship with the app - Clean, Sepia
+        and Old paper - and the reader can save their own beside them.
+
+
+        Only names are listed. A look's state is the server's to read - the
+        four stylesheets it speaks for are files, not fields a menu needs -
+        and `current` is the look in force, empty when none has been applied
+        yet. `writable` is false when there is no config directory, and the
+        row says so instead of offering a list that cannot stick.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s 'http://127.0.0.1:6888/api/looks' | jq -r '.looks[].name'
+      responses:
+        '200':
+          description: The looks, with `current` and `writable`.
+    post:
+      tags: [internal]
+      operationId: saveLook
+      x-internal: true
+      summary: Save what is on screen now under a name
+      description: >
+        The state is assembled by the server: the settings and the four
+        stylesheets it owns, plus the shell's half as the client sends it -
+        the backdrop of each theme, the margin mode and colour, the bar mask.
+        A client with no shell (a browser) simply omits `shell`, and the look
+        it saves is a look with no backdrop.
+
+
+        The new look becomes the one in force, because it IS what is in force.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, description: 1–100 characters, no control characters. }
+                shell: { type: object, description: The shell's half, as the client sees it. }
+      responses:
+        '200':
+          description: The looks, as stored after the save.
+        '400':
+          description: The body is not valid JSON, or the name is empty or too long.
+        '409':
+          description: A look with this name exists, or there is no config directory.
+        '500':
+          description: The state file could not be written.
+    put:
+      tags: [internal]
+      operationId: updateLook
+      x-internal: true
+      summary: Replace a saved look with what is on screen now
+      description: >
+        "Save my changes into this one." Built-in looks are refused: they are
+        the app's, and a look called "Clean" that means something else is
+        worse than no look at all.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, description: The look's id. }
+                shell: { type: object, description: The shell's half, as the client sees it. }
+      responses:
+        '200':
+          description: The looks, as stored after the change.
+        '404':
+          description: No such look.
+        '409':
+          description: The look is built in, or there is no config directory.
+        '500':
+          description: The state file could not be written.
+    delete:
+      tags: [internal]
+      operationId: deleteLook
+      x-internal: true
+      summary: Forget a saved look
+      description: >
+        The built-ins cannot be deleted. Deleting the look in force leaves
+        nothing in force, which is honest: what is on screen came from
+        somewhere the reader has just thrown away.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, description: The look's id. }
+      responses:
+        '200':
+          description: The looks, as stored after the deletion.
+        '404':
+          description: No such look.
+        '409':
+          description: The look is built in.
+        '500':
+          description: The state file could not be written.
+
+  /api/looks/apply:
+    post:
+      tags: [internal]
+      operationId: applyLook
+      x-internal: true
+      summary: Put a look on, asking first when something unsaved would go
+      description: >
+        Two passes over one endpoint. With `confirm` false the server only
+        ANSWERS: `needsConfirm` says whether the screen has drifted from the
+        look in force, which is the client's cue to offer saving it first.
+        Nothing is written on that pass, which is what makes the question safe
+        to ask on every switch. With `confirm` true the look is written and
+        `shell` comes back for the client to push into the shell it owns.
+
+
+        Re-applying the look already in force is never a question: that is the
+        "put it back how it was" gesture, and it has no doubt in it. Every
+        field counts in the comparison - the stylesheets included - because an
+        apply restores all of them and none can be guessed back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, description: The look's id. }
+                confirm: { type: boolean, description: Apply rather than ask. }
+                shell: { type: object, description: The shell's half, as the client sees it now. }
+      responses:
+        '200':
+          description: >
+            Either `needsConfirm` with the look in force, or `applied` with the
+            shell half to push.
+        '404':
+          description: No such look.
+        '409':
+          description: There is no config directory to write to.
+        '500':
+          description: A file could not be written.
+
   /api/files:
     get:
       tags: [internal]

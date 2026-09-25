@@ -9,15 +9,15 @@
           "title": "Background image",
           "desc": "The shell's background image and paper colour behind the app and every article.",
           "requiresImage": true,
-          "theme": "both",
           "app": "background_image_app.css",
-          "article": "background_image_article.css"
+          "article": "background_image_article.css",
+          "appNight": "background_image_app_night.css",
+          "articleNight": "background_image_article_night.css"
         },
         {
           "id": "sepia",
           "title": "Sepia",
           "desc": "Warm sepia paper everywhere: #f4ecd8 in the app, lighter paper in articles.",
-          "theme": "light",
           "app": "sepia_app.css",
           "article": "sepia_article.css"
         },
@@ -25,15 +25,13 @@
           "id": "true_black",
           "title": "True black",
           "desc": "OLED black chrome; in dark mode articles flip to white on black.",
-          "theme": "dark",
-          "app": "true_black_app.css"
+          "appNight": "true_black_app_night.css"
         },
         {
           "id": "warm_dark",
           "title": "Warm dark",
           "desc": "Dark mode in warm browns instead of grey.",
-          "theme": "dark",
-          "app": "warm_dark_app.css"
+          "appNight": "warm_dark_app_night.css"
         }
       ]
     },
@@ -59,7 +57,9 @@
           "title": "Wider column",
           "desc": "The wide reading column on every launch, not just for one session.",
           "app": "wider_column_app.css",
-          "article": "wider_column_article.css"
+          "article": "wider_column_article.css",
+          "appNight": "wider_column_app.css",
+          "articleNight": "wider_column_article.css"
         }
       ]
     },
@@ -72,7 +72,9 @@
           "title": "Compact",
           "desc": "Phone fit: the app's side gutters go, and articles give back their desktop margins and stop dragging sideways.",
           "app": "compact_app.css",
-          "article": "compact_article.css"
+          "article": "compact_article.css",
+          "appNight": "compact_app.css",
+          "articleNight": "compact_article.css"
         }
       ]
     },
@@ -84,7 +86,8 @@
           "id": "quieter_results",
           "title": "Quieter results",
           "desc": "Less furniture around the results: no card borders, result counts or provenance block.",
-          "app": "quieter_results_app.css"
+          "app": "quieter_results_app.css",
+          "appNight": "quieter_results_app.css"
         }
       ]
     },
@@ -96,7 +99,8 @@
           "id": "roomier_lines",
           "title": "Roomier lines",
           "desc": "Articles set like prose: taller lines and air between paragraphs.",
-          "article": "roomier_lines_article.css"
+          "article": "roomier_lines_article.css",
+          "articleNight": "roomier_lines_article.css"
         }
       ]
     },
@@ -109,21 +113,27 @@
           "title": "Serif font",
           "desc": "A serif face (Georgia) for the app and for dictionary text.",
           "app": "serif_app.css",
-          "article": "serif_article.css"
+          "article": "serif_article.css",
+          "appNight": "serif_app.css",
+          "articleNight": "serif_article.css"
         },
         {
           "id": "condensed",
           "title": "Condensed",
           "desc": "A narrow face - more of a long entry per line, at the same size.",
           "app": "condensed_app.css",
-          "article": "condensed_article.css"
+          "article": "condensed_article.css",
+          "appNight": "condensed_app.css",
+          "articleNight": "condensed_article.css"
         },
         {
           "id": "light",
           "title": "Light",
           "desc": "The light cut of the system font: thinner strokes, a quieter page.",
           "app": "light_app.css",
-          "article": "light_article.css"
+          "article": "light_article.css",
+          "appNight": "light_app.css",
+          "articleNight": "light_article.css"
         }
       ]
     },
@@ -136,7 +146,9 @@
           "title": "Bolder text",
           "desc": "A hair of extra weight for screens where the type looks washed out.",
           "app": "bolder_text_app.css",
-          "article": "bolder_text_article.css"
+          "article": "bolder_text_article.css",
+          "appNight": "bolder_text_app.css",
+          "articleNight": "bolder_text_article.css"
         }
       ]
     },
@@ -148,7 +160,8 @@
           "id": "justified_text",
           "title": "Justified text",
           "desc": "Articles justified, hyphenated where the dictionary declares a language.",
-          "article": "justified_text_article.css"
+          "article": "justified_text_article.css",
+          "articleNight": "justified_text_article.css"
         }
       ]
     },
@@ -160,7 +173,8 @@
           "id": "wide_tables",
           "title": "Wide tables",
           "desc": "Conjugation tables scroll inside themselves instead of widening the article.",
-          "article": "wide_tables_article.css"
+          "article": "wide_tables_article.css",
+          "articleNight": "wide_tables_article.css"
         }
       ]
     },
@@ -172,7 +186,8 @@
           "id": "dictionary_roles",
           "title": "Dictionary roles",
           "desc": "Colour and style for the parts wudict labels in DSL and XDXF articles: parts of speech, examples, transcriptions.",
-          "article": "dictionary_roles_article.css"
+          "article": "dictionary_roles_article.css",
+          "articleNight": "dictionary_roles_article.css"
         }
       ]
     },
@@ -184,7 +199,8 @@
           "id": "quiet_examples",
           "title": "Quiet examples",
           "desc": "Examples in the text colour instead of blue, one size down.",
-          "article": "quiet_examples_article.css"
+          "article": "quiet_examples_article.css",
+          "articleNight": "quiet_examples_article.css"
         }
       ]
     },
@@ -196,7 +212,8 @@
           "id": "tighter_indents",
           "title": "Tighter indents",
           "desc": "DSL nesting indents at half depth.",
-          "article": "tighter_indents_article.css"
+          "article": "tighter_indents_article.css",
+          "articleNight": "tighter_indents_article.css"
         }
       ]
     }

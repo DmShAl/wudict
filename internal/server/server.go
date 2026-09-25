@@ -77,6 +77,9 @@ var groupEditorCSS []byte // dictionary group editor styles
 //go:embed web/group-editor.js
 var groupEditorJS []byte // dictionary group editor
 
+//go:embed web/looks.js
+var looksJS []byte // saved appearances: the Presets row, its menu and its windows
+
 //go:embed web/double-tap-probe.html
 var doubleTapProbe []byte // temporary Android gesture diagnostic
 //go:embed web/speak.js
@@ -396,6 +399,7 @@ func (s *Server) basePage() []byte {
 		page = strings.ReplaceAll(page, "{{HISTORYJS}}", assetTag(historyJS))
 		page = strings.ReplaceAll(page, "{{GROUPCSS}}", assetTag(groupEditorCSS))
 		page = strings.ReplaceAll(page, "{{GROUPJS}}", assetTag(groupEditorJS))
+		page = strings.ReplaceAll(page, "{{LOOKSJS}}", assetTag(looksJS))
 		page = strings.ReplaceAll(page, "{{PICKJS}}", assetTag(pickJS))
 		page = strings.ReplaceAll(page, "{{SPEAKJS}}", assetTag(speakJS))
 		// The role stylesheet for articles wudict writes itself

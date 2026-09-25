@@ -105,6 +105,16 @@ func (s *Server) routes() []route {
 		// the reader's own styling state.
 		{"GET", "/api/presets", s.handlePresets, "/api/presets", false},
 		{"PUT", "/api/presets", s.handlePresetSave, "/api/presets", false},
+		// saved appearances (looks.go): the whole Appearance sheet under a
+		// name - the list the drop-down draws, saving what is on screen,
+		// overwriting one, forgetting one, and applying one. Never CORS:
+		// every one of them reads the reader's own styling state, and all but
+		// the list write into the config folder.
+		{"GET", "/api/looks", s.handleLooks, "/api/looks", false},
+		{"POST", "/api/looks", s.handleLookSave, "/api/looks", false},
+		{"PUT", "/api/looks", s.handleLookUpdate, "/api/looks", false},
+		{"DELETE", "/api/looks", s.handleLookDelete, "/api/looks", false},
+		{"POST", "/api/looks/apply", s.handleLookApply, "/api/looks/apply", false},
 		// "I picked this one": prepare it now, before a query exists
 		// (demand.go). Never CORS - it starts work and writes to the library.
 		{"POST", "/api/demand", s.handleDemand, "/api/demand", false},
@@ -177,6 +187,7 @@ func (s *Server) routes() []route {
 		{"GET", "/assets/history.js", serveAsset("application/javascript; charset=utf-8", historyJS), "", false},
 		{"GET", "/assets/group-editor.css", serveAsset("text/css; charset=utf-8", groupEditorCSS), "", false},
 		{"GET", "/assets/group-editor.js", serveAsset("application/javascript; charset=utf-8", groupEditorJS), "", false},
+		{"GET", "/assets/looks.js", serveAsset("application/javascript; charset=utf-8", looksJS), "", false},
 		{"GET", "/assets/pick.js", serveAsset("application/javascript; charset=utf-8", pickJS), "", false},
 		{"GET", "/assets/speak.js", serveAsset("application/javascript; charset=utf-8", speakJS), "", false},
 		{"GET", "/assets/setup.css", serveAsset("text/css; charset=utf-8", setupCSS), "", false},

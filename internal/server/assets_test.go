@@ -36,6 +36,7 @@ func TestScriptsAreContentAddressed(t *testing.T) {
 		{"/assets/history.js", historyJS},
 		{"/assets/group-editor.css", groupEditorCSS},
 		{"/assets/group-editor.js", groupEditorJS},
+		{"/assets/looks.js", looksJS},
 	} {
 		if want := asset.path + "?v=" + assetTag(asset.body); !strings.Contains(pageStr, want) {
 			t.Errorf("index.html does not request %s by content hash", asset.path)

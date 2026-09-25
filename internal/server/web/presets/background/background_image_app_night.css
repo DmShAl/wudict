@@ -1,0 +1,23 @@
+/* =========================================================
+   BACKGROUND FROM SETTINGS
+   ========================================================= */
+
+html[data-shell-image] {
+  --bg-card:transparent;
+
+  /*
+     The article surface itself must be transparent.
+     Otherwise wuDict paints an opaque rectangle behind the definition.
+  */
+  --wd-article-bg:transparent;
+}
+
+html[data-shell-image] body{background:transparent}
+
+html[data-shell-image] .bar,
+html[data-shell-image] .panel-card,
+html[data-shell-image] .panel-head{background-color:var(--paper-bg)}
+
+html[data-shell-image] details.dict > summary{background-color:var(--paper-bg)!important}
+
+html[data-shell-image] .panel-card .pd.off{opacity:1!important}

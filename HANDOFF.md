@@ -99,6 +99,59 @@ local.bat — copy it there first). After each upstream `master` sync,
 repeat this small overlay (two files) or merge `master` into
 `master_build` when the naming/emuX86 code still applies.
 
+## The preset-switch "crash" was a TDZ cascade (2026-09-25, diagnosis only)
+
+The user reported the app dying after switching presets and asked for the log.
+Diagnosis taken on the emulator, against `com.dmshepeta.wudict2.debug` built
+11:36 from `gaffe374` — a commit this checkout no longer has (the tree has since
+moved through `dev2`/`Night-Day`). **No code was changed for this**; what follows
+is the finding plus two guards that were proposed and not yet built.
+
+- **What the log holds** (`adb logcat`, `chromium: [INFO:CONSOLE:…]`): exactly
+  five errors, all inside 90 ms at 13:36:41, all the same kind —
+  `Cannot access 'X' before initialization` — for `appearanceState` (page line
+  5166), `sheetMenus` (5003), `cfgInfo` (2063, as an unhandled rejection),
+  `PRESETS` (4660, inside `presetsLoad`'s catch) and `stylerSubject` (4816).
+- **What that means**: every one of those names is declared AFTER page line
+  2023 in the page's single big inline script, so the script's top-level flow
+  had **stopped before line 2023**: everything below stayed in the temporal
+  dead zone, and whoever ran next — `group-editor.js`'s boot chain, `looks.js`,
+  or the shell's injected `appearanceRead()`/`DICTIONARY_PICKER_JS` — hit those
+  bindings and threw. The page is left half-initialised. No app crash, no server
+  crash: the process stays up and the UI is dead, which is what "программа
+  упала" looks like from the outside.
+- **The root event is NOT in the log** — no SyntaxError, no exception before
+  that burst. A classic script that throws gets its throw logged, so the
+  execution was cut from OUTSIDE: a navigation or a stopped load landing while
+  the script was still running.
+- **It does not reproduce.** The APK's own page text was pulled out of the
+  running app and loaded in desktop Chromium with a `window.onerror` hook —
+  zero errors. The app on the emulator, driven over CDP
+  (`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` plus a
+  WebSocket client over `node:net`, since the REPL has no WebSocket global), has
+  `cfgInfo`/`PRESETS`/`appearanceState` initialised, its Looks row working, and
+  `POST /api/looks/apply` answering 200 for `clean` and `oldpaper`; a fresh
+  launch logs no page errors at all.
+- **Where a navigation can cut a load short** (the race to close): the shell has
+  three paths that may start one while the page is still running —
+  `MainActivity.reloadPage()` (669) called by `Intake` on an import/library
+  change (408, 477); `onNewIntent`'s `EXTRA_RELOAD` reload (685, the "Clear
+  browser cache" flow); and a forwarded query's `loadUrl(searchUrl)` (695,
+  handed over by `LookupActivity`), which has two more of its own (391, 440).
+- **Proposed guards, neither a rewrite**: (a) shell-side — do not start a second
+  navigation while one is in flight (hold `reloadPage()`/the reload intent until
+  `onPageFinished`, or queue it); (b) page-side — give the boot chain one
+  recovery: wrap it in `group-editor.js`'s boot and on failure reload the page
+  once behind a `sessionStorage` flag, so a cut script costs a blink instead of
+  the whole UI. Cheap third: stop substituting `{{USERCSS}}` inside the JS
+  comment at `index.html:1047` — harmless today, a tripwire the day a
+  substitution carries `*/`.
+- **Separate, unrelated**: the emulator runs the arm64 Go binary through
+  `ndk_translation`, and the dropbox holds a native crash of `libwudict.so
+  serve …` from 2026-09-24 17:10. That failure mode (the SERVER dying, which the
+  app surfaces as "server failed") is possible on this emulator and is not what
+  happened here.
+
 ## Emulator builds: `build-android.cmd debug intel` (2026-09-24, this session)
 
 The user's Android Studio AVD is x86_64 (`sdk_gphone16k_x86_64`, Android
@@ -1934,3 +1987,170 @@ had to be fixed were NOT the conflict itself.
   "Loading…" for a moment — that is not a hang. `/api/presets` answers in
   20ms from inside the app; a `curl` through `adb forward` does NOT reach it,
   which cost me a false alarm about the server.
+
+## Saved appearances: the Presets row (2026-09-25, this session)
+
+The user's feature, designed over four rounds of their questions and then
+built: the whole Appearance sheet under a name, chosen from a row on the
+panel, whose menu's last row saves what is on screen now (the group window's
+"New Group" idiom, which is the one they asked for by name).
+
+- **Server** (`looks.go`): `style/looks.json` holds `{current, looks:[…]}` -
+  the reader's own looks and which one is in force. The three built-ins
+  (Clean, Sepia, Old paper) come from the CODE, not the file: an app update
+  can improve one without a migration, and a file cannot claim to be "Clean"
+  and mean something else. Endpoints GET/POST/PUT/DELETE `/api/looks` and
+  `/api/looks/apply`, all in openapi.yaml, plus `looks_test.go`.
+- **A look is the whole state**: the size and the weight, the enabled layer
+  ids, the backdrop and the reader's own sheets for BOTH themes, and the
+  margins and bars. The built-in layers are stored as IDs and never as copies
+  of their CSS, so a look saved today picks up tomorrow's "Sepia" instead of
+  freezing the one it was saved against. The THEME is deliberately not part
+  of a look: switching to one at night must not turn the lights on.
+- **`/api/looks/apply` is two passes over one endpoint.** With `confirm`
+  false it only ANSWERS - `needsConfirm` and which look is in force - and
+  writes nothing, which is what makes it safe to ask on every switch. Every
+  field counts in that comparison, the four sheets included. Re-applying the
+  look already in force is never a question: that is "put it back how it was".
+  With nothing in force the question is only "has the screen been changed at
+  all", so a fresh install applying its first look is not nagged.
+- **What the page sends** (`looks.js`, `looksNow()`): the shell's half of both
+  themes - the colour, the wallpaper, the margins, the bars live in the
+  shell's SharedPreferences, which this process cannot read - and the two text
+  settings. The font numbers are there because of a bug found on the device:
+  state.json is written on a 400ms debounce, so a reader who taps the stepper
+  and switches a look in the same breath was compared against the size they
+  had a moment before, and **the question about unsaved changes simply did not
+  appear**. The caller's numbers decide the comparison only; what an apply
+  writes is the LOOK's state.
+- **The apply answer carries `fontSize`/`fontWeight` back** for the same
+  reason in the other direction: the server's copy is a file, and neither the
+  stepper nor the article's `--wd-fs` reads a file. Without it the look landed
+  on disk and the page went on showing the old size.
+- **Copy**: the Appearance sheet's door and its subject are `Style layers…`
+  now (they were "Visual presets…" / "Presets"), because "presets" means the
+  saved appearance from here on. The user chose that name when asked.
+- **Verified on the emulator, end to end**: the row reads `Custom` with
+  nothing in force and ticks nothing (see below); the saved look round-tripped
+  a CSS marker, the size, both layer sets and both themes' wallpaper; the
+  question showed the right branch - hidden "Update" for a built-in,
+  `Update “devtest2”` for the reader's own; "Switch without saving" applied,
+  "Cancel" changed nothing; the device was left exactly as it was found.
+- **Two small things this cost, worth knowing**: a new web asset needs its own
+  route in `routes.go` (`/assets/looks.js` - a 404 there means the script
+  never runs and the row stays empty, which looks like a logic bug), and
+  `screenChoice` had to learn -1 = "tick nothing", because ticking Clean while
+  the row says Custom is two answers to one question.
+- **Also fixed here, and it was not the feature's**: `TestOpenAPICoversEvery
+  Route` had never worked on Windows. The spec is checked out with CRLF and a
+  BLANK line there is one byte rather than none, so the scanner read the first
+  blank line inside `paths:` as a top-level key, ended the block and found one
+  operation out of forty - then reported every route as undocumented. One
+  `strings.TrimSuffix(line, "\r")`. The gate now runs on this platform and it
+  is what checked the new endpoints' entries.
+- **Not done, deliberately**: deleting a look has an endpoint and no UI - the
+  menu is exactly the list the user specified, with Save Current last - and
+  the row does not mark itself "modified" after a change made by hand. The
+  question at switch time is what protects the work; a marker is a nicety.
+
+## Three fixes after the reader's report (2026-09-25, this session)
+
+1. **Switching between Clean, Sepia and Old paper asked whether to save
+   changes EVERY time** - the reader's report, and it was this code's bug.
+   Two encodings were being compared as if they were two states:
+   `fontSize`/`fontWeight` are stored with 0 meaning "the default" while the
+   page normalises that to the number it draws with (15/400) and sends it back,
+   and the shell keeps the last tone in its colour field even with the checkbox
+   off while a look that names no colour stores "". So each built-in reported
+   itself changed the moment it had been applied. Fixed in `lookDiffers`
+   (`effectiveSize`/`effectiveWeight`, and `halfDiffers` ignores the colour
+   while it is not in use), with the sibling fix in `lookIsCustomised` - which
+   would have nagged the FIRST apply on a fresh install for the same reason.
+   `TestLookSwitchBetweenBuiltinsNeverAsks` walks the reader's own loop, and
+   the loop was driven on the device: four switches, no question, the row
+   following each one.
+2. **The shell now runs one navigation at a time** (`MainActivity.navigate`).
+   A reload or a handed-over search arriving while a load is in flight used to
+   start a second navigation, and the document in flight does not stop for it -
+   a script cut off in the middle leaves every `let` below the cut
+   uninitialised while the handlers that already ran keep calling them, which
+   is a window that looks loaded and answers nothing. **Honest note: I could
+   NOT reproduce that** (firing `EXTRA_RELOAD` at 0.4/1.2/2.2s after launch,
+   no error), so this is insurance rather than a proven fix. Verified that it
+   costs nothing: the page survives a reload fired during its load, and a
+   reload fired while idle still reloads. The page-side watchdog the other
+   agent suggested (reload once via a sessionStorage flag when boot does not
+   finish) is deliberately NOT in: with a cause I cannot reproduce it would
+   mask the next occurrence instead of fixing it. If the dead interface comes
+   back, keep the FIRST console error rather than the last - the TDZ lines are
+   the symptom, and the throw above them is the cause.
+3. **`{{USERCSS}}` was substituted inside a JS comment** (index.html:1047). The
+   server replaces every occurrence, and the text it puts there is generated
+   `<link>` tags: harmless today, and one `*/` away from ending the comment
+   early and killing the whole script - the real version of the failure above.
+   The comment now says "the user-CSS slot in <head>" and the placeholder
+   appears once, where it belongs.
+
+## A preset's theme is its FILE NAME (2026-09-25, this session)
+
+The reader's rule, and it is one rule rather than three: each file applies in
+the theme its suffix names, and a file that is not there is empty. A preset
+with a day half and no night half does NOTHING at night; one with both applies
+in both, each half in its own theme; a preset that belongs to neither names the
+SAME file in both slots, so "works in both themes" is written down.
+
+- **Why this and not guards.** The guards inside the files were the whole class
+  of bug, twice over: `sepia_article.css` had none, so a light preset's article
+  half applied at night and Sepia's night was not Clean's; and
+  `background_image_app.css` guarded its inks with `:not([data-theme="dark"])`
+  - "the reader pinned dark by hand" - which is FALSE under Auto at night, so
+  light inks landed on a dark page. That second one was my own Night-Day work,
+  and I verified it then through `setTheme` (a pin, where the attribute IS set)
+  and never through Auto. With the theme in the file name there is no guard to
+  forget and no selector to get wrong.
+- `preset` gained `AppNight`/`ArticleNight`; **`Theme` is DERIVED from the
+  slots** (a manifest that declares one thing while its files do another is how
+  high_contrast came to be offered at night while guarded to the day); the
+  payload and the injected `<link>`s carry both halves, the night one marked
+  `data-night`, and the page enables the half the RESOLVED theme applies -
+  re-running on a theme switch (syncAutoDark) and at boot.
+- **The radio rule is an INTERSECTION now, not equality**: `background` (both)
+  and `sepia` (day) compete; `sepia` and `true_black` do not. Before, the first
+  two could both be on and fight over `--bg`.
+- Files: sepia and high_contrast are day-only; true_black and warm_dark are
+  night-only (renamed `_night`); background is split into a day pair and a
+  night pair, the night keeping only the theme-neutral surface rules. Every
+  guard is gone from the preset CSS. `presets_test.go` guards the class: the
+  manifest may not declare a theme, every named slot must be a file that is
+  there, and the three derived themes must come out as expected.
+- **Verified on the device**: with Sepia on, the light theme carries
+  `sepia/day` and `presetArticleCSS` is 310 chars; at night there is NO preset
+  link at all and the article CSS is 0 - the night is exactly Clean, which was
+  the reader's original request. Switching back re-attaches it.
+- Also fixed while in there: the enabled presets' ARTICLE halves were applied
+  only after the Appearance sheet had been opened once, because `presetsLoad`
+  ran from the sheet alone - a reader who never opened it got the layers in the
+  chrome and none in the articles. It runs at boot now.
+
+## The Presets row's button, and the editor's file line (2026-09-25)
+
+- **The button** appears when the screen has drifted from the look in force:
+  "Update current preset" when that look is the reader's own, "Save preset as
+  new" when it is a built-in or nothing at all. It closes a real gap - before
+  it, the only way to save your own tweaks into your own look was to try to
+  switch away and catch the dialog. The answer comes from `/api/looks/apply`
+  with `dry: true`, which reports and writes nothing (the same comparison the
+  switch question runs), asked when the panel opens, after the panel's own
+  changes, and when the sheet closes.
+- **The editor says which file it is editing**, permanently: "Editing
+  app_night.css - the night sheet" under the box, and a placeholder that names
+  BOTH files and says plainly that they do not inherit from each other. The old
+  hint was a static sentence claiming "the LIGHT theme's stylesheet" even while
+  the box was editing the night one.
+- **A note for the next agent, because it cost me a dead page twice**: patching
+  this file with a script is a trap. `\n` inside a python heredoc came through
+  as a real newline and broke every string literal it touched, which kills the
+  whole inline script (every function then reports "not defined"); and a
+  regex with DOTALL matched from one loop to another function's closing brace
+  and silently deleted four functions. Write the file, then check with
+  `grep -c` that the functions are still there and the page still boots.

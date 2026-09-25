@@ -1,7 +1,9 @@
-/* Light mode only. The last two tokens are the article surface, so the page
-   and the definitions turn together — that is the whole reason this is an
+/* The DAY half of Sepia. There is no night file, and that is a statement:
+   the night is the app's own dark, untouched by this preset. The last two
+   tokens are the article surface, so the page and the definitions turn together — that is the whole reason this is an
    App preset and not an Article one. */
-html:not([data-dark]){
+
+html{
   --bg:#f4ecd8; --bg-card:#faf3e3; --bg-bar:rgba(244,236,216,.92);
   --fg:#3b3229; --fg-soft:#6b5f4e; --line:#e0d5bd; --line-soft:#ebe2cf;
   --wd-article-bg:#faf3e3; --wd-article-fg:#3b3229;

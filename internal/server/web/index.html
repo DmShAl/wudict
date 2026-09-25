@@ -301,6 +301,27 @@ window.wudictShellBackground = function (color, image, imageName) {
 
 <section class="sect">
   <h3 class="sect-h">Appearance</h3>
+  <!-- The whole look, under a name, and the first row of the section because
+       it sets everything the rows below it refine. It is the reader's way back
+       to a look that worked without setting the size, the layers, the
+       wallpaper and the sheets again by hand.
+       The control is the app's own drawn menu, not a <select>: the platform's
+       popup wears the platform's theme and can wear neither the app's paper nor
+       its wallpaper, which is the same rule the Screen rows live by. Its last
+       row saves what is on screen now, the way the group window's last row
+       makes a new group. -->
+  <div class="facts">
+    <span class="rowlabel" id="looksLabel">Presets</span>
+    <button type="button" class="choice-btn" id="looksChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="looksLabel"></button>
+    <div class="choice-menu menu-card" id="looksMenu" role="listbox" aria-labelledby="looksLabel" data-w="anchor" hidden></div>
+    <!-- The one thing the drop-down cannot say: the screen has drifted from the
+         look in force, and the change exists nowhere. Two labels, because the
+         two answers differ - a look the reader owns can be overwritten, a
+         built-in cannot (a "Clean" that means something else is worse than no
+         Clean at all), and neither can nothing at all, which is what "Custom"
+         is. Shown only while there is something to save. -->
+    <button type="button" class="btn" id="looksSaveBtn" hidden></button>
+  </div>
   <!-- The size stepper is adjusted WHILE reading, so it stays on the panel
        rather than behind the Appearance door — the promise the old layout made
        by keeping it in the summary. Now that it owns a line instead of sharing
@@ -345,7 +366,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   <div class="facts">
     <button type="button" class="mrow door" data-styler="screen" title="What fills the margins around the page, and whether the bars hide while you read">Edges of the screen…</button>
     <button type="button" class="mrow door" data-styler="bg" title="The colour and the wallpaper behind the app and its articles">Window background…</button>
-    <button type="button" class="mrow door" data-styler="presets" title="Switch whole looks on and off — the same switches as the CSS sheet's Presets tab">Visual presets…</button>
+    <button type="button" class="mrow door" data-styler="presets" title="Switch the built-in style layers on and off — a background, a palette, a face, a layout tweak">Style layers…</button>
     <button type="button" class="mrow door" data-styler="css" title="Your own stylesheets, for the app and for the articles">Custom CSS…</button>
   </div>
 </section>
@@ -514,12 +535,15 @@ window.wudictShellBackground = function (color, image, imageName) {
     <div class="appearance-row"><span class="appearance-label">Image</span><div id="appearanceStripWrap"><div id="appearanceStrip" role="group" aria-label="Background image"></div><button type="button" class="stripArrow" id="appearanceStripL" aria-label="Scroll background thumbnails left" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.6 2L3 8l1.6 6"/></svg></button><button type="button" class="stripArrow" id="appearanceStripR" aria-label="Scroll background thumbnails right" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.4 2L13 8l-1.6 6"/></svg></button></div></div>
     <small>Color remains behind the image. None removes the image.</small>
     </div>
-  <!-- Style presets are a SUBJECT of their own, not a tab among the
+  <!-- Style layers are a SUBJECT of their own, not a tab among the
        stylesheets: they are layers the page attaches and detaches around
        whatever is written in the App and Article boxes, and a switch here never
        touches those boxes. They used to be the CSS group's fourth tab, which
-       made the reader open Custom CSS to find something that is not CSS. -->
-  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
+       made the reader open Custom CSS to find something that is not CSS.
+       "Layers" rather than "presets" because PRESETS now means the saved
+       appearance a name carries - see looks.js - and two things called a
+       preset in one section is one thing too many. -->
+  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style layers"></div>
   <div id="stylerBody" hidden>
   <div class="row" id="stylerDock">
     <button type="button" class="tab" id="tabApp" role="tab" aria-selected="true" aria-controls="stylerCSS">App</button>
@@ -538,6 +562,10 @@ window.wudictShellBackground = function (color, image, imageName) {
     <button type="button" class="btn" id="stylerAdd" hidden title="Upload a file the stylesheets can reference">Add…</button>
   </div>
   <textarea id="stylerCSS" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Custom CSS"></textarea>
+  <!-- Which file the box is, said once and left standing: the placeholder
+       above says it only while the box is empty, and a reader who writes a
+       night sheet while looking at the day one has nothing else to notice. -->
+  <div id="stylerFile"></div>
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
   </div>
@@ -661,7 +689,10 @@ function savePrefs(now){
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
-    .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status)})
+    .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);
+      // The size and the weight are part of what a look holds, so a change to
+      // them is a change to the screen: the Presets row's button follows.
+      if(typeof looksCheckDrift==="function"&&$("panel").classList.contains("show"))looksCheckDrift()})
     .catch(e=>{prefsSent=null;setStatus("⚠ could not save dictionary settings: "+esc(e.message))});
 }
 /* dictionaries in preference order: saved ones first, then unseen ones A→Z */
@@ -754,7 +785,14 @@ function syncAutoDark(){
     const t=stylerText;stylerText=stylerOther.text;stylerOther.text=t;
     const s=stylerSaved;stylerSaved=stylerOther.saved;stylerOther.saved=s;
     stylerPreviewAll(stylerText);
+    stylerHintRefresh();
   }
+  // The layers are per theme in the same way, and for the same reason: a
+  // preset's day half must not stay attached at night, and a night-only one
+  // must not be attached by day. Guarded on a real change, because at boot
+  // there is nothing attached yet - presetsLoad does it once, after the
+  // payload arrives.
+  if(skinDark!==null&&skinDark!==dark)presetApplyAll();
   // The window's background is per theme too, so the sheet has to re-read: a
   // colour and a wallpaper that are not the ones on screen are worse than no
   // window at all. Guarded like Shell.applyBackground guards it, because this
@@ -1027,7 +1065,8 @@ applyFW(FW_DEF,false);   // paints --wd-fw and the .lim state before any load
 /* ── the user's global stylesheets ───────────────────────────────────
    Two files the user owns, beside the wudict.toml in effect: app.css for the
    page, article.css for what dictionaries render. The page gets a server
-   injected <link> (see {{USERCSS}} in <head>); this half is the article one,
+   injected <link> (see the user-CSS slot in <head>); this half is the article
+   one,
    which has to reach two surfaces that ordinary document CSS cannot touch.
 
    Shadow roots: one constructed sheet, adopted by every article. Adopted
@@ -1175,6 +1214,14 @@ for(const b of document.querySelectorAll(".themeFlip"))
   b.onclick=()=>setTheme(themeIsDark()?"light":"dark");
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncAutoDark);
 applyTheme(localStorage.getItem("wudict_theme")||"auto");
+
+/* The layers, at boot and not only when the sheet is opened. The server has
+   already put the enabled ones in the page as <link>s, so the APP half looks
+   right without this - but the ARTICLE half is composed here and pushed into
+   every frame, and until this ran, a reader who never opened the Appearance
+   sheet got layers in the chrome and none in the articles. One small JSON,
+   fetched alongside everything else the page reads at startup. */
+presetsLoad();
 
 /* ── dictionaries ──────────────────────────────────────────────────── */
 function dictLabel(d){return d.name||d.path.split("/").pop()}
@@ -1911,7 +1958,11 @@ function reissueIfCorpusMoved(){
   if(!(sc==="all"||sc.startsWith("g:")))return;
   if(was!==panelSnap)doSearch();
 }
-function showPanel(){panelSnap=panelState();$("speakBtn").hidden=!speakCan();$("panel").classList.add("show");loadFolders()}
+function showPanel(){panelSnap=panelState();$("speakBtn").hidden=!speakCan();$("panel").classList.add("show");loadFolders();
+  // The Presets row's button says whether the screen still matches the look in
+  // force, and that answer is only ever as fresh as the last time it was
+  // asked: opening the panel is one of the three moments worth asking at.
+  if(typeof looksCheckDrift==="function")looksCheckDrift()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
   $("panel").classList.remove("show");
@@ -4084,8 +4135,7 @@ than every rule that reads it:
 html[data-dark] is true whenever the page is dark, "auto" included;
 html[data-theme="dark"] is true only when the reader pinned dark by hand.
 
-This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
-own, and switching the theme switches which one you are editing.`,
+`,
 article:`CSS for what dictionaries render, in every article.
 Use :host, :root > body to reach the article's own root.
 
@@ -4101,9 +4151,46 @@ Selectors land INSIDE the article: p, a, table, div, body — and :host when the
 dictionary is drawn as a shadow root. Nothing here reaches the chrome; that is
 what the App box is for.
 
-This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
-own, and switching the theme switches which one you are editing.`
+`
 };
+/* WHICH FILE this box is, spelled out, and the one thing a reader is most
+   likely to assume wrongly: the day and the night sheets are two files, and
+   neither inherits from the other - an empty one means that theme has nothing
+   applied. A static sentence could not say it: the box is the day sheet and
+   the night sheet by turns, so the sentence has to be built for whichever one
+   is on screen. */
+function styleFileNote(tab, night){
+  const base=tab==="article"?"article":"app";
+  const name=n=>base+(n?"_night":"")+".css";
+  return `Editing ${name(night)} — the ${night?"night":"day"} sheet.
+The ${night?"day":"night"} has ${name(!night)} of its own: the two are separate
+files and neither inherits from the other, so an empty one means nothing is
+applied in that theme.
+
+`;
+}
+function styleHint(tab, night){
+  return styleFileNote(tab, night) + (STYLE_HINT[tab]||"");
+}
+/* Both of the box's own labels, refreshed together: the line under it and the
+   placeholder inside it say the same thing, and BOTH have to follow the theme
+   when it switches, because the box edits a different file afterwards. */
+function stylerHintRefresh(){
+  if(!stylerLoaded)return;
+  const box=$("stylerCSS");
+  if(box)box.placeholder=styleHint(stylerTab,themeIsDark());
+  stylerFileLine();
+}
+/* The line under the box, which stays put while the reader types - the
+   placeholder above cannot, and "which file am I in" is exactly what is worth
+   knowing at that point. */
+function stylerFileLine(){
+  const el=$("stylerFile");
+  if(!el)return;
+  const night=themeIsDark(), app=stylerTab!=="article";
+  el.textContent="Editing "+(app?"app":"article")+(night?"_night":"")+".css — the "
+    +(night?"night":"day")+" sheet";
+}
 /* The wallpapers the Android shell unpacks into the files folder when they
    are absent. Deleting one from here would only make the next start copy it
    back, so the manager offers no Delete for them - the row says so instead.
@@ -4280,7 +4367,7 @@ function stylerShowTab(tab){
   $("stylerCSS").value=stylerText[tab];
   stylerBox=tab;
   stylerSync();
-  $("stylerCSS").placeholder=STYLE_HINT[tab]||"";
+  stylerHintRefresh();
   stylerSetView("css");
 }
 
@@ -4612,23 +4699,34 @@ async function presetsLoad(){
 function presetApplyAll(){
   if(STYLE_OFF){presetArticleCSS="";return}
   const enabled=new Set(PRESETS?PRESETS.enabled:[]);
+  const dark=themeIsDark();
   const article=[];
   for(const g of (PRESETS?PRESETS.groups:[]))for(const p of g.presets){
-    if(!enabled.has(p.id))continue;
-    if(p.article)article.push(p.article.css);
-    let link=document.querySelector('link[data-preset="'+p.id+'"]');
-    if(p.app){
-      if(!link){
+    const on=enabled.has(p.id);
+    // Which half applies is the THEME's business, and each half is a file of
+    // its own: the plain name is the day one, data-night marks the night one.
+    // A preset with no half for this theme contributes NOTHING - that is what
+    // "there is no night file" means, and it is why the theme lives in the
+    // file name rather than in a selector inside it: there is no guard to
+    // forget, and no way to write one that is wrong for Auto.
+    for(const [night,half] of [[false,p.app],[true,p.appNight]]){
+      const sel='link[data-preset="'+p.id+'"]'+(night?'[data-night]':':not([data-night])');
+      let link=document.querySelector(sel);
+      const want=on&&!!half&&dark===night;
+      if(want&&!link){
         link=document.createElement("link");
-        link.rel="stylesheet";link.dataset.preset=p.id;link.href=p.app.url;
+        link.rel="stylesheet";link.dataset.preset=p.id;
+        if(night)link.dataset.night="";
+        link.href=half.url;
         const userLink=document.querySelector('link[href^="/style/app.css"]');
         if(userLink)userLink.before(link);
         else document.head.appendChild(link);
       }
-    }else if(link)link.remove();
+      if(link&&!want)link.remove();
+    }
+    if(on&&dark&&p.articleNight)article.push(p.articleNight.css);
+    else if(on&&!dark&&p.article)article.push(p.article.css);
   }
-  for(const link of document.querySelectorAll("link[data-preset]"))
-    if(!enabled.has(link.dataset.preset))link.remove();
   presetArticleCSS=article.join("\n");
   articleRefresh();
 }
@@ -4833,7 +4931,7 @@ function presetRemovePasted(p){
 const STYLER_SUBJECTS={
   screen:"Edges of the screen",
   bg:"Window background",
-  presets:"Visual presets",
+  presets:"Style layers",
   css:"Custom CSS"
 };
 /* WHICH SUBJECT the sheet is showing, one at a time. It used to be three
@@ -4995,8 +5093,12 @@ function screenChoice(bar,menu,options,onPick){
     if(e.key==="Escape"&&ctl.isOpen()){e.stopPropagation();ctl.hide()}
   });
   return {set(v){
-    value=Number.isInteger(v)&&v>=0&&v<options.length?v:0;
-    bar.textContent=options[value];
+    // -1 is "none of them", which is a real state for a menu whose answers
+    // are things the reader saved: the Presets row shows "Custom" and ticks
+    // nothing, because ticking Clean while the answer is Custom is two
+    // different answers to the same question.
+    value=Number.isInteger(v)&&v>=-1&&v<options.length?v:0;
+    bar.textContent=value>=0?options[value]:"";
   }};
 }
 /* A group of radios: the whole set on screen at once, which is the point of
@@ -5091,7 +5193,11 @@ function appearanceRequest(request){
     // cannot land on the night one, and vice versa. Sent rather than inferred,
     // because the shell's idea of the theme arrives by a slower road (the
     // watcher's subresource request) and would race a switch.
-    request.night=themeIsDark();
+    // Absent means the theme on screen, which is what every control here
+    // wants. A caller that names one is writing the OTHER theme's half: a
+    // saved look carries a day and a night value, and applying it has to put
+    // both back.
+    if(request.night===undefined)request.night=themeIsDark();
     const answer=window.prompt("wudict:appearance",JSON.stringify(request));
     return answer===null?null:JSON.parse(answer);
   }catch(e){console.warn("appearance bridge:",e);return null}
@@ -5306,6 +5412,10 @@ async function stylerOpen(subject){
 function stylerCloseSheet(){
   $("styler").classList.remove("show");
   document.body.classList.remove("styling");
+  // A save in the sheet rewrites the reader's stylesheets, which are part of
+  // what a look holds - so closing it is the third moment worth asking the
+  // Presets row's button whether the screen still matches the look in force.
+  if(typeof looksCheckDrift==="function")looksCheckDrift();
   // The colour window belongs to the sheet: closing the sheet behind it would
   // leave a modal standing over the page with nothing left to apply it to.
   if($("colorDialog").open)$("colorDialog").close();
@@ -5605,6 +5715,32 @@ $("styler").addEventListener("keydown",e=>{
     <div class="group-toolbar"><button type="submit" class="btn" id="createGroup">Create</button><button type="button" class="btn" id="cancelGroup">Cancel</button></div>
   </form>
 </dialog>
+<!-- Saving a look, and the question asked before a switch that would throw
+     away changes nobody has saved. Both are the group editor's window: one
+     name, a Create button, and the server as the one that says whether the
+     name is acceptable. The question's buttons change with what is being left
+     behind - a built-in cannot be updated, so "Update" is offered only when
+     the reader's own look is the one in force. -->
+<dialog id="lookSaveDialog" class="group-dialog panel-card" aria-labelledby="lookSaveTitle">
+  <h2 id="lookSaveTitle">Save Current</h2>
+  <form id="lookSaveForm">
+    <label for="lookName">Name</label><input type="text" id="lookName" maxlength="100" autocomplete="off">
+    <p id="lookSaveError" class="group-error" role="alert"></p>
+    <div class="group-toolbar"><button type="submit" class="btn" id="lookSaveGo">Save</button><button type="button" class="btn" id="lookCancel">Cancel</button></div>
+  </form>
+</dialog>
+<dialog id="lookAskDialog" class="group-dialog panel-card" aria-labelledby="lookAskTitle">
+  <h2 id="lookAskTitle">Unsaved changes</h2>
+  <p id="lookAskBody"></p>
+  <p id="lookAskError" class="group-error" role="alert"></p>
+  <div class="group-toolbar">
+    <button type="button" class="btn" id="lookAskUpdate" hidden></button>
+    <button type="button" class="btn" id="lookAskSaveAs">Save as new…</button>
+    <button type="button" class="btn" id="lookAskDiscard">Switch without saving</button>
+    <button type="button" class="btn" id="lookAskCancel">Cancel</button>
+  </div>
+</dialog>
 <script src="/assets/group-editor.js?v={{GROUPJS}}"></script>
+<script src="/assets/looks.js?v={{LOOKSJS}}"></script>
 </body>
 </html>

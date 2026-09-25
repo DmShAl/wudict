@@ -29,12 +29,6 @@
   isolation:isolate;
 }
 
-:host() img,
-:root > body img {
-  background:transparent !important;
-  mix-blend-mode:multiply !important;
-}
-
 :host #ox-enlarge {
   background:none !important;
 }
@@ -66,26 +60,6 @@
   color:inherit !important;
 
   isolation:isolate;
-}
-
-:host() #ox-enlarge img:is(.thumb, .fullsize),
-:root > body #ox-enlarge img:is(.thumb, .fullsize) {
-  vertical-align:top !important;
-
-  background:transparent !important;
-  mix-blend-mode:multiply !important;
-
-  /*
-     Remove Oxford's original border="1".
-     It is the source of the white 1px strip.
-  */
-  border:0 !important;
-
-  /*
-     Draw a predictable warm frame instead.
-  */
-  outline:1px solid rgba(90,65,35,.48) !important;
-  outline-offset:0 !important;
 }
 
 :root > body #ox-enlarge {

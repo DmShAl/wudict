@@ -465,7 +465,23 @@ public class MainActivity extends Activity {
         }
 
         @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            pageLoading = true;
+        }
+
+        @Override
         public void onPageFinished(WebView view, String url) {
+            pageLoading = false;
+            // The navigation that arrived while this one was in flight, now
+            // that nothing is being cut off.
+            if (pageLoadQueued != null) {
+                String next = pageLoadQueued;
+                pageLoadQueued = null;
+                web.loadUrl(next);
+            } else if (pageReloadQueued) {
+                pageReloadQueued = false;
+                web.reload();
+            }
             Shell.applyBackground(view);
             // The Play flavour adds its import control here. Nothing in
             // web/index.html knows what Android is - the D54 rule (the shell
@@ -666,7 +682,36 @@ public class MainActivity extends Activity {
 
     /** Re-loads the page after the library behind it changed (an import). */
     void reloadPage() {
-        if (!gone && web.getParent() != null) web.reload();
+        navigate(null);
+    }
+
+    // ── one navigation at a time ─────────────────────────────────────────
+    // A reload or a handed-over search that arrives WHILE the page is loading
+    // starts a second navigation, and the document in flight does not stop for
+    // it: it keeps executing until the new one commits. A script cut off in
+    // the middle leaves every `let` below the cut uninitialised while the
+    // handlers that already ran keep calling them - the window then looks
+    // loaded and answers nothing, with "Cannot access 'x' before
+    // initialization" for every control on it.
+    //
+    // This was NOT reproduced by firing a reload during a load (three delays,
+    // no failure), so it is insurance rather than a proven fix: a second
+    // navigation during the first is never what was wanted, and deferring it
+    // costs one load.
+    private boolean pageLoading;
+    private String pageLoadQueued;
+    private boolean pageReloadQueued;
+
+    /** url null = reload in place. Queued when a load is already in flight. */
+    private void navigate(String url) {
+        if (gone || web.getParent() == null) return;
+        if (pageLoading) {
+            if (url == null) pageReloadQueued = true;
+            else pageLoadQueued = url;
+            return;
+        }
+        if (url == null) web.reload();
+        else web.loadUrl(url);
     }
 
     // The activity is singleTask, so a share arriving while it is already up
@@ -680,19 +725,18 @@ public class MainActivity extends Activity {
         // was last loaded from: load it again rather than leave the window
         // showing copies that no longer exist. It is not a bypass-cache reload -
         // there is nothing cached to bypass.
-        if (intent != null && intent.getBooleanExtra(Shell.EXTRA_RELOAD, false)
-                && !gone && web.getParent() != null) {
-            web.reload();
+        if (intent != null && intent.getBooleanExtra(Shell.EXTRA_RELOAD, false)) {
+            navigate(null);
         }
         // Only what THIS intent brought: an unrelated intent must not fire a
         // query left pending by an earlier one - showPage owns that.
-        if (takeQuery(intent) && !gone && web.getParent() != null) {
+        if (takeQuery(intent)) {
             // Handed over by LookupActivity, so the app is very likely already
             // up and showing something else; if it is not, showPage takes it.
             String q = pendingQuery;
             String m = pendingMode, d = pendingDict;
             pendingQuery = pendingMode = pendingDict = null;
-            web.loadUrl(Shell.searchUrl(this, q, m, d));
+            navigate(Shell.searchUrl(this, q, m, d));
         }
     }
 

@@ -2,26 +2,6 @@
    BACKGROUND FROM SETTINGS
    ========================================================= */
 
-/* The app supplies --paper-bg and --paper-bk-image from Settings.
-   This stylesheet only uses them; no colour or file needs to be set here. */
-
-/* =========================================================
-   THE PAPER ITSELF — BOTH THEMES
-   ========================================================= */
-
-/*
-   Everything the paper needs and NOTHING this file decided: at night the shell
-   may hold an almost-black paper, and the app's own opaque surfaces would
-   paint over it. Every value below comes from the HOST - --paper-bg and
-   --paper-bk-image are what the reader chose for the current theme - so these
-   are right in whichever theme they are on, which is why only these carry no
-   theme condition.
-
-   Everything further down is the opposite: warm washes, warm borders and warm
-   text, written for a LIGHT paper, and guarded so a night paper never gets
-   them. A dark paper needs none of it - the app's own dark palette is what
-   suits it, and this file has no business overriding that with browns.
-*/
 html[data-shell-image] {
   --bg-card:transparent;
 
@@ -31,31 +11,18 @@ html[data-shell-image] {
   */
   --wd-article-bg:transparent;
 }
+
 html[data-shell-image] body{background:transparent}
+
 html[data-shell-image] .bar,
 html[data-shell-image] .panel-card,
 html[data-shell-image] .panel-head{background-color:var(--paper-bg)}
+
 html[data-shell-image] details.dict > summary{background-color:var(--paper-bg)!important}
 
-/*
-   Not a colour this file decided, and true in both themes: wuDict fades a
-   disabled card to 50%, which on a textured paper makes its metadata
-   unreadable. The switch already says what is disabled.
-*/
 html[data-shell-image] .panel-card .pd.off{opacity:1!important}
 
-
-/* =========================================================
-   PAPER PALETTE — LIGHT THEME ONLY
-   ========================================================= */
-
-/*
-   Warm, DARK text: what reads on a light paper, and exactly what must not be
-   put on a dark one. The dark theme's own palette already suits a dark paper,
-   so there is nothing to say for it - and this is the ONLY theme condition
-   left in this file.
-*/
-html[data-shell-image]:not([data-theme="dark"]) {
+html[data-shell-image] {
   /* Main text colours. */
   --fg:#3b3229;
   --fg-soft:#5d4d3a;
@@ -72,21 +39,11 @@ html[data-shell-image]:not([data-theme="dark"]) {
   --wd-article-fg:#3b3229;
 }
 
-
-/* =========================================================
-   MAIN PAGE PAPER
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) body {
+html[data-shell-image] body {
   background:transparent;
 }
 
-
-/* =========================================================
-   TOP wuDict BAR
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .bar {
+html[data-shell-image] .bar {
   background-color:var(--paper-bg);
 
   /*
@@ -112,50 +69,30 @@ html[data-shell-image]:not([data-theme="dark"]) .bar {
   border-bottom:1px solid rgba(120,90,45,.22);
 }
 
-
-/* =========================================================
-   TOP BAR CONTROLS
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) input[type=search],
-html[data-shell-image]:not([data-theme="dark"]) select,
-html[data-shell-image]:not([data-theme="dark"]) .btn {
+html[data-shell-image] input[type=search],
+html[data-shell-image] select,
+html[data-shell-image] .btn {
   background:rgba(248,232,196,.40);
   border-color:rgba(120,90,45,.25);
 }
 
-html[data-shell-image]:not([data-theme="dark"]) input[type=search]:focus {
+html[data-shell-image] input[type=search]:focus {
   background:rgba(255,240,205,.55);
 }
 
-
-/* =========================================================
-   MOBILE SEARCH PILL
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .pill {
+html[data-shell-image] .pill {
   background:rgba(248,232,196,.38);
   border-color:rgba(120,90,45,.24);
 }
 
-
-/* =========================================================
-   DICTIONARIES PANEL OVERLAY
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) #panel {
+html[data-shell-image] #panel {
   /*
      Warm dark overlay over the article when the drawer is open.
   */
   background:rgba(74,55,30,.28);
 }
 
-
-/* =========================================================
-   DICTIONARIES SIDE PANEL
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card {
+html[data-shell-image] .panel-card {
   background-color:var(--paper-bg);
 
   /*
@@ -184,12 +121,7 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card {
   --fg-faint:#79664e;
 }
 
-
-/* =========================================================
-   STICKY DICTIONARIES HEADER
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-head {
+html[data-shell-image] .panel-head {
   /*
      The header is sticky. Giving it its own copy of the paper prevents
      scrolling text from showing through underneath it.
@@ -209,12 +141,7 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-head {
   background-attachment:fixed;
 }
 
-
-/* =========================================================
-   DICTIONARY CARDS
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .pd {
+html[data-shell-image] .pd {
   /*
      Keep each dictionary visually grouped without hiding the paper texture.
   */
@@ -222,12 +149,7 @@ html[data-shell-image]:not([data-theme="dark"]) .pd {
   border-color:rgba(120,90,45,.22);
 }
 
-
-/* =========================================================
-   DISABLED DICTIONARIES
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd.off {
+html[data-shell-image] .panel-card .pd.off {
   /*
      wuDict normally fades the complete disabled card with opacity:.5.
      On paper this makes all metadata nearly unreadable.
@@ -238,12 +160,7 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd.off {
   opacity:1 !important;
 }
 
-
-/* =========================================================
-   DICTIONARY METADATA
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .meta {
+html[data-shell-image] .panel-card .pd .meta {
   /*
      Lines such as:
        dsl · 58,964 entries · indexed
@@ -251,22 +168,14 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .meta {
   color:#79654b !important;
 }
 
-
-/* Paths, provenance and other secondary information. */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .prov,
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .prov1,
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .prow {
+html[data-shell-image] .panel-card .pd .prov,
+html[data-shell-image] .panel-card .pd .prov1,
+html[data-shell-image] .panel-card .pd .prow {
   color:#806d54 !important;
 }
 
-
-/* =========================================================
-   NORMAL FEATURE BADGES
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .feat,
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .tag {
+html[data-shell-image] .panel-card .pd .feat,
+html[data-shell-image] .panel-card .pd .tag {
   /*
      Examples:
        contains
@@ -278,13 +187,8 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .tag {
   background:rgba(255,245,220,.22) !important;
 }
 
-
-/* =========================================================
-   ACTIVE FEATURE BADGES
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .feat.on:not(.locked),
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .tag.on {
+html[data-shell-image] .panel-card .pd .feat.on:not(.locked),
+html[data-shell-image] .panel-card .pd .tag.on {
   /*
      Enabled features such as full-text should be noticeable,
      but still stay within the muted paper palette.
@@ -295,12 +199,7 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .tag.on {
   font-weight:500;
 }
 
-
-/* =========================================================
-   DATABASE SIZE BADGE
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .feat.on.locked {
+html[data-shell-image] .panel-card .pd .feat.on.locked {
   /*
      The locked active badge is the database size:
        58 MB
@@ -316,41 +215,18 @@ html[data-shell-image]:not([data-theme="dark"]) .panel-card .pd .feat.on.locked 
   font-weight:600;
 }
 
-
-/* =========================================================
-   DICTIONARIES PANEL BUTTONS
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .btn,
-html[data-shell-image]:not([data-theme="dark"]) .panel-card .fs button {
+html[data-shell-image] .panel-card .btn,
+html[data-shell-image] .panel-card .fs button {
   background:rgba(250,235,200,.36);
   border-color:rgba(120,90,45,.25);
 }
 
-
-/* =========================================================
-   FULL-TEXT / AUXILIARY BOXES
-   ========================================================= */
-
-html[data-shell-image]:not([data-theme="dark"]) .bulkbox {
+html[data-shell-image] .bulkbox {
   background:rgba(255,245,220,.15);
   border-color:rgba(120,90,45,.20);
 }
 
-/* =========================================================
-   STICKY DICTIONARY SECTION HEADER
-   ========================================================= */
-
-/*
-   The dictionary title remains sticky while its article scrolls underneath.
-
-   --bg-card is transparent in the paper theme, so without an explicit
-   background the article text is visible through the sticky header.
-
-   Give it the same paper treatment as the main search bar.
-*/
-
-html[data-shell-image]:not([data-theme="dark"]) details.dict > summary {
+html[data-shell-image] details.dict > summary {
   background-color:var(--paper-bg) !important;
 
   background-image:

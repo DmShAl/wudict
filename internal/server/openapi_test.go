@@ -33,6 +33,13 @@ func specOperations(t *testing.T) map[string]bool {
 	inPaths := false
 	path := ""
 	for _, line := range strings.Split(string(openAPISpec), "\n") {
+		// The file is checked out with CRLF on Windows, and a BLANK line there
+		// is one byte rather than none: without this, the first blank line
+		// inside the paths block reads as "a top-level key" and ends it, so
+		// the gate below found ONE operation out of forty and reported every
+		// route as undocumented. That is the whole of this test's history of
+		// failing on Windows.
+		line = strings.TrimSuffix(line, "\r")
 		if strings.HasPrefix(line, "paths:") {
 			inPaths = true
 			continue

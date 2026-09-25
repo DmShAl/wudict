@@ -1,7 +1,8 @@
 /* Contrast without the blinding white: near-black on a warm off-white, with
    the hairlines darkened so the structure stays visible at any font size.
    Push --fg to #000 and --bg to #fff if you want the maximum. */
-html:not([data-dark]){
+
+html{
   --bg:#f1f0ed; --bg-card:#fbfaf8; --bg-bar:rgba(241,240,237,.94);
   --fg:#0f0f0f; --fg-soft:#3a3a3a; --fg-faint:#5c5c5c;
   --line:#b9b5ad; --line-soft:#d6d2ca; --link:#1c4f7c;
