@@ -83,6 +83,22 @@ known-failing TestSetupFlow (fails on clean `dev` too). The upstream build was
 also stood up for the user to evaluate on `http://127.0.0.1:6890` (temp db dir,
 pure-Go build) — stop it when no longer needed.
 
+Branch `master_build` (`0cc878c`, pushed): upstream `master` + the fork's
+build system only — `build-android.cmd` adapted to master's
+version-suffixed APK names (script computes `APK_VERSION` from git
+describe, same sanitization as build.gradle's `apkVersion`), and
+build.gradle carries the fork's `-PemuX86` debug-ABI support
+(src/emuX86/jniLibs, debug-only). App identity stays upstream
+(`com.legbehindneck.wudict`, port 6888), so builds from this branch are
+the ORIGINAL product and install beside wuDict2. Verified:
+`build-android.cmd debug intel` produced
+`wudict-android-arm64-x86_64-foss-debug-<ver>.apk` with both ABIs.
+Release signing reads the same untracked `build-android.local.bat` when
+the MAIN checkout is switched to `master_build` (a worktree has no
+local.bat — copy it there first). After each upstream `master` sync,
+repeat this small overlay (two files) or merge `master` into
+`master_build` when the naming/emuX86 code still applies.
+
 ## Emulator builds: `build-android.cmd debug intel` (2026-09-24, this session)
 
 The user's Android Studio AVD is x86_64 (`sdk_gphone16k_x86_64`, Android
