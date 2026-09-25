@@ -463,18 +463,27 @@ window.wudictShellBackground = function (color, image, imageName) {
   <div id="appearanceScreen" hidden>
     <div class="screen-row">
       <div class="screen-title" id="edgeTitle">Edges of the screen</div>
-      <button type="button" class="choice-btn" id="edgeChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="edgeTitle"></button>
-      <div class="choice-menu menu-card" id="edgeMenu" role="listbox" aria-labelledby="edgeTitle" data-w="anchor" hidden></div>
+      <!-- A group of radios and not a menu. Five answers here, four in the row
+           below, and a menu makes the reader open it to find out what the
+           answers ARE - which is what Material's own line at five is about.
+           The menu had a second reason once: a <select> would have opened the
+           platform's popup, which can wear neither the app's colour nor its
+           wallpaper. Radios pop nothing up, so that reason is gone too. -->
+      <div class="radio-group" id="edgeChoice" role="radiogroup" aria-labelledby="edgeTitle"></div>
       <!-- The colour the margins are painted in, and only while that is what
            they follow: a field for a value nothing is using is a question the
            reader has to answer before it means anything. -->
-      <div class="appearance-row" id="edgeColorRow" hidden><label for="edgeColor">Colour</label><div class="color-box" id="edgeColorBox"><input id="edgeColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Margin colour, six hexadecimal digits"><button type="button" class="color-pick" id="edgeColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="edgeColorMenu" class="color-history menu-card" hidden></div></div></div>
+      <!-- The colour field is part of what the option "A colour you pick" IS, so
+           it stays on that option's row at all times and goes inert while
+           another option is chosen - see appearanceRender. It starts disabled
+           for the same reason: a page whose first render has not run yet must
+           not offer a field that would write the wrong theme's colour. -->
+      <div class="color-box" id="edgeColorBox" aria-disabled="true"><input id="edgeColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Margin colour, six hexadecimal digits" disabled><button type="button" class="color-pick" id="edgeColorPick" disabled aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="edgeColorMenu" class="color-history menu-card" hidden></div></div>
       <small id="edgeHint"></small>
     </div>
     <div class="screen-row">
       <div class="screen-title" id="barsTitle">Hide while you read</div>
-      <button type="button" class="choice-btn" id="barsChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="barsTitle"></button>
-      <div class="choice-menu menu-card" id="barsMenu" role="listbox" aria-labelledby="barsTitle" data-w="anchor" hidden></div>
+      <div class="radio-group" id="barsChoice" role="radiogroup" aria-labelledby="barsTitle"></div>
       <small id="barsHint">Swipe in from the top or bottom edge to bring them back for a moment.</small>
     </div>
     </div>
@@ -4817,10 +4826,53 @@ function screenChoice(bar,menu,options,onPick){
     bar.textContent=options[value];
   }};
 }
-const screenEdge=screenChoice($("edgeChoice"),$("edgeMenu"),SCREEN_EDGE_OPTIONS,
+/* A group of radios: the whole set on screen at once, which is the point of
+   them for these two rows. The caller's answer is what `set` marks, so a render
+   re-running on every round trip to the shell leaves the reader's choice alone.
+
+   Native inputs rather than drawn buttons - the app already styles its own
+   checkbox with `appearance:none` and a drawn mark, so a radio is the same
+   trick, and the keyboard, the arrow keys and the screen reader come with it.
+   The ROW is the target and not the circle, because a 20px circle is not a
+   phone's thumb.
+
+   The options array is read in order and the INDEX is what goes back to the
+   caller: for the Screen rows that index IS the stored mode, so the array may
+   not be rearranged - see the note above SCREEN_EDGE_OPTIONS. */
+function radioGroup(box,options,onPick){
+  const inputs=[];
+  box.replaceChildren();
+  options.forEach((label,i)=>{
+    const row=document.createElement("label");
+    row.className="radio-row";
+    const input=document.createElement("input");
+    input.type="radio";input.name=box.id;input.value=String(i);
+    input.onchange=()=>{if(input.checked)onPick(i)};
+    const text=document.createElement("span");
+    text.textContent=label;
+    row.append(input,text);
+    box.appendChild(row);
+    inputs.push(input);
+  });
+  return {set(v){
+    const i=Number.isInteger(v)&&v>=0&&v<options.length?v:0;
+    inputs[i].checked=true;
+  }};
+}
+const screenEdge=radioGroup($("edgeChoice"),SCREEN_EDGE_OPTIONS,
   mode=>appearanceSet("edgeMode",mode));
-const screenBars=screenChoice($("barsChoice"),$("barsMenu"),SCREEN_BARS_OPTIONS,
+const screenBars=radioGroup($("barsChoice"),SCREEN_BARS_OPTIONS,
   mask=>appearanceSet("bars",mask));
+/* The colour the margins are painted in belongs to the option that uses it, so
+   it rides on THAT option's row rather than on a row of its own. A field for a
+   value nothing is using is a question the reader has to answer before it means
+   anything - which is why it is still hidden while another option is chosen -
+   and a row labelled "Colour" under an option that already says "A colour you
+   pick" said it twice. Moved once, here, after the group exists. */
+(function(){
+  const rows=$("edgeChoice").querySelectorAll(".radio-row");
+  if(rows[EDGE_CUSTOM])rows[EDGE_CUSTOM].appendChild($("edgeColorBox"));
+})();
 /* The sheet's subject, in its head. Same component as the two above - a menu
    the page draws, so it wears the app's background and wallpaper rather than
    the platform's popup theme - and its rows are STYLER_SUBJECTS in
@@ -4930,7 +4982,18 @@ function appearanceRender(state){
   const edge=Number.isInteger(mode)&&mode>=0&&mode<=EDGE_NONE?mode:0;
   screenEdge.set(edge);
   screenBars.set(Number(state.bars)||0);
-  $("edgeColorRow").hidden=edge!==EDGE_CUSTOM;
+  // DISABLED, not hidden. The field is part of what the option "A colour you
+  // pick" IS, so a reader choosing between the five sees what each one offers -
+  // and an option whose field comes and goes reads as one with nothing behind
+  // it. Inert is the honest state: the value it holds is not in use, so it
+  // cannot be typed into, and picking that option is what makes it live again.
+  // (The app dims rather than disables where it can - the font stepper - but
+  // there the value is clamped and always in effect; here there is nothing to
+  // clamp.)
+  const custom=edge===EDGE_CUSTOM;
+  $("edgeColor").disabled=!custom;
+  $("edgeColorPick").disabled=!custom;
+  $("edgeColorBox").setAttribute("aria-disabled",String(!custom));
   $("edgeColor").value=String(state.edgeColor||"").replace(/^#/,"").toUpperCase();
   colorPickSync($("edgeColor"),$("edgeColorPick"));
   // The hint says what the answer MEANS, and EDGE_NONE is the one answer

@@ -297,6 +297,72 @@ stored mode - so "auto" following the system at sunset moves everything too.
   - Verified on the emulator after the fix: the page's script runs, the panel's
     four doors list as `screen/bg/presets/css`, the head's menu lists all four
     names, and the Presets subject renders its groups and switches.
+- **The two Screen answers are radio groups now** (the user's call): five
+  options for the edges, four for the bars, every one of them on screen at once.
+  The menus they replace answered a problem that has since gone - a `<select>`
+  would open the platform's popup, which can wear neither the app's colour nor
+  its wallpaper - and a menu also HID the alternatives, which is the wrong trade
+  for a set this small (Material's own ceiling for radios is five, and the edges
+  row sits exactly there).
+  - `radioGroup(box, options, onPick)` has the SAME `{set(i)}` contract as
+    `screenChoice`, so `appearanceRender`'s two calls did not change. Native
+    inputs styled with `appearance:none` the way the group editor's checkbox
+    already is, so the keyboard, the arrow keys and the screen reader come with
+    them; the ROW is the target and not the 20px circle.
+  - **The option arrays are read in order and the INDEX is the stored mode** -
+    see the note above `SCREEN_EDGE_OPTIONS` - so neither may be rearranged.
+  - Verified on the emulator: 5 and 4 inputs render, the checked one is the
+    stored mode (3, "A colour you pick", at the time), and the colour field
+    appears only for that mode.
+  - `screenChoice` survives for the sheet's subject menu in the head, where
+    hiding the alternatives is right: there the list IS the thing.
+- **The margin colour rides on its own option's row** (the user's call). It used
+  to be a separate row labelled "Colour" under the group, shown only while "A
+  colour you pick" was the mode - which said the same thing twice (the option
+  already names it) and put the value one row away from the option that gives it
+  meaning. `#edgeColorRow` is gone; `#edgeColorBox` is moved onto that radio's
+  row once, at load, by an IIFE beside the group's construction, and it STILL
+  hides itself while another option is chosen - "a field for a value nothing is
+  using is a question the reader has to answer before it means anything" is the
+  app's own rule and it still holds. `.radio-row` wraps, so a narrow phone puts
+  the field under the label instead of squeezing the row.
+  Verified on the emulator: the box is a descendant of the 4th radio row (mode
+  3, EDGE_CUSTOM) and visible while that mode is the stored one.
+  Hiding has a trap that cost a round: a `display:none` element measures 0, so
+  the field looked collapsed to BOTH the reader and my first measurement. The
+  real cause was the width rule - `width:7.5em` lived on
+  `.appearance-row input[type=text]`, and the box had just LEFT that row, so the
+  input had no width of its own and, as a flex item of `.radio-row`, shrank to
+  nothing beside the pipette (an empty input's min-content width is zero). The
+  rule now names both rows and the box carries `flex:none`. Measured with the
+  box shown: input 98px, pipette 26px, row 44px.
+- **The margin colour rides on its own option's row, DIMMED rather than hidden
+  when another option is chosen** (the user's two calls, in that order). It used
+  to be a separate row labelled "Colour" shown only while "A colour you pick"
+  was the mode - which said the same thing twice and put the value a row away
+  from the option that gives it meaning.
+  - `#edgeColorRow` is gone; `#edgeColorBox` is moved onto that radio's row once,
+    at load, by an IIFE beside the group's construction.
+  - The field then STAYS VISIBLE and goes inert instead of disappearing: it is
+    part of what the option IS, so a reader choosing between the five sees what
+    each offers, and an option whose field comes and goes reads as one with
+    nothing behind it. `appearanceRender` sets `disabled` on the input and the
+    pipette plus `aria-disabled` on the box; the dim is opacity .45, the Clear
+    button's own disabled register. (The app dims where it CAN - the font
+    stepper - but there the value is clamped and always in effect; here there is
+    nothing to clamp.)
+- **Two traps paid for on the way, both worth remembering.**
+  - The field's width came from `.appearance-row input[type=text]`, and the box
+    had just LEFT that row: the input had no width of its own and, as a flex
+    item of `.radio-row`, shrank to nothing beside the pipette - which is what
+    the reader saw as "squeezed to a circle". The rule now names both rows, and
+    the box carries `flex:none` so a long option label cannot squeeze it.
+  - **A `display:none` element measures 0**, so the first measurement of that
+    collapse "confirmed" it for the wrong reason. Show the element first, then
+    measure - and note that the box is legitimately hidden when the stored mode
+    is not "A colour you pick".
+  - Verified: input 98px (7.5em at 13px - room for `FFFFFF`), pipette 26px, row
+    44px, opacity .45 while inert.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
   stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
   manages the files the App and Article sheets reference (its labels say "used

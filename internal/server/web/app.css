@@ -441,7 +441,12 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
 /* One narrow label column for both rows - "Color" and "Image" say enough
    under the section heading, and every em here is strip width. */
 .appearance-row label,.appearance-row .appearance-label{flex:0 0 4.2em;font-size:13px}
-.appearance-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
+/* The field is the same field wherever its box rides: it hangs off the
+   Window-background row and off the Screen option that uses it, and the rule
+   that gives it a width has to name both or the second one collapses to the
+   pipette's own size with nowhere left to type a hex value. */
+.appearance-row input[type=text],
+.radio-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
   font:inherit;font-size:13px;
   background:var(--bg-card);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:.25em}
 /* The color box wraps the input, the picker AND the dropdown, so the 35% row
@@ -450,6 +455,17 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    reader's finger is already going and where it does not push the hex digits
    away from the label that names them. */
 .color-box{display:inline-flex;align-items:center;gap:.3em;max-width:35%}
+/* On an option's row there is no 35% to spend: the row is mostly the option's
+   own label, and the cap would leave the field narrower than the value it is
+   there to hold. The row wraps instead - see .radio-row.
+   flex:none is the load-bearing half: as a flex item the box would otherwise
+   SHRINK to make room for that long label, and an empty input's min-content
+   width is zero, so it collapsed to nothing beside the pipette. */
+.radio-row .color-box{max-width:none;flex:none}
+/* Dimmed while another option is chosen: present, so the option that owns it
+   shows what it offers, and inert, because a value nothing is using is not a
+   value. The dim is the same the Clear button uses for its disabled state. */
+.radio-row .color-box:has(input:disabled){opacity:.45}
 .color-pick{flex:none;display:flex;align-items:center;justify-content:center;
   width:2em;height:2em;padding:0;cursor:pointer;
   font-size:13px;background:var(--bg-card);color:var(--fg-soft);
@@ -549,10 +565,21 @@ html[data-shell-image] .menu-card{
   border:4px solid transparent;border-top-color:var(--fg-faint)}
 .choice-btn:hover{border-color:var(--fg-faint)}
 .choice-btn:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-/* The menu is exactly as wide as the control it speaks for (data-w, set by
-   the markup and read in place()), so the answer and its alternatives line
-   up in one column; the long edge labels then wrap rather than run off a
-   phone's sheet. */
+/* A group of radios, the two Screen answers: everything on screen at once,
+   which is what these two rows need and what the menus they replace were bad
+   at. Drawn like the group editor's checkbox - appearance:none and a mark of
+   our own - so they follow the theme and the paper the same way. The ROW is the
+   target; 44px is the floor the rest of the app's rows sit on. */
+.radio-group{display:flex;flex-direction:column;gap:.05em}
+.radio-row{display:flex;align-items:center;gap:.55em;min-height:44px;
+  flex-wrap:wrap;cursor:pointer;font-size:13px;color:var(--fg)}
+.radio-row input{appearance:none;-webkit-appearance:none;flex:none;
+  width:20px;height:20px;margin:0;border:1.5px solid var(--fg);border-radius:50%;
+  background-color:var(--paper-bg,var(--bg));position:relative;cursor:pointer}
+.radio-row input:checked::after{content:"";position:absolute;inset:4px;
+  border-radius:50%;background:var(--fg)}
+.radio-row input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.radio-row:hover input{border-color:var(--accent)}
 .choice-menu{min-width:12em;max-height:min(60vh,340px)}
 .choice-menu .choice-item::before{content:"";flex:none;width:1em;
   color:var(--accent);font-weight:400}
