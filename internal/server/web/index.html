@@ -447,6 +447,26 @@ body.styling{padding-bottom:var(--styler-h)}
 /* ── dictionaries panel ────────────────────────────────────────────── */
 #panel{position:fixed;inset:0;z-index:200;display:none;background:color-mix(in srgb,var(--fg) 24%,transparent)}
 #panel.show{display:block}
+/* A modal owns the wheel. Open, the page behind it is inert — its links are
+   under a scrim, a click there closes the panel — yet it kept its scrollbar,
+   so the screen showed two parallel bars and a wheel over the scrim moved a
+   page nobody could read. One visible thing to scroll, one scrollbar. Locked
+   on the root, not body: the root is the viewport's scroller. The scroll
+   offset survives untouched — overflow:hidden keeps scrollTop, it only refuses
+   input.
+   Removing a classic scrollbar widens the viewport, and everything laid out
+   against it would slide sideways by the bar's width. So the width the bar
+   took (--wd-sbw, measured by showPanel just before the lock) is handed back
+   as padding to the two boxes sized by the viewport: body for the flow, .bar
+   for the fixed toolbar. Not scrollbar-gutter:stable — that holds the strip
+   open as dead space beside the drawer, and on every page too short to scroll.
+   The scrim, being inset:0, now covers the strip the bar used to occupy. With
+   overlay scrollbars (macOS default, Android, iOS) the measure is 0 and
+   nothing moves. The styler is deliberately not here: it is a docked sheet
+   whose purpose is scrolling the article it restyles. */
+html:has(#panel.show){overflow:hidden}
+html:has(#panel.show) body,
+html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
 .panel-card{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);
   background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow);
   padding:0 var(--sp-3);
@@ -463,7 +483,9 @@ body.styling{padding-bottom:var(--styler-h)}
    no measured offset, no second stacking context, nothing to keep in sync.
    min-height:0 is not optional: a flex child's default min-height:auto refuses
    to shrink below its content, and the card would grow instead of scrolling. */
-.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;
+/* contain: reaching either end of the list stops there — no rubber-band
+   handoff to the (locked) page, no pull-to-refresh on touch. */
+.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
   padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px))}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
@@ -2305,6 +2327,9 @@ function showPanel(){panelSnap=panelState();
   // Asked here, not at load: the Android shell installs its speech engine
   // after the page has loaded (D148).
   $("speakBtn").hidden=!speakCan();
+  // before the lock: once the root stops scrolling the bar is gone to measure
+  document.documentElement.style.setProperty("--wd-sbw",
+    Math.max(0,innerWidth-document.documentElement.clientWidth)+"px");
   $("panel").classList.add("show");loadFolders()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
