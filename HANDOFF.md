@@ -432,6 +432,58 @@ stored mode - so "auto" following the system at sunset moves everything too.
   closing paren short - and each time the result read as a page error
   ("Uncaught", "SyntaxError") when it was the probe. Check the expression's own
   parens before believing a red result.
+- **Font weight joined Font size** (the user's ask), and it is the size's twin
+  all the way down: `--wd-fw` on the root, read by the article's shadow style
+  (`font-weight:var(--wd-fw,400)`), BAKED into the frames' srcdoc and also sent
+  to them as `{t:"fw",w}` - a custom property cannot cross a document boundary,
+  which is why the size has both routes too. Persisted as `ui.fontWeight` in
+  `state.json` (a new field on UIPrefs), so it follows the person rather than
+  the browser, exactly as the size does.
+  - Three steps and no more: 400/500/700, named Normal/Medium/Bold. The faces in
+    the stack a dictionary is read in - Roboto, SF, Segoe - have those reliably,
+    and 300 is either missing or SYNTHESISED, which reads as a mistake rather
+    than as lighter text.
+  - The same stepper as the size, with its value button showing the NAME rather
+    than the number: the reader is choosing a look, not a value.
+  - The existing `bolder_text` preset is NOT a weight - it is
+    `-webkit-text-stroke:.2px` - so the two coexist rather than overlap: a stroke
+    thickens any face by a fixed amount, a weight picks another face.
+  - Verified on the emulator: 400 Normal → 500 Medium → 700 Bold, the bounds dim
+    (`.lim`, the app's dim-not-disable rule), tapping the value resets, and the
+    value button is wide enough for its word ("Normal" 44px, "Medium" 48px
+    natural) instead of clipping it.
+  - **The styles were then NOT shared** (the user's follow-up: "apply the same
+    styles to Font weight as to Font size - colour and so on"). All seven
+    stepper rules were scoped to `#fsCtl` alone, so the weight control got
+    none of it: no colour, no border, no 22px box, no hover, no focus ring,
+    and its `.lim` never dimmed anything. Both containers are named in every
+    rule now — `#fsCtl button,#fwCtl button` and so on, NOT
+    `#fsCtl,#fwCtl button`, which reads as "the size CONTAINER or a weight
+    button" and strips the size of its own sizing.
+  - The two rows also read as one column now: the label is 60px (the longer of
+    "Font size"/"Font weight") and `.fsval` is 48px (the wider of "32px" and
+    "Medium"), so both − buttons and both + buttons sit at the same x.
+    Scoped with `.facts:has(>#fsCtl)` / `:has(>#fwCtl)` so the panel's other
+    `.facts` rows — which put their control at the right edge — cannot move;
+    checked, and these are the only two `.rowlabel`s in the document.
+  - **Verified in the page's own raster** (`Page.captureScreenshot`, clip +
+    PIL, not the screenshot read by eye — which at that zoom said the opposite):
+    the border columns of the two rows are identical to a tenth of a CSS px —
+    `−` at 214.2, value box 238.2–285.5, `+` at 288.2–309.5 — and all six
+    buttons compute the same colour, border and font-size. The weight's `−`
+    reads fainter in the raster only because Normal is the floor (`.lim`).
+    Note for the next raster probe: `clip.scale` MULTIPLIES the DPR, so
+    `scale:2` on a 2x device is 4 device px per CSS px, not 2.
+  - **Both themes checked**, and the pair is right in each: with the paper
+    wallpaper on, the light theme computes ink `#5d4d3a` and line `#cdbb96`
+    (the BACKGROUND preset's warm inks) and the dark theme `#ded8cc` and
+    `rgba(230,220,201,.4)` (the sepia-dark override at app.css:392). The
+    steppers only read the vars, so they needed nothing of their own.
+  - **A probe trap this cost me.** Reading `getComputedStyle` on the buttons in
+    the SAME evaluate that called `setTheme("dark")` returned the LIGHT values,
+    while the root's `--fg` and the panel's own colour in that same read were
+    already dark. I nearly recorded a dark-mode ink bug that does not exist.
+    Set the theme in one call, measure in the next.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
   stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
   manages the files the App and Article sheets reference (its labels say "used
@@ -484,10 +536,39 @@ after the heading it sits under.
 - **Verified on the emulator**: the rows stack and their labels share one x;
   clicking Off then On flips `aria-pressed` both ways; `hlOff` still
   round-trips through state.json; `go build ./...` and the asset tests pass.
-- **The rows are two columns**: `.facts .seg>span{flex:1 1 auto}` lets the
-  label take the slack, so the pair sits at the row's right edge. Measured:
-  labels all at x=147, pairs all ending at 514, starting at 447/394/368 — the
-  pair's own width is what differs, which is the shape that was asked for.
+- **The rows are ONE column, and it is the sheet's column** (two reports from
+  the user, the second with a picture). As built first, `.facts .seg>span
+  {flex:1 1 auto}` made the label a spring: it took the row's slack and pinned
+  the pair to the right edge (x=514) while each pair kept the natural width of
+  its own two words, so the three rows started at 447/394/368 — "On | Off"
+  could not be read as the same control as "Alphabetical | My order". Then:
+  "like the font controls — move them left". So the label is a fixed column
+  now — `flex:0 1 96px;min-width:0`, with an ellipsis below that — and it is
+  the SAME 96px the two font rows' labels take, which puts every control in
+  the panel at one x: measured, labels 147..243 and pairs and both steppers
+  starting at 249/250. Same at 411 and 360. `flex-shrink` and the ellipsis are
+  what a narrow phone gets instead of the old squeezed label.
+- **Both halves of a pair are the same width**: `min-width:80px;
+  justify-content:center` on `.facts .seg .act`. 80 and not 79, which is what
+  `Alphabetical` measures (79.33) and which left that one row a pixel out of
+  line. `.facts` exists only in index.html and only those six buttons are
+  `.act`s inside a `.seg`, so nothing else in the app can move.
+- **Below 345px the pair wraps under its label**, and only there, in a media
+  query. Not a permanent `flex-wrap`: a wrapping flex container reserves the
+  height of a second line whether or not it uses one — measured, the row went
+  from 22px to 51px at EVERY width, a lot of panel for the narrowest phones
+  only. Verified at 320/345/360/411/540: no overflow at any of them and 22px
+  rows everywhere above the query.
+- **A raster trap that cost me a detour**: a clipped `Page.captureScreenshot`
+  came back as a stitched frame — the labels drawn twice, the buttons cut off
+  mid-word — while the DOM said everything was in place. The compositor had
+  stale tiles. `adb exec-out screencap -p` plus a PIL crop is the reliable
+  picture; the page raster is for measuring pixel columns, and even then the
+  DOM rects are what settle a question.
+- **The embedded assets are CRLF**, so a byte search in `libwudict.so` for a
+  multi-line CSS snippet must include the `\r\n`. Searching for one cost me a
+  rebuilt APK I thought had not been rebuilt — the single-line probes matched,
+  the multi-line one did not.
 
 ## The chips name their scope, with no receding state (2026-09-24, this session)
 

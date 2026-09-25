@@ -313,6 +313,17 @@ window.wudictShellBackground = function (color, image, imageName) {
       <button type="button" class="fsbtn" id="fsUp" aria-label="Larger article text">+</button>
     </span>
   </div>
+  <!-- The weight, the size's twin - and its three names are the app's own
+       words for the faces the stack actually has. No number is shown: the
+       reader is choosing a look, not a value. -->
+  <div class="facts">
+    <span class="rowlabel">Font weight</span>
+    <span id="fwCtl">
+      <button type="button" class="fsbtn" id="fwDown" aria-label="Lighter article text">&#8722;</button>
+      <button type="button" class="fsval" id="fwVal" title="Article text weight — click to reset" aria-label="Article text weight; click to reset">Normal</button>
+      <button type="button" class="fsbtn" id="fwUp" aria-label="Bolder article text">+</button>
+    </span>
+  </div>
   <!-- One door per subject, and the sheet opens on the one that was asked for.
        It used to be a single row called "Screen, background, CSS…" opening one
        sheet with all three groups expanded - so a reader who wanted two rows
@@ -617,7 +628,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyFW(st.ui.fontWeight,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
   }catch(e){
@@ -641,7 +652,7 @@ function savePrefs(now){
   // omitempty zero value), which is what retires a flag set by the switches
   // that no longer exist.
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
+    ui:{fontSize:articleFS,fontWeight:articleFW,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -806,7 +817,13 @@ applyBarPinned(barPinned);
    this layout was drawn for: a reader who needs 32px needs it more than the
    layout needs to stay pretty. */
 const FS_MIN=11,FS_MAX=32,FS_DEF=15;
+/* The weight is not a continuum like the size: the faces in the stack a
+   dictionary is read in - Roboto, SF, Segoe - have 400, 500 and 700 reliably,
+   and 300 is either missing or SYNTHESISED, which reads as a mistake rather
+   than as lighter text. So three steps and no more. */
+const FW_STEPS=[400,500,700],FW_LABEL={400:"Normal",500:"Medium",700:"Bold"},FW_DEF=400;
 let articleFS=FS_DEF;
+let articleFW=FW_DEF;
 function applyFS(px,save){
   const n=Math.min(FS_MAX,Math.max(FS_MIN,Math.round(+px||FS_DEF)));
   const moved=n!==articleFS;
@@ -818,6 +835,24 @@ function applyFS(px,save){
   if(moved)for(const f of document.querySelectorAll("iframe.article"))
     f.contentWindow&&f.contentWindow.postMessage({t:"fs",px:n},"*");
   // Debounced inside savePrefs, so holding + costs one PUT and not twenty.
+  if(save&&moved)savePrefs();
+}
+/* The weight, the size's twin: the same root custom property, the same message
+   to the frames (a custom property cannot cross a document boundary, so the
+   frames are told), and the same server-side pref - a reader who needs 500
+   needs it on the phone that reaches this server too.
+   A STEPPER over three names rather than a slider over numbers: the reader is
+   choosing a look, and "Medium" is the name of one. */
+function applyFW(w,save){
+  const n=FW_STEPS.includes(Math.round(+w))?Math.round(+w):FW_DEF;
+  const moved=n!==articleFW;
+  articleFW=n;
+  document.documentElement.style.setProperty("--wd-fw",String(n));
+  $("fwVal").textContent=FW_LABEL[n];
+  $("fwDown").classList.toggle("lim",n<=FW_STEPS[0]);
+  $("fwUp").classList.toggle("lim",n>=FW_STEPS[FW_STEPS.length-1]);
+  if(moved)for(const f of document.querySelectorAll("iframe.article"))
+    f.contentWindow&&f.contentWindow.postMessage({t:"fw",w:n},"*");
   if(save&&moved)savePrefs();
 }
 /* The stepper's clicks used to be swallowed on the container: it sat inside a
@@ -909,6 +944,13 @@ applyOpenOrder(true,false);
 for(const [id,step] of [["fsDown",-1],["fsUp",1],["fsVal",0]])
   $(id).addEventListener("click",()=>applyFS(step?articleFS+step:FS_DEF,true));
 applyFS(FS_DEF,false);   // paints --wd-fs and the .lim state before any load
+for(const [id,step] of [["fwDown",-1],["fwUp",1],["fwVal",0]])
+  $(id).addEventListener("click",()=>{
+    if(!step)return applyFW(FW_DEF,true);
+    const i=FW_STEPS.indexOf(articleFW);
+    applyFW(FW_STEPS[Math.min(FW_STEPS.length-1,Math.max(0,i+step))],true);
+  });
+applyFW(FW_DEF,false);   // paints --wd-fw and the .lim state before any load
 
 /* ── the user's global stylesheets ───────────────────────────────────
    Two files the user owns, beside the wudict.toml in effect: app.css for the
@@ -2372,7 +2414,8 @@ const ARTCSS=`{{ARTCSS}}`;
 
 const shadowBase=`<style>
 :host{all:initial;display:block;font-family:${"-apple-system,Helvetica,Arial,sans-serif"};
-  font-size:var(--wd-fs,15px);line-height:1.618;color:var(--wd-article-fg,#1a1a1a);word-break:break-word}
+  font-size:var(--wd-fs,15px);font-weight:var(--wd-fw,400);
+  line-height:1.618;color:var(--wd-article-fg,#1a1a1a);word-break:break-word}
 img,video,svg{max-width:100%;height:auto}
 a{color:#5b7a99;cursor:pointer}
 table{max-width:100%;border-collapse:collapse}
@@ -2498,7 +2541,7 @@ function frameDoc(content,fid,dark,dictID,frag){
   return '<!DOCTYPE html><html class="'+(dark?'dark':'')+'"'+(dark?' data-dark':'')+'><head><meta charset="utf-8">'+
     /* Baked in, because a custom property cannot cross into another
        document; changes AFTER creation arrive by postMessage instead. */
-    '<style>html{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:'+articleFS+'px;line-height:1.618;color:var(--wd-article-fg,#1a1a1a);background:var(--wd-article-bg,#fff);overflow-y:hidden}'+
+    '<style>html{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:'+articleFS+'px;font-weight:'+articleFW+';line-height:1.618;color:var(--wd-article-fg,#1a1a1a);background:var(--wd-article-bg,#fff);overflow-y:hidden}'+
     'body{margin:8px}img,video,svg{max-width:100%;height:auto}'+
     'html.dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.92)}'+
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+

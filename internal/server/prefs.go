@@ -58,6 +58,13 @@ type DictPref struct {
 type UIPrefs struct {
 	FontSize int `json:"fontSize,omitempty"` // article text, px; 0 = the default
 
+	// FontWeight is the article text's weight, in CSS units. 0 is the zero
+	// value AND the default (400), which is the same bargain as FontSize: a
+	// half-written state.json gets the default rather than a wrong value.
+	// Server state and not localStorage, for the reason the size is not - a
+	// reader who needs 500 needs it on the phone that reaches this server too.
+	FontWeight int `json:"fontWeight,omitempty"`
+
 	// HLOff turns OFF marking of full-text matches inside articles. It is
 	// negating for the same reason DictPref.Off is: the default is on, and a
 	// default that is the zero value is a default a hand-written or

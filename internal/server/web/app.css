@@ -1002,18 +1002,28 @@ dialog.panel-card:not([open]){display:none}
    The buttons are never `disabled` at the bounds, only dimmed. Clamping in
    applyFS is what holds the range and .lim is what says so; a control that
    stops taking presses reads as broken, and the bound is two presses away. */
-#fsCtl{flex:none;display:flex;align-items:center;gap:2px}
-#fsCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
+/* The pair is read as one column with the reading strip's pairs below it, so
+   the label column is the same 96px theirs is — the whole panel then has ONE
+   control column, which is what "like the font controls" means when the rows
+   are read down the sheet. Scoped to the rows that hold a stepper: no other
+   `.facts` row has a `.rowlabel` at all. */
+.facts:has(>#fsCtl)>.rowlabel,.facts:has(>#fwCtl)>.rowlabel{
+  flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#fsCtl,#fwCtl{flex:none;display:flex;align-items:center;gap:2px}
+#fsCtl button,#fwCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   color:var(--fg-soft);background:var(--bg-card);border:1px solid var(--line);
   border-radius:6px;transition:color .12s,border-color .12s,opacity .12s}
-#fsCtl button:hover{color:var(--fg);border-color:var(--fg-faint)}
-#fsCtl button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#fsCtl .fsbtn{width:22px;height:22px;font-size:13px}
-#fsCtl .fsbtn.lim{opacity:.3}
-/* min-width holds "32px" — the widest value — so the two buttons never move
-   as the number changes; tabular-nums holds the digits still within it. */
-#fsCtl .fsval{height:22px;min-width:34px;padding:0 3px;font-size:11px;
+#fsCtl button:hover,#fwCtl button:hover{color:var(--fg);border-color:var(--fg-faint)}
+#fsCtl button:focus-visible,#fwCtl button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#fsCtl .fsbtn,#fwCtl .fsbtn{width:22px;height:22px;font-size:13px}
+#fsCtl .fsbtn.lim,#fwCtl .fsbtn.lim{opacity:.3}
+/* min-width holds the widest value of EACH stepper, so that neither the
+   buttons nor the other row moves as the value changes: "32px" is the widest
+   size, "Medium" the widest weight, and both boxes take the wider of the two.
+   tabular-nums holds the digits still within it. */
+#fsCtl .fsval,#fwCtl .fsval{height:22px;min-width:48px;padding:0 3px;font-size:11px;
   color:var(--fg-faint);font-variant-numeric:tabular-nums}
 /* A group's name over the rows it heads — "Dictionary folders", "Library",
    "Config file". Sentence case and a heavier weight, NOT the uppercase+tracking
@@ -1071,12 +1081,34 @@ dialog.panel-card:not([open]){display:none}
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
 .facts .seg{display:inline-flex;align-items:center;justify-content:flex-start;gap:.4em}
-/* The label takes the row's slack, so the pair sits at the RIGHT edge and the
-   rows read as two columns — labels down one, buttons down the other. Without
-   it every pair hugs its own label and the button column comes out ragged,
-   which is what a wrapped row used to hide. */
-.facts .seg>span{flex:1 1 auto;font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
-.facts .seg .act{position:relative;border-radius:0}
+/* The narrowest phones only. The label is a fixed column and the two halves
+   never shrink (their equal widths ARE the column), so below ~345px the pair
+   has nowhere to go but the next line. It is a media query rather than a
+   permanent `wrap` because a wrapping flex container reserves a second line's
+   height whether or not it uses one: measured, the row went from 22px to 51px
+   at every width, which is a lot of panel for a case this rare. */
+@media (max-width:345px){
+  .facts .seg{flex-wrap:wrap}
+}
+/* The label is the column, not a spring. A fixed 96px — the width of the
+   longest name in the sheet, "Highlight matches" — and every control in the
+   panel begins at the same x, the pairs directly after their labels exactly
+   as the font rows have theirs. It used to GROW instead, take the row's slack
+   and pin the pair to the right edge, which is where the reader looked last
+   for a control that belongs to the label on its left.
+   `flex-shrink:1` with `min-width:0` and the ellipsis are for a phone
+   narrower than these names are long: the label gives up room it does not
+   need and says so, rather than the pair sliding out of the row. */
+.facts .seg>span{flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
+/* Both halves of every pair are as wide as the widest word in the section, so
+   the six buttons make ONE column and the edge the halves share falls at the
+   same x in all three rows. At their natural widths the rows came out ragged:
+   the pair still ended at the right edge, but it STARTED wherever its own
+   label happened to end, so "On | Off" and "Alphabetical | My order" could not
+   be read as the same control in two states. */
+.facts .seg .act{position:relative;border-radius:0;min-width:80px;
+  justify-content:center}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
 .facts .seg .act:last-of-type{border-radius:0 8px 8px 0;margin-left:-1px}
 /* Raised over its neighbour so the edge they share is the accent one; the
