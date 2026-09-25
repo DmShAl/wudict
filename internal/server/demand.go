@@ -34,8 +34,11 @@ func (s *Server) handleDemand(w http.ResponseWriter, r *http.Request) {
 	}
 	// AUTO_INDEX off means the user has said preparation is theirs to trigger,
 	// and a selection is not that trigger - the dictionary panel is. Same
-	// condition handleSearch applies before it demands.
-	if s.AutoIndex {
+	// condition handleSearch applies before it demands. `explicit=1` is the
+	// other kind of demand: the user asked for something only the index can
+	// serve (browsing, which has no direct-backend path), so the request IS
+	// the trigger AUTO_INDEX off reserves for them.
+	if s.AutoIndex || r.URL.Query().Get("explicit") == "1" {
 		e.demandIndex()
 	}
 	// `indexing` means "work is in flight", and e.indexing() alone does not:

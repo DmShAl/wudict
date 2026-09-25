@@ -193,7 +193,11 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
    treatment lives in the one media query at the end of this stylesheet — there
    is no second layout to keep in step, only a second set of rules for the same
    markup. */
-.pill,.seg{display:contents}
+/* .seg is scoped to the bar here and below: the panel's option rows use the
+   same class for their labelled button groups, and the bar's phone rules
+   (flex:none above all) made "Group by" refuse to shrink — one long row with
+   a sideways scroll on narrow screens, a tidy wrap on wide ones. */
+.pill,.bar .seg{display:contents}
 .chip{display:none}
 .btn{font-size:15px;background:var(--bg-card);color:var(--fg-soft);
   border:1px solid var(--line);border-radius:8px;padding:.3em .55em;cursor:pointer;line-height:1.2}
@@ -447,6 +451,26 @@ body.styling{padding-bottom:var(--styler-h)}
 /* ── dictionaries panel ────────────────────────────────────────────── */
 #panel{position:fixed;inset:0;z-index:200;display:none;background:color-mix(in srgb,var(--fg) 24%,transparent)}
 #panel.show{display:block}
+/* A modal owns the wheel. Open, the page behind it is inert — its links are
+   under a scrim, a click there closes the panel — yet it kept its scrollbar,
+   so the screen showed two parallel bars and a wheel over the scrim moved a
+   page nobody could read. One visible thing to scroll, one scrollbar. Locked
+   on the root, not body: the root is the viewport's scroller. The scroll
+   offset survives untouched — overflow:hidden keeps scrollTop, it only refuses
+   input.
+   Removing a classic scrollbar widens the viewport, and everything laid out
+   against it would slide sideways by the bar's width. So the width the bar
+   took (--wd-sbw, measured by showPanel just before the lock) is handed back
+   as padding to the two boxes sized by the viewport: body for the flow, .bar
+   for the fixed toolbar. Not scrollbar-gutter:stable — that holds the strip
+   open as dead space beside the drawer, and on every page too short to scroll.
+   The scrim, being inset:0, now covers the strip the bar used to occupy. With
+   overlay scrollbars (macOS default, Android, iOS) the measure is 0 and
+   nothing moves. The styler is deliberately not here: it is a docked sheet
+   whose purpose is scrolling the article it restyles. */
+html:has(#panel.show){overflow:hidden}
+html:has(#panel.show) body,
+html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
 .panel-card{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);
   background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow);
   padding:0 var(--sp-3);
@@ -463,7 +487,9 @@ body.styling{padding-bottom:var(--styler-h)}
    no measured offset, no second stacking context, nothing to keep in sync.
    min-height:0 is not optional: a flex child's default min-height:auto refuses
    to shrink below its content, and the card would grow instead of scrolling. */
-.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;
+/* contain: reaching either end of the list stops there — no rubber-band
+   handoff to the (locked) page, no pull-to-refresh on touch. */
+.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
   padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px))}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
@@ -715,7 +741,7 @@ body.styling{padding-bottom:var(--styler-h)}
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
 .facts .seg{display:inline-flex;align-items:center;gap:.4em}
-.facts .seg>span{font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
+.facts .seg>span:not(.chips){font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
 .facts .seg .act{position:relative;border-radius:0}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
 .facts .seg .act:last-of-type{border-radius:0 8px 8px 0;margin-left:-1px}
@@ -728,6 +754,21 @@ body.styling{padding-bottom:var(--styler-h)}
    and edge. After the rules above, which it must override at equal weight. */
 .facts .seg.multi{flex-wrap:wrap}
 .facts .seg.multi .act{border-radius:8px;margin-left:0}
+/* Two layouts and nothing between them: the switches travel as ONE box, so
+   when the row is too narrow for label and box together the whole box drops
+   under the label instead of shedding its last button onto a ragged second
+   line. Decided by the content itself, not a breakpoint, so it holds for any
+   number of sections, any label length and any text size. Wrapping inside
+   the box is the last resort, reached only when the box alone is wider than
+   the panel. gap:inherit keeps the spacing identical in both layouts. */
+.facts .seg.multi .chips{display:inline-flex;flex-wrap:wrap;gap:inherit}
+/* A box, empty or ticked: the mark of a switch that is one of several and
+   independent of the others — the pairs above, where one excludes the other,
+   carry none. The box is drawn in both states, so the label never moves on
+   toggle; only the tick comes and goes. Accent with the rest of the pressed
+   button, and kept there under the pointer. */
+.facts .seg.multi .act[aria-pressed="true"] svg{color:var(--accent)}
+.facts .seg.multi .act[aria-pressed="false"] .tick{display:none}
 .facts .seg[hidden]{display:none}
 /* One step fainter than the label, so the glyph reads as a mark on the control
    rather than as a second word. Both idioms below (fill and stroke) resolve
@@ -735,6 +776,10 @@ body.styling{padding-bottom:var(--styler-h)}
    follow the theme, which is exactly what emoji could not do. */
 .facts .act svg{width:14px;height:14px;flex:none;color:var(--fg-faint)}
 .facts .act:hover svg{color:var(--fg-soft)}
+/* Read aloud off: the same speaker, silent. Only the waves go; the svg keeps
+   its fixed 14px box (flex:none above), and the cone stays where it was
+   inside it, so neither the glyph nor the label shifts on toggle. */
+#speakBtn[aria-pressed="false"] .wave{display:none}
 /* It belongs with the other things you came to this drawer to DO, so it wears
    the row's chrome — but it still reveals a choice rather than performing one,
    and it keeps the ▸/▾ every other disclosure in this app uses (#folders,
@@ -887,13 +932,13 @@ body.styling{padding-bottom:var(--styler-h)}
   /* align-self:stretch and a min-width so the transparent select covers a
      whole 44px-tall target rather than just the 22px the chip's own text
      occupies — the chip is what you see, the seg is what you hit. */
-  .seg{display:flex;position:relative;flex:none;align-self:stretch;
+  .bar .seg{display:flex;position:relative;flex:none;align-self:stretch;
     align-items:center;justify-content:center;min-width:40px}
-  .seg select{position:absolute;inset:0;width:100%;height:100%;margin:0;
+  .bar .seg select{position:absolute;inset:0;width:100%;height:100%;margin:0;
     padding:0;border:0;max-width:none;opacity:0;-webkit-appearance:none;
     appearance:none}
-  .seg:has(select:focus-visible) .chip{outline:2px solid var(--focus);outline-offset:1px}
-  .seg:has(select:disabled){opacity:.55}
+  .bar .seg:has(select:focus-visible) .chip{outline:2px solid var(--focus);outline-offset:1px}
+  .bar .seg:has(select:disabled){opacity:.55}
   .chip{display:flex;align-items:center;gap:.3em;max-width:11ch;
     white-space:nowrap;font-size:11.5px;line-height:1;color:var(--fg);
     background:var(--accent-soft);border-radius:7px;padding:.45em .3em .45em .45em}
@@ -1032,7 +1077,7 @@ body.styling{padding-bottom:var(--styler-h)}
        system voice (D148). Here because it costs nothing until a reader
        selects something, and a reader who never wants it should be able to
        make the offer stop appearing. Hidden where the browser cannot speak. -->
-  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.8a3 3 0 0 1 0 4.4"/><path d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
+  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
@@ -1067,7 +1112,7 @@ body.styling{padding-bottom:var(--styler-h)}
        made from the sections the library actually yields; with none, the
        row is hidden rather than offering switches that change nothing. -->
   <span class="seg multi" id="groupSeg" role="group" aria-label="Sections the dictionary picker offers" hidden>
-    <span>Group by</span>
+    <span>Group by</span><span class="chips"></span>
   </span>
 </div>
 <details id="folders">
@@ -1107,7 +1152,7 @@ body.styling{padding-bottom:var(--styler-h)}
          rather than the book from the dictionary chip above: that book already
          means "a dictionary", and one glyph cannot mean two things without
          meaning neither. No dictionary in the href on purpose; /browse with
-         none asks which, and only the indexed ones can answer. -->
+         none asks which. -->
     <a class="act" id="browseLink" href="/browse" title="Read a dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse A–Z…</a>
     <!-- Reading appearance lives in this row, beside the size stepper in the
          summary above it. A brush, not a cog: the cog on the summary already
@@ -1536,21 +1581,23 @@ function applyGroupsOff(ids,save){
    set changes: a click re-renders the picker, and a button replaced under the
    pointer would drop keyboard focus. */
 let groupSegKey="";
+const CHECK_SVG='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path class="tick" d="M5.2 8.3l1.9 1.9 3.7-4.2"/></svg>';
 function renderGroupSeg(fs){
-  const seg=$("groupSeg"),key=fs.map(f=>f.id+"\t"+f.label).join("\n");
+  const seg=$("groupSeg"),box=seg.querySelector(".chips"),key=fs.map(f=>f.id+"\t"+f.label).join("\n");
   if(key!==groupSegKey){
     groupSegKey=key;
     seg.querySelectorAll("button").forEach(b=>b.remove());
     for(const f of fs){
       const b=Object.assign(document.createElement("button"),
-        {type:"button",className:"act",textContent:f.label,title:`Offer the ${f.label} groups in the dictionary picker`});
+        {type:"button",className:"act",innerHTML:CHECK_SVG,title:`Offer the ${f.label} groups in the dictionary picker`});
+      b.append(f.label);
       b.dataset.f=f.id;
       b.addEventListener("click",()=>{
         const next=new Set(groupsOff);
         next.has(f.id)?next.delete(f.id):next.add(f.id);
         applyGroupsOff([...next],true);
       });
-      seg.appendChild(b);
+      box.appendChild(b);
     }
   }
   seg.hidden=!fs.length;
@@ -2240,10 +2287,12 @@ function renderPanel(){
     // media, a source to pack it from, and it isn't already packed.
     let acts="";
     if(d.error)acts=`<span class="err">${esc(d.error)}</span>`;
-    /* Gated on the index, because browsing IS the index: the same 409 the
-       page would show is better not linked to at all. This is the card for
-       one dictionary, so unlike the row above it carries the id. */
-    else if(indexed)acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
+    /* Offered whether or not the index exists yet: browsing IS the index, so
+       following this link on an unprepared dictionary is the request to build
+       it, and the browse page asks for it and opens the list when it is ready.
+       This is the card for one dictionary, so unlike the row above it carries
+       the id. */
+    else acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
     div.innerHTML=`<div class="hd">
         <span class="grip" draggable="true" title="Drag to reorder">⠿</span>
         <b tabindex="0" role="button" title="Search only this dictionary">${esc(dictLabel(d))}</b>
@@ -2305,6 +2354,9 @@ function showPanel(){panelSnap=panelState();
   // Asked here, not at load: the Android shell installs its speech engine
   // after the page has loaded (D148).
   $("speakBtn").hidden=!speakCan();
+  // before the lock: once the root stops scrolling the bar is gone to measure
+  document.documentElement.style.setProperty("--wd-sbw",
+    Math.max(0,innerWidth-document.documentElement.clientWidth)+"px");
   $("panel").classList.add("show");loadFolders()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
