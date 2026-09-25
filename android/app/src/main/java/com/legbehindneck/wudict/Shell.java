@@ -104,9 +104,13 @@ final class Shell {
         web.setBackgroundColor(image ? android.graphics.Color.TRANSPARENT : ShellPrefs.pageBg(c));
         String color = ShellPrefs.sepia(c) ? ShellPrefs.sepiaColorText(c) : "";
         // Only a validated six-digit colour is interpolated into JavaScript.
+        // The NAME comes from the same theme-aware reader as `active` above:
+        // reading the raw key here sent the DAY wallpaper's name while the
+        // image was the night one, which is how the Appearance sheet came to
+        // wear the day's picture on a dark page.
         web.evaluateJavascript("window.wudictShellBackground && window.wudictShellBackground('"
                 + color + "'," + image + "," + org.json.JSONObject.quote(image
-                ? ShellPrefs.of(c).getString("background_image", "") : "") + ")", null);
+                ? ShellPrefs.backgroundImage(c) : "") + ")", null);
         // wudictNativeShell is how a page knows the shell answers its
         // wudict: prompts - the setup page's folder button speaks only when
         // it will be heard.
@@ -398,6 +402,15 @@ final class Shell {
                     try {
                         org.json.JSONObject request = new org.json.JSONObject(defaultValue);
                         String action = request.optString("action", "get");
+                        // Which THEME's background this round trip is about. The
+                        // page says so rather than letting the shell infer it
+                        // from pageDark: the theme watcher travels as a
+                        // subresource request, so inferring would race a switch
+                        // - the reader can flip the theme and set a colour in
+                        // the same breath. Absent means "the theme the window is
+                        // already showing", which is what a page that predates
+                        // this sends and what it means.
+                        boolean night = request.optBoolean("night", ShellPrefs.night(a));
                         if ("set".equals(action)) {
                             String field = request.getString("field");
                             // The window's own two rows, moved here from the
@@ -409,15 +422,14 @@ final class Shell {
                             // and the value simply awaits the app window.
                             boolean window = false;
                             if ("colorEnabled".equals(field)) {
-                                ShellPrefs.of(a).edit().putBoolean(ShellPrefs.SEPIA,
-                                        request.getBoolean("value")).apply();
+                                ShellPrefs.setSepia(a, night, request.getBoolean("value"));
                             } else if ("color".equals(field)) {
-                                ShellPrefs.setSepiaColor(a, request.getString("value"));
+                                ShellPrefs.setSepiaColor(a, night, request.getString("value"));
                             } else if ("image".equals(field)) {
                                 String name = request.getString("value");
                                 if (!name.isEmpty() && !WindowBackground.images(a).contains(name))
                                     throw new IllegalArgumentException("Image unavailable");
-                                ShellPrefs.of(a).edit().putString("background_image", name).apply();
+                                ShellPrefs.setBackgroundImage(a, night, name);
                             } else if ("edgeMode".equals(field)) {
                                 int mode = request.optInt("value", -1);
                                 if (mode < ShellPrefs.EDGE_SYSTEM || mode > ShellPrefs.EDGE_NONE)
@@ -447,9 +459,12 @@ final class Shell {
                             }
                         } else if (!"get".equals(action)) throw new IllegalArgumentException("Unknown action");
                         org.json.JSONObject reply = new org.json.JSONObject();
-                        reply.put("colorEnabled", ShellPrefs.sepia(a));
-                        reply.put("color", ShellPrefs.sepiaColorText(a));
-                        reply.put("image", ShellPrefs.of(a).getString("background_image", ""));
+                        // The THEME's own values: the page asks about the theme
+                        // it is showing, so a sheet opened at night never shows
+                        // the day colour while the window wears the night one.
+                        reply.put("colorEnabled", ShellPrefs.sepiaFor(a, night));
+                        reply.put("color", ShellPrefs.sepiaColorTextFor(a, night));
+                        reply.put("image", ShellPrefs.backgroundImageFor(a, night));
                         org.json.JSONArray images = new org.json.JSONArray();
                         for (String name : WindowBackground.images(a)) images.put(name);
                         reply.put("images", images);

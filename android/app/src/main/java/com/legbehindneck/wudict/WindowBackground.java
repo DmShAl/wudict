@@ -26,7 +26,9 @@ final class WindowBackground {
     static synchronized File directory(Context c) {
         File dir = new File(AppDirs.home(c), ".wudict/style/assets");
         // Publish complete files only, and never replace an imported user file.
-        for (String name : new String[]{"paper_01.jpg", "paper_02.jpg"}) {
+        // paper_03 is the dark paper: the day/night pair means the reader can
+        // set a different one per theme, and the store ships one for each.
+        for (String name : new String[]{"paper_01.jpg", "paper_02.jpg", "paper_03.jpg"}) {
             File target = new File(dir, name);
             if (target.exists()) continue;
             File temporary = null;
@@ -66,7 +68,10 @@ final class WindowBackground {
 
     private static synchronized Bitmap bitmap(Context c) {
         File dir = directory(c);
-        String name = ShellPrefs.of(c).getString("background_image", "");
+        // The THEME's image, not "the" image: day and night each choose their
+        // own, and the cache key below is the file's own path, so the two can
+        // never be served for one another.
+        String name = ShellPrefs.backgroundImage(c);
         if (!name.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")) return null;
         File file = new File(dir, name);
         if (!file.isFile()) { cached = null; cachedKey = ""; return null; }

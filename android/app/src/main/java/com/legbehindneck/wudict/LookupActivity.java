@@ -144,6 +144,9 @@ public class LookupActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 Shell.applyBackground(view);
+                // Per document, the same rule as the app window: the WebView's
+                // own speechSynthesis has no voices, so the shell supplies one.
+                speech.inject(view, url);
             }
 
             @Override
@@ -154,11 +157,6 @@ public class LookupActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 return speech.intercept(req.getUrl()); // null: the WebView's own business
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                speech.inject(view, url);
             }
         });
         web.setWebChromeClient(Shell.windows(this));

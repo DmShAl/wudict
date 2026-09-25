@@ -75,24 +75,64 @@ final class ShellPrefs {
     // older build cannot put the app back into the other mode.
     private static final String SEPIA_COLOR = "sepia_color";
     private static final int DEFAULT_SEPIA_COLOR = 0xFFF4ECD8;
+    static final String BACKGROUND_IMAGE = "background_image";
 
-    static boolean sepia(Context c) {
-        return of(c).getBoolean(SEPIA, false);
+    // The background belongs to a THEME, and the theme is the page's to
+    // resolve (wudict_theme, plus "auto" following the system). So each key
+    // below has a night twin, and every reader here picks by what the page last
+    // reported - which is what lets the window be painted correctly BEFORE the
+    // page exists at all, rather than corrected a frame later.
+    //
+    // The unsuffixed keys ARE the day set: an install that predates this keeps
+    // its background exactly where it left it, and starts with none at night -
+    // which is the wanted default, not a migration gap.
+    private static final String NIGHT_SUFFIX = "_night";
+
+    private static String themed(String base, boolean night) {
+        return night ? base + NIGHT_SUFFIX : base;
     }
 
-    static int sepiaColor(Context c) {
-        return of(c).getInt(SEPIA_COLOR, DEFAULT_SEPIA_COLOR) | 0xFF000000;
+    /** The theme the window is showing, as the page last reported it. */
+    static boolean night(Context c) { return pageDark(c); }
+
+    static boolean sepia(Context c) { return sepiaFor(c, night(c)); }
+
+    static boolean sepiaFor(Context c, boolean night) {
+        return of(c).getBoolean(themed(SEPIA, night), false);
     }
 
-    static String sepiaColorText(Context c) {
-        return String.format(java.util.Locale.ROOT, "#%06x", sepiaColor(c) & 0xFFFFFF);
+    static int sepiaColor(Context c) { return sepiaColorFor(c, night(c)); }
+
+    static int sepiaColorFor(Context c, boolean night) {
+        return of(c).getInt(themed(SEPIA_COLOR, night), DEFAULT_SEPIA_COLOR) | 0xFF000000;
     }
 
-    static void setSepiaColor(Context c, String value) {
+    static String sepiaColorText(Context c) { return sepiaColorTextFor(c, night(c)); }
+
+    static String sepiaColorTextFor(Context c, boolean night) {
+        return String.format(java.util.Locale.ROOT, "#%06x", sepiaColorFor(c, night) & 0xFFFFFF);
+    }
+
+    /** The chosen background image for the theme, or "" when there is none. */
+    static String backgroundImage(Context c) { return backgroundImageFor(c, night(c)); }
+
+    static String backgroundImageFor(Context c, boolean night) {
+        return of(c).getString(themed(BACKGROUND_IMAGE, night), "");
+    }
+
+    static void setSepia(Context c, boolean night, boolean on) {
+        of(c).edit().putBoolean(themed(SEPIA, night), on).apply();
+    }
+
+    static void setBackgroundImage(Context c, boolean night, String name) {
+        of(c).edit().putString(themed(BACKGROUND_IMAGE, night), name).apply();
+    }
+
+    static void setSepiaColor(Context c, boolean night, String value) {
         value = value.trim();
         if (!value.matches("#?[0-9a-fA-F]{6}")) throw new IllegalArgumentException(value);
         if (!value.startsWith("#")) value = "#" + value;
-        of(c).edit().putInt(SEPIA_COLOR, Color.parseColor(value)).apply();
+        of(c).edit().putInt(themed(SEPIA_COLOR, night), Color.parseColor(value)).apply();
     }
 
     // One key per way in, because the three carry different intent: a

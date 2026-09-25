@@ -76,6 +76,37 @@ window.wudictShellBackground = function (color, image, imageName) {
      render-blocking it is already in force at first paint, so a reader who
      chose sepia never sees a white flash. /?style=off omits it and them. -->
 {{USERCSS}}
+<script>
+/* One user stylesheet per THEME, both linked and one disabled. The server
+   cannot choose between them - the theme lives here, in localStorage - and
+   linking BOTH is what makes the switch instant and the cache honest: each
+   file keeps its own content-addressed URL, so editing the day sheet does not
+   invalidate the night one, and the sheet the reader is about to need is
+   already in memory when they flip. An EMPTY file is not linked at all, which
+   is the right answer too: no user CSS at night is a state, not a missing
+   file.
+
+   Runs during head parsing, before anything paints, so the wrong sheet is
+   never applied even for a frame. The switch itself is re-run from
+   syncAutoDark(), which is the one place that knows the RESOLVED theme -
+   including when "auto" follows the system at sunset. */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("wudict_theme"); } catch (_) {}
+  function resolvedDark() {
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  window.wudictSkinLinks = function (wantDark) {
+    var links = document.querySelectorAll("link[data-skin]");
+    for (var i = 0; i < links.length; i++) {
+      links[i].disabled = (links[i].getAttribute("data-skin") === "dark") !== !!wantDark;
+    }
+  };
+  window.wudictSkinLinks(resolvedDark());
+})();
+</script>
 </head>
 <body>
 <header class="bar" id="bar">
@@ -133,7 +164,7 @@ window.wudictShellBackground = function (color, image, imageName) {
      never waits for a keypress at all, because the input handler searches
      as you type. The button's only remaining ground was a magnifier next
      to a magnifier. -->
-<button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">☀☾</button>
+<span class="themeSwitch tools"><button type="button" class="btn themeAuto" aria-pressed="false" title="Follow the phone's light or dark setting">Auto</button><button type="button" class="btn themeFlip" aria-pressed="true" title="Switch to night">☀☾</button></span>
 <button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
 <button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
 <button type="button" class="btn tools" id="panelBtn" title="Settings" aria-label="Settings">☰</button>
@@ -153,9 +184,9 @@ window.wudictShellBackground = function (color, image, imageName) {
 <div class="panel-head"><h2>Settings
 <span class="headacts">
 <!-- The theme control's narrow-viewport home. Not a second control: both
-     elements carry .themeBtn and one handler drives the pair, the way the
-     wordmark has two mount points selected by media query. -->
-<button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">☀☾</button>
+     mounts hold the same two buttons, and one pair of handlers drives them the
+     way the wordmark has two mount points selected by media query. -->
+<span class="themeSwitch"><button type="button" class="btn themeAuto" aria-pressed="false" title="Follow the phone's light or dark setting">Auto</button><button type="button" class="btn themeFlip" aria-pressed="true" title="Switch to night">☀☾</button></span>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
 <!-- Five sections, one subject each, in the order a reader arrives: what the
@@ -287,14 +318,35 @@ window.wudictShellBackground = function (color, image, imageName) {
       <button type="button" class="fsbtn" id="fsUp" aria-label="Larger article text">+</button>
     </span>
   </div>
-  <!-- The rest of the look lives one door down: the sheet holds the screen
-       edges, the window background and the user's own CSS, and it is long
-       enough to fold its own sections. The row names those three rather than
-       saying "Appearance…" again — the heading above it already says that, and
-       a door under a heading of its own name tells the reader nothing about
-       what is behind it. -->
+  <!-- The weight, the size's twin - and its three names are the app's own
+       words for the faces the stack actually has. No number is shown: the
+       reader is choosing a look, not a value. -->
   <div class="facts">
-    <button type="button" class="mrow door" id="stylerLink" title="Screen edges, window background and custom styles">Screen, background, CSS…</button>
+    <span class="rowlabel">Font weight</span>
+    <span id="fwCtl">
+      <button type="button" class="fsbtn" id="fwDown" aria-label="Lighter article text">&#8722;</button>
+      <button type="button" class="fsval" id="fwVal" title="Article text weight — click to reset" aria-label="Article text weight; click to reset">Normal</button>
+      <button type="button" class="fsbtn" id="fwUp" aria-label="Bolder article text">+</button>
+    </span>
+  </div>
+  <!-- One door per subject, and the sheet opens on the one that was asked for.
+       It used to be a single row called "Screen, background, CSS…" opening one
+       sheet with all three groups expanded - so a reader who wanted two rows
+       about the screen got the whole appearance surface, and could not see
+       from here that the screen was even in there.
+
+       These are ROWS and not the controls themselves, which is the difference
+       that matters: every one of them is a LIVE PREVIEW - you judge a
+       wallpaper, a preset or an edge by watching the page change - and the
+       sheet is deliberately non-modal (aria-modal="false") so the page stays
+       in sight. A dialog would paint the paper over the very thing being
+       adjusted; the app's own colour window escapes that only by carrying a
+       swatch of its own. -->
+  <div class="facts">
+    <button type="button" class="mrow door" data-styler="screen" title="What fills the margins around the page, and whether the bars hide while you read">Edges of the screen…</button>
+    <button type="button" class="mrow door" data-styler="bg" title="The colour and the wallpaper behind the app and its articles">Window background…</button>
+    <button type="button" class="mrow door" data-styler="presets" title="Switch whole looks on and off — the same switches as the CSS sheet's Presets tab">Visual presets…</button>
+    <button type="button" class="mrow door" data-styler="css" title="Your own stylesheets, for the app and for the articles">Custom CSS…</button>
   </div>
 </section>
 
@@ -387,23 +439,32 @@ window.wudictShellBackground = function (color, image, imageName) {
        the tabs is not where anyone looks for it. It also gives the sheet the
        name its opening button promises. -->
   <div id="stylerHead">
-    <strong>Appearance</strong>
+    <!-- WHICH SUBJECT the sheet is showing, and the list of the others. A menu
+         the page draws rather than a <select>, for the reason the Screen rows
+         give below: the platform's popup wears the system's theme and can wear
+         neither the app's background colour nor its wallpaper.
+
+         The subject lives in the HEAD and not in a row of tabs, because the CSS
+         box already has a tab row for ITS three subjects (App, Article, Files)
+         and this is a level above them. Before this, all four shared one sheet
+         behind a bar each, so the reader came through a door naming one subject
+         and got the whole appearance surface. -->
+    <button type="button" class="choice-btn" id="stylerSubject" aria-haspopup="listbox" aria-expanded="false" aria-label="Which part of the appearance to show"></button>
+    <div class="choice-menu menu-card" id="stylerSubjectMenu" role="listbox" data-w="anchor" hidden></div>
     <span class="grow"></span>
     <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
   </div>
-  <!-- The sheet's groups, each behind a bar with a triangle, so which parts of
-       the sheet take its room is the reader's decision and not a layout's. The
-       state is in appearanceOpen (index.html's script), because the render
-       re-runs on every round trip to the shell and must never reopen a group
-       the reader closed.
-
-       TWO PLACES, deliberately. Only the window groups are inside
-       #appearanceGroups - the scrolling area - where a bar and the rows it
-       folds scroll together. The Custom CSS bar is NOT in there: it sits
-       directly on top of the tabs, the editor and the panes it folds, outside
-       the scroller, so that bar and those contents can never part company on
-       screen. (The first version had it in the scroller, and on a phone the
-       section's own control scrolled away from the section it folds.) -->
+  <!-- The sheet's subjects, one at a time, in ONE scroller. The panel's four
+       doors open a subject each and the head's menu moves between them, so
+       there are no bars here any more: they existed because all four subjects
+       shared this sheet, and a door that named one of them had to hand over the
+       whole surface. What is hidden is decided by stylerSubjectSet, and the
+       render that re-runs on every round trip to the shell leaves it alone.
+       (Before this, every subject was a group behind a bar inside this one
+       scroller - EXCEPT Custom CSS, whose bar sat outside it so that bar and
+       its contents could not part company on screen. With one subject at a time
+       that whole arrangement is gone: the CSS subject owns the sheet's only
+       scroller now, and the other three are short enough not to need one.) -->
   <div id="appearanceGroups">
   <!-- Screen: the app WINDOW's own two facts, moved here from the shell's
        settings screen - the one reached by long-pressing the launcher icon -
@@ -415,30 +476,34 @@ window.wudictShellBackground = function (color, image, imageName) {
        window, which wears the system's theme and can wear neither the app's
        background colour nor its wallpaper - see .menu-card in app.css, the
        surface every floating menu in the app wears. -->
-  <div id="appearanceScreenGroup" hidden>
-    <button type="button" class="group-bar" id="appearanceScreenBar" aria-expanded="true" aria-controls="appearanceScreen">Screen</button>
-    <div id="appearanceScreen">
+  <div id="appearanceScreen" hidden>
     <div class="screen-row">
       <div class="screen-title" id="edgeTitle">Edges of the screen</div>
-      <button type="button" class="choice-btn" id="edgeChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="edgeTitle"></button>
-      <div class="choice-menu menu-card" id="edgeMenu" role="listbox" aria-labelledby="edgeTitle" data-w="anchor" hidden></div>
+      <!-- A group of radios and not a menu. Five answers here, four in the row
+           below, and a menu makes the reader open it to find out what the
+           answers ARE - which is what Material's own line at five is about.
+           The menu had a second reason once: a <select> would have opened the
+           platform's popup, which can wear neither the app's colour nor its
+           wallpaper. Radios pop nothing up, so that reason is gone too. -->
+      <div class="radio-group" id="edgeChoice" role="radiogroup" aria-labelledby="edgeTitle"></div>
       <!-- The colour the margins are painted in, and only while that is what
            they follow: a field for a value nothing is using is a question the
            reader has to answer before it means anything. -->
-      <div class="appearance-row" id="edgeColorRow" hidden><label for="edgeColor">Colour</label><div class="color-box" id="edgeColorBox"><input id="edgeColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Margin colour, six hexadecimal digits"><button type="button" class="color-pick" id="edgeColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="edgeColorMenu" class="color-history menu-card" hidden></div></div></div>
+      <!-- The colour field is part of what the option "A colour you pick" IS, so
+           it stays on that option's row at all times and goes inert while
+           another option is chosen - see appearanceRender. It starts disabled
+           for the same reason: a page whose first render has not run yet must
+           not offer a field that would write the wrong theme's colour. -->
+      <div class="color-box" id="edgeColorBox" aria-disabled="true"><input id="edgeColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Margin colour, six hexadecimal digits" disabled><button type="button" class="color-pick" id="edgeColorPick" disabled aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="edgeColorMenu" class="color-history menu-card" hidden></div></div>
       <small id="edgeHint"></small>
     </div>
     <div class="screen-row">
       <div class="screen-title" id="barsTitle">Hide while you read</div>
-      <button type="button" class="choice-btn" id="barsChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="barsTitle"></button>
-      <div class="choice-menu menu-card" id="barsMenu" role="listbox" aria-labelledby="barsTitle" data-w="anchor" hidden></div>
+      <div class="radio-group" id="barsChoice" role="radiogroup" aria-labelledby="barsTitle"></div>
       <small id="barsHint">Swipe in from the top or bottom edge to bring them back for a moment.</small>
     </div>
     </div>
-  </div>
-  <div id="appearanceBgGroup" hidden>
-    <button type="button" class="group-bar" id="appearanceBgBar" aria-expanded="true" aria-controls="appearanceBackground">Window background</button>
-    <div id="appearanceBackground">
+  <div id="appearanceBackground" hidden>
     <div class="appearance-row"><label for="appearanceColorOn">Color</label><input id="appearanceColorOn" type="checkbox"><div class="color-box" id="appearanceColorBox"><input id="appearanceColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Background color, six hexadecimal digits"><button type="button" class="color-pick" id="appearanceColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="appearanceColorMenu" class="color-history menu-card" hidden></div></div></div>
     <!-- The strip IS the image picker: a tap on a thumbnail applies it, and
          the "+" tile opens the device picker directly - no second panel, no
@@ -449,13 +514,13 @@ window.wudictShellBackground = function (color, image, imageName) {
     <div class="appearance-row"><span class="appearance-label">Image</span><div id="appearanceStripWrap"><div id="appearanceStrip" role="group" aria-label="Background image"></div><button type="button" class="stripArrow" id="appearanceStripL" aria-label="Scroll background thumbnails left" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.6 2L3 8l1.6 6"/></svg></button><button type="button" class="stripArrow" id="appearanceStripR" aria-label="Scroll background thumbnails right" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.4 2L13 8l-1.6 6"/></svg></button></div></div>
     <small>Color remains behind the image. None removes the image.</small>
     </div>
-  </div>
-  <div id="appearanceCssGroup">
-  <button type="button" class="group-bar" id="appearanceCssBar" aria-expanded="true" aria-controls="stylerBody">Custom CSS</button>
-  <!-- Every group is the same shape - a wrapper holding its bar and a body -
-       and Custom CSS is no exception: its tabs, its editor and its panes are
-       the body, they scroll with their bar, and folding the bar folds them. -->
-  <div id="stylerBody">
+  <!-- Style presets are a SUBJECT of their own, not a tab among the
+       stylesheets: they are layers the page attaches and detaches around
+       whatever is written in the App and Article boxes, and a switch here never
+       touches those boxes. They used to be the CSS group's fourth tab, which
+       made the reader open Custom CSS to find something that is not CSS. -->
+  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
+  <div id="stylerBody" hidden>
   <div class="row" id="stylerDock">
     <button type="button" class="tab" id="tabApp" role="tab" aria-selected="true" aria-controls="stylerCSS">App</button>
     <button type="button" class="tab" id="tabArticle" role="tab" aria-selected="false" aria-controls="stylerCSS">Article</button>
@@ -463,10 +528,6 @@ window.wudictShellBackground = function (color, image, imageName) {
          two can point at. Same sheet, because a file is uploaded in order to
          be referenced, and the reference is written one tab away. -->
     <button type="button" class="tab" id="tabFiles" role="tab" aria-selected="false" aria-controls="stylerFiles">Files</button>
-    <!-- The fourth tab is not a stylesheet at all: these are LAYERS the page
-         attaches and detaches around whatever is written in the other two
-         tabs. A switch here never touches the boxes. -->
-    <button type="button" class="tab" id="tabPresets" role="tab" aria-selected="false" aria-controls="stylerPresetsPane">Presets</button>
     <span class="grow"></span>
     <!-- Hidden while the box is empty: an action that would do nothing is a
          control you have to read and dismiss on every visit. -->
@@ -478,9 +539,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   </div>
   <textarea id="stylerCSS" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Custom CSS"></textarea>
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
-  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
-  </div>
   </div>
   </div>
   <div id="stylerNote"></div>
@@ -574,7 +633,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyFW(st.ui.fontWeight,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
   }catch(e){
@@ -598,7 +657,7 @@ function savePrefs(now){
   // omitempty zero value), which is what retires a flag set by the switches
   // that no longer exist.
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,sortMine:sortOwn}});
+    ui:{fontSize:articleFS,fontWeight:articleFW,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,sortMine:sortOwn}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -650,23 +709,14 @@ function groupLabel(sel){
 }
 
 /* ── theme: auto → light → dark, persisted ─────────────────────────── */
-const THEMES=["auto","light","dark"];
 function applyTheme(t){
   if(t==="auto")document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme",t);
   // Two mount points, one state: the bar's button above 600px, the panel's
   // below it (see the responsive block). A NodeList rather than two ids keeps
   // this one code path — nothing about the pair can drift.
-  // Three states, three glyphs - and the AUTO one is a PAIR: ☀☾ says "follows
-  // day and night". It used to be ◐, which at this size is a black half-disc
-  // and reads as a MOON, so an app sitting in auto over a light system
-  // announced "night" at every launch; the first press (auto -> light) then
-  // changed nothing on screen, because both are light. The pair says what the
-  // state actually is, and every press of the cycle is now visible.
-  for(const b of document.querySelectorAll(".themeBtn")){
-    b.textContent=t==="auto"?"☀☾":(t==="light"?"☀":"☾");
-    b.title=t==="auto"?"Theme: auto — following the system":"Theme: "+t;
-  }
+  // The glyphs and the ring live in applyThemeControls, which the resolved
+  // theme has to drive: the phone can flip it under an active Auto at sunset.
   syncAutoDark();
 }
 function themeIsDark(){
@@ -675,6 +725,10 @@ function themeIsDark(){
   if(t==="light")return false;
   return matchMedia("(prefers-color-scheme: dark)").matches;
 }
+/* The resolved theme the page is currently showing, so syncAutoDark can tell a
+   real change from a re-run. null until the first call - boot, which must not
+   look like a switch to anything downstream. */
+let skinDark=null;
 /* hosts get .autodark so the invert rule also applies in auto mode */
 function syncAutoDark(){
   const dark=themeIsDark();
@@ -684,6 +738,29 @@ function syncAutoDark(){
      have to know any of them. [data-dark] means the same thing here, on a
      shadow host and inside a frame, and it is the only spelling documented. */
   document.documentElement.toggleAttribute("data-dark",dark);
+  // The theme's own stylesheet, on or off. Done HERE and not in applyTheme,
+  // because this is the function that knows the RESOLVED theme: it runs for a
+  // pinned light/dark and for "auto" following the system at sunset alike.
+  if(window.wudictSkinLinks)window.wudictSkinLinks(dark);
+  // And the controls, for the same reason: the glyph shows which theme is on
+  // screen, so a phone that flips at sunset has to move it.
+  applyThemeControls();
+  // A theme change moves the EDITOR's files with it. The swap is in memory, so
+  // unsaved edits survive it, and the live preview is re-run from the pair
+  // that is now active - the path a save already takes. Guarded on a real
+  // change and on the sheet having been loaded: the very first call here is
+  // boot, where there is nothing to swap and no sheet open.
+  if(skinDark!==null&&skinDark!==dark&&stylerLoaded){
+    const t=stylerText;stylerText=stylerOther.text;stylerOther.text=t;
+    const s=stylerSaved;stylerSaved=stylerOther.saved;stylerOther.saved=s;
+    stylerPreviewAll(stylerText);
+  }
+  // The window's background is per theme too, so the sheet has to re-read: a
+  // colour and a wallpaper that are not the ones on screen are worse than no
+  // window at all. Guarded like Shell.applyBackground guards it, because this
+  // also runs at boot, before the appearance layer exists.
+  if(typeof appearanceRead==="function")appearanceRead();
+  skinDark=dark;
   document.querySelectorAll(".article").forEach(el=>{
     if(el.tagName==="IFRAME"){
       el.contentWindow&&el.contentWindow.postMessage({t:"theme",dark},"*");
@@ -745,7 +822,13 @@ applyBarPinned(barPinned);
    this layout was drawn for: a reader who needs 32px needs it more than the
    layout needs to stay pretty. */
 const FS_MIN=11,FS_MAX=32,FS_DEF=15;
+/* The weight is not a continuum like the size: the faces in the stack a
+   dictionary is read in - Roboto, SF, Segoe - have 400, 500 and 700 reliably,
+   and 300 is either missing or SYNTHESISED, which reads as a mistake rather
+   than as lighter text. So three steps and no more. */
+const FW_STEPS=[400,500,700],FW_LABEL={400:"Normal",500:"Medium",700:"Bold"},FW_DEF=400;
 let articleFS=FS_DEF;
+let articleFW=FW_DEF;
 function applyFS(px,save){
   const n=Math.min(FS_MAX,Math.max(FS_MIN,Math.round(+px||FS_DEF)));
   const moved=n!==articleFS;
@@ -757,6 +840,24 @@ function applyFS(px,save){
   if(moved)for(const f of document.querySelectorAll("iframe.article"))
     f.contentWindow&&f.contentWindow.postMessage({t:"fs",px:n},"*");
   // Debounced inside savePrefs, so holding + costs one PUT and not twenty.
+  if(save&&moved)savePrefs();
+}
+/* The weight, the size's twin: the same root custom property, the same message
+   to the frames (a custom property cannot cross a document boundary, so the
+   frames are told), and the same server-side pref - a reader who needs 500
+   needs it on the phone that reaches this server too.
+   A STEPPER over three names rather than a slider over numbers: the reader is
+   choosing a look, and "Medium" is the name of one. */
+function applyFW(w,save){
+  const n=FW_STEPS.includes(Math.round(+w))?Math.round(+w):FW_DEF;
+  const moved=n!==articleFW;
+  articleFW=n;
+  document.documentElement.style.setProperty("--wd-fw",String(n));
+  $("fwVal").textContent=FW_LABEL[n];
+  $("fwDown").classList.toggle("lim",n<=FW_STEPS[0]);
+  $("fwUp").classList.toggle("lim",n>=FW_STEPS[FW_STEPS.length-1]);
+  if(moved)for(const f of document.querySelectorAll("iframe.article"))
+    f.contentWindow&&f.contentWindow.postMessage({t:"fw",w:n},"*");
   if(save&&moved)savePrefs();
 }
 /* The stepper's clicks used to be swallowed on the container: it sat inside a
@@ -915,6 +1016,13 @@ applyOpenOrder(true,false);
 for(const [id,step] of [["fsDown",-1],["fsUp",1],["fsVal",0]])
   $(id).addEventListener("click",()=>applyFS(step?articleFS+step:FS_DEF,true));
 applyFS(FS_DEF,false);   // paints --wd-fs and the .lim state before any load
+for(const [id,step] of [["fwDown",-1],["fwUp",1],["fwVal",0]])
+  $(id).addEventListener("click",()=>{
+    if(!step)return applyFW(FW_DEF,true);
+    const i=FW_STEPS.indexOf(articleFW);
+    applyFW(FW_STEPS[Math.min(FW_STEPS.length-1,Math.max(0,i+step))],true);
+  });
+applyFW(FW_DEF,false);   // paints --wd-fw and the .lim state before any load
 
 /* ── the user's global stylesheets ───────────────────────────────────
    Two files the user owns, beside the wudict.toml in effect: app.css for the
@@ -1030,12 +1138,41 @@ $("expandBtn").onclick=()=>{
   for(const d of $("out").querySelectorAll("details.dict:not([data-deferred]):not(.noindex)"))d.open=expandAll;
 };
 
-function cycleTheme(){
-  const cur=localStorage.getItem("wudict_theme")||"auto";
-  const next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];
-  localStorage.setItem("wudict_theme",next);applyTheme(next);
+/* The theme is TWO controls and not a cycle: Auto, and the state it resolves
+   to. A cycle could not avoid a press that changes nothing - "auto over a light
+   phone" and "pinned light" look identical on screen, so moving between them is
+   invisible - and it also hid the fact that following the phone and pinning a
+   theme are different KINDS of answer. Here the ring says which kind is in
+   force, the glyph says which theme is on screen, and every press does one of
+   the two things visibly. It is also the shape the search bar's own pairs
+   already wear: buttons, with the one in force marked in the accent.
+   The stored values are unchanged - auto / light / dark - so nothing needs
+   migrating and an older build reads the same key. */
+function applyThemeControls(){
+  const auto=(localStorage.getItem("wudict_theme")||"auto")==="auto";
+  const dark=themeIsDark();
+  for(const b of document.querySelectorAll(".themeAuto"))
+    b.setAttribute("aria-pressed",String(auto));
+  for(const b of document.querySelectorAll(".themeFlip")){
+    b.setAttribute("aria-pressed",String(!auto));
+    // The label names the ACTION, not the state. While Auto is on, this button
+    // shows what is on screen and a tap takes over AND switches, so a label
+    // reading "Day" would describe the wrong half of what the press does.
+    const label=dark?"Switch to day":"Switch to night";
+    b.textContent=dark?"☾":"☀";
+    b.title=label;b.setAttribute("aria-label",label);
+  }
 }
-for(const b of document.querySelectorAll(".themeBtn"))b.onclick=cycleTheme;
+/* Two mount points, one state: the bar's pair above 600px and the panel's below
+   it (see the responsive block). NodeLists rather than ids, so nothing about
+   the two can drift. */
+function setTheme(t){
+  localStorage.setItem("wudict_theme",t);
+  applyTheme(t);applyThemeControls();
+}
+for(const b of document.querySelectorAll(".themeAuto"))b.onclick=()=>setTheme("auto");
+for(const b of document.querySelectorAll(".themeFlip"))
+  b.onclick=()=>setTheme(themeIsDark()?"light":"dark");
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncAutoDark);
 applyTheme(localStorage.getItem("wudict_theme")||"auto");
 
@@ -2349,7 +2486,8 @@ const ARTCSS=`{{ARTCSS}}`;
 
 const shadowBase=`<style>
 :host{all:initial;display:block;font-family:${"-apple-system,Helvetica,Arial,sans-serif"};
-  font-size:var(--wd-fs,15px);line-height:1.618;color:var(--wd-article-fg,#1a1a1a);word-break:break-word}
+  font-size:var(--wd-fs,15px);font-weight:var(--wd-fw,400);
+  line-height:1.618;color:var(--wd-article-fg,#1a1a1a);word-break:break-word}
 img,video,svg{max-width:100%;height:auto}
 a{color:#5b7a99;cursor:pointer}
 table{max-width:100%;border-collapse:collapse}
@@ -2475,7 +2613,7 @@ function frameDoc(content,fid,dark,dictID,frag){
   return '<!DOCTYPE html><html class="'+(dark?'dark':'')+'"'+(dark?' data-dark':'')+'><head><meta charset="utf-8">'+
     /* Baked in, because a custom property cannot cross into another
        document; changes AFTER creation arrive by postMessage instead. */
-    '<style>html{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:'+articleFS+'px;line-height:1.618;color:var(--wd-article-fg,#1a1a1a);background:var(--wd-article-bg,#fff);overflow-y:hidden}'+
+    '<style>html{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:'+articleFS+'px;font-weight:'+articleFW+';line-height:1.618;color:var(--wd-article-fg,#1a1a1a);background:var(--wd-article-bg,#fff);overflow-y:hidden}'+
     'body{margin:8px}img,video,svg{max-width:100%;height:auto}'+
     'html.dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.92)}'+
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+
@@ -3921,16 +4059,71 @@ $("q").addEventListener("blur",()=>setTimeout(()=>{
        reader has to know belong together. */
 
 const BOXNAME={app:"App",article:"Article"};
+/* What an EMPTY box says. A placeholder, not seeded text: it is a hint, not
+   content - it never reaches the file, never shows up in a diff, and it is
+   gone the moment the reader types a character. Both lists name the app's own
+   custom properties, which are defined on :root in app.css and inherit into
+   every article, shadow root and iframe alike (see style.go), so they are the
+   same names in both boxes. */
+const STYLE_HINT={
+app:`CSS for the app itself — its colours and its own layout.
+Tokens set on :root reach articles too.
+
+The app's colours are CUSTOM PROPERTIES, so restyle by changing a value rather
+than every rule that reads it:
+
+  --bg           page and sheet background   --fg          main text
+  --bg-card      cards, fields, buttons      --fg-soft     secondary text
+  --bg-bar       the search bar              --fg-faint    hints, labels
+  --accent       highlights, pressed states  --line        borders
+  --accent-soft  the accent's tint           --line-soft   hairlines
+  --link         result headwords            --focus       focus rings
+  --paper-bg     the reader's paper          --paper-bk-image  its texture
+  --wd-article-bg / --wd-article-fg   the article surface inside a frame
+
+html[data-dark] is true whenever the page is dark, "auto" included;
+html[data-theme="dark"] is true only when the reader pinned dark by hand.
+
+This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
+own, and switching the theme switches which one you are editing.`,
+article:`CSS for what dictionaries render, in every article.
+Use :host, :root > body to reach the article's own root.
+
+An article is a frame of its own, and the app's custom properties reach it, so
+the same names work here:
+
+  --wd-article-bg   the article surface      --wd-article-fg   its text
+  --fg, --fg-soft, --fg-faint   the app's text registers
+  --link, --accent              headwords and highlights
+  --bg-card, --line             surfaces and borders
+
+Selectors land INSIDE the article: p, a, table, div, body — and :host when the
+dictionary is drawn as a shadow root. Nothing here reaches the chrome; that is
+what the App box is for.
+
+This box edits the LIGHT theme's stylesheet. The dark theme has a file of its
+own, and switching the theme switches which one you are editing.`
+};
 /* The wallpapers the Android shell unpacks into the files folder when they
    are absent. Deleting one from here would only make the next start copy it
-   back, so the manager offers no Delete for them - the row says so instead. */
-const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg"];
+   back, so the manager offers no Delete for them - the row says so instead.
+   The list is duplicated in WindowBackground.directory, and the two must
+   agree: this one decides what the manager says about a file, that one
+   decides whether the file is there at all. */
+const BUILTIN_BACKGROUNDS=["paper_01.jpg","paper_02.jpg","paper_03.jpg"];
 
 let stylerTab="app",
     stylerText={app:"",article:""},
     // What is actually on disk. Closing without saving must put the page back
     // to this: a preview that outlives the editor is a change nobody made.
     stylerSaved={app:"",article:""},
+    // The OTHER theme's pair, held aside - both what is on disk for it and
+    // what was typed into it, because a reader who edits the day sheet and
+    // flips the theme to look has unsaved work in a theme they are no longer
+    // in. stylerText stays "the pair being edited", so every one of its
+    // twenty-odd readers is untouched, and a theme switch is a SWAP of the two
+    // rather than a fetch.
+    stylerOther={text:{app:"",article:""},saved:{app:"",article:""}},
     stylerDir="",
     stylerLoaded=false,
     stylerTimer=null,
@@ -4028,15 +4221,13 @@ function stylerMark(tab,has,dirty){
    that writes there. */
 function stylerSetView(v){
   stylerView=v;
-  const files=v==="files",presets=v==="presets";
-  $("stylerCSS").hidden=files||presets;
+  const files=v==="files";
+  $("stylerCSS").hidden=files;
   $("stylerFiles").hidden=!files;
-  $("stylerPresetsPane").hidden=!presets;
-  $("stylerSave").hidden=files||presets;
+  $("stylerSave").hidden=files;
   $("stylerAdd").hidden=!files;
   $("tabFiles").setAttribute("aria-selected",String(files));
-  $("tabPresets").setAttribute("aria-selected",String(presets));
-  if(files||presets){
+  if(files){
     $("tabApp").setAttribute("aria-selected","false");
     $("tabArticle").setAttribute("aria-selected","false");
   }
@@ -4089,9 +4280,7 @@ function stylerShowTab(tab){
   $("stylerCSS").value=stylerText[tab];
   stylerBox=tab;
   stylerSync();
-  $("stylerCSS").placeholder=tab==="app"
-    ? "CSS for the app itself — its colours and its own layout.\nTokens set on :root reach articles too."
-    : "CSS for what dictionaries render, in every article.\nUse :host, :root > body to reach the article's own root.";
+  $("stylerCSS").placeholder=STYLE_HINT[tab]||"";
   stylerSetView("css");
 }
 
@@ -4489,15 +4678,27 @@ function presetsPaneRender(){
     return;
   }
   const hasImage=document.documentElement.hasAttribute("data-shell-image");
+  const dark=themeIsDark();
   for(const g of (PRESETS.groups||[])){
     const head=document.createElement("div");head.className="ph";
     head.textContent=g.title+(g.presets.length>1?" — pick one":"");
     pane.appendChild(head);
     for(const p of g.presets){
-      if(p.requiresImage&&!hasImage)continue;
-      const row=document.createElement("div");row.className="pr";
+      // A preset that cannot take effect WHERE THE READER IS is SHOWN and
+      // disabled, with the reason written on the row, rather than hidden. A
+      // missing row answers "why is this not here?" with silence, and the
+      // wallpaper and the two themes are not properties of the preset - they
+      // are where it works, which is the one thing a reader deciding whether to
+      // switch it on has to know. Both facts are the manifest's: requiresImage
+      // and theme.
+      const blocked=p.requiresImage&&!hasImage?"Pick an image in Window background first"
+                   :p.theme==="light"&&dark?"Light theme only — the page is in the dark one"
+                   :p.theme==="dark"&&!dark?"Dark theme only — the page is in the light one"
+                   :"";
+      const row=document.createElement("div");row.className="pr"+(blocked?" off":"");
       const sw=document.createElement("input");
       sw.type="checkbox";sw.className="en";sw.checked=!!p.enabled;
+      if(blocked)sw.disabled=true;
       sw.setAttribute("aria-label",p.title);
       sw.onchange=()=>presetToggle(p.id,sw.checked);
       row.appendChild(sw);
@@ -4505,7 +4706,22 @@ function presetsPaneRender(){
       const b=document.createElement("b");b.textContent=p.title;
       n.appendChild(b);
       const s=document.createElement("s");
-      s.textContent=p.desc+(p.enabled?" — on":"");
+      // The reason REPLACES the description while it is in force: the row has
+      // one line for explaining itself, and "why can I not switch this on" is
+      // the question in front of the reader.
+      // WHERE it works, on the row. Within one group the reader learns that
+      // Sepia is light-only and True black is dark-only, so the one that works
+      // in both has to say so too - otherwise the group reads as a set of
+      // restrictions with one silent member. `theme` is the manifest's, and
+      // "both" is as explicit as the other two: a preset that says nothing says
+      // nothing, which is the fourteen that are not about a theme at all.
+      // Left off while a reason is in force, because that reason IS about the
+      // theme and the line has room for one.
+      const themeNote=p.theme==="light"?"light theme"
+                     :p.theme==="dark"?"dark theme"
+                     :p.theme==="both"?"both themes":"";
+      s.textContent=(blocked||p.desc)+(p.enabled?" — on":"")
+        +(blocked||!themeNote?"":" · "+themeNote);
       n.appendChild(s);
       // Legacy pastes, detected by their exact text in a box: the switch
       // and the pasted copy would apply the same rules twice, and the copy
@@ -4540,10 +4756,10 @@ function presetsPaneRender(){
 /* The shell re-reports the background while the sheet is open; the pane must
    follow, because the Background preset's visibility hangs on it. */
 function presetsPaneRefresh(){
-  if(stylerView==="presets")presetsPaneRender();
+  if(stylerSubject==="presets")presetsPaneRender();
 }
 async function stylerShowPresets(){
-  stylerSetView("presets");
+  stylerSubjectSet("presets");
   if(!PRESETS){
     presetsPaneRender();
     await presetsLoad();
@@ -4600,7 +4816,7 @@ function presetRemovePasted(p){
   stylerShowTab(stylerTab);
   stylerSync();stylerPreview();
   stylerNote(p.title+" removed from your CSS — press Save to keep it that way");
-  if(stylerView==="presets")presetsPaneRender();
+  if(stylerSubject==="presets")presetsPaneRender();
 }
 /* ── the sheet's groups ──────────────────────────────────────────────
    Every part of the sheet is behind a bar with a triangle on it, so the
@@ -4609,59 +4825,53 @@ function presetRemovePasted(p){
    room anyway. Open/closed lives here and is never read back off the DOM:
    appearanceRender re-runs on every round trip to the shell, and a render
    that reopened a group the reader had closed would make the bar useless. */
-const appearanceOpen={bg:true,screen:true,css:true};
-const appearanceBars={
-  bg:$("appearanceBgBar"),
-  screen:$("appearanceScreenBar"),
-  css:$("appearanceCssBar")
+/* The sheet's subjects, named with the SAME words as the panel's doors: the
+   reader arrives through "Window background…", and the sheet answers with those
+   words rather than with "Appearance". One map, so a door's label and the
+   sheet's head cannot drift apart - and the head's dropdown, when it comes,
+   reads this list instead of repeating it. */
+const STYLER_SUBJECTS={
+  screen:"Edges of the screen",
+  bg:"Window background",
+  presets:"Visual presets",
+  css:"Custom CSS"
 };
-/* Every group is the same shape - a wrapper holding its bar and a body - so
-   one lookup per id says everything about folding one: the bar tells the truth
-   about the body, and the body is what hides. Custom CSS is no exception, its
-   body being the tabs, the editor and the panes. */
-const appearanceBodies={
-  bg:$("appearanceBackground"),
+/* WHICH SUBJECT the sheet is showing, one at a time. It used to be three
+   groups, each behind a bar, all in one sheet - so the reader came through a
+   door that named one subject and got the whole appearance surface, and the
+   bars were the only way to move between them once inside. The move is in the
+   HEAD now: the panel's four doors open a subject, and the head names it and
+   lists the others.
+   One scroller for all four, because a subject with two rows must give a short
+   sheet rather than the full one standing half empty - which is what the old
+   `no-css` class said for one particular case, now true of every one. */
+const SUBJECT_ORDER=["screen","bg","presets","css"];
+let stylerSubjectChoice=null;
+const stylerPanes={
   screen:$("appearanceScreen"),
+  bg:$("appearanceBackground"),
+  presets:$("stylerPresetsPane"),
   css:$("stylerBody")
 };
-function appearanceGroupSet(id,open){
-  appearanceOpen[id]=open;
-  appearanceBars[id].setAttribute("aria-expanded",String(open));
-  appearanceBodies[id].hidden=!open;
-  // Folding the editor also lets the sheet be its OWN height rather than stand
-  // at full height with an empty lower half - the one place where a folded
-  // group changes the sheet and not only the sheet's contents.
-  $("styler").classList.toggle("no-css",!appearanceOpen.css);
+let stylerSubject="presets";
+function stylerSubjectSet(name){
+  if(!stylerPanes[name])name="presets";
+  stylerSubject=name;
+  for(const id in stylerPanes)stylerPanes[id].hidden=id!==name;
+  if(stylerSubjectChoice)stylerSubjectChoice.set(SUBJECT_ORDER.indexOf(name));
+  if(name==="presets")presetsPaneRender();
   appearanceSheetHeight();
 }
-for(const id in appearanceBars)appearanceBars[id].onclick=()=>{
-  // The reader's own answer outranks the automatic collapse below, and this
-  // is where that is said: cleared here, so leaving the editor cannot undo
-  // this tap.
-  if(id==="bg")appearanceBgAutoRestore=false;
-  appearanceGroupSet(id,!appearanceOpen[id]);
-};
-/* The editor's collapse, and the only automatic one: while the caret is in
-   the CSS box the window-background group stands down, and it returns when
-   the caret leaves. Both halves are EDGE-triggered - the caller polls the
-   caret three times a second - because a level-triggered version would
-   re-collapse the group a poll tick after the reader reopened it. */
-let stylerEditOn=false,appearanceBgAutoRestore=false;
+/* The caret in the CSS box. The note stands down while it works, and there is
+   nothing else to stand down now that the other subjects are never on screen
+   with the editor - the automatic collapse of the window-background group went
+   with the bars. */
+let stylerEditOn=false;
 function stylerEditing(on){
   if(on===stylerEditOn)return;
   stylerEditOn=on;
   $("styler").classList.toggle("editing",on);
-  if(on){
-    appearanceBgAutoRestore=appearanceOpen.bg;
-    if(appearanceBgAutoRestore)appearanceGroupSet("bg",false);
-    // After the collapse, not before: the group that just stood down shortened
-    // the sheet, and the box has to be brought into view in the layout the
-    // reader is about to type in.
-    stylerBoxIntoView();
-  }else if(appearanceBgAutoRestore){
-    appearanceBgAutoRestore=false;
-    appearanceGroupSet("bg",true);
-  }
+  if(on)stylerBoxIntoView();
 }
 /* The editor is one of the sheet's three sections now, inside the one scroller
    - so a caret that arrives, and a keyboard that shrinks the WebView while it
@@ -4674,7 +4884,7 @@ function stylerEditing(on){
    size under a caret already there (stylerFit): never on a tick that changed
    nothing, so a reader scrolling the sheet by hand is not fought. */
 function stylerBoxIntoView(){
-  const group=$("appearanceCssGroup"),box=$("stylerCSS"),scroller=$("appearanceGroups");
+  const group=$("stylerBody"),box=$("stylerCSS"),scroller=$("appearanceGroups");
   if(!group||group.hidden||!box||box.hidden||!box.offsetHeight||!scroller)return;
   const g=group.getBoundingClientRect(),b=box.getBoundingClientRect();
   const s=scroller.getBoundingClientRect(),off=g.top-s.top;
@@ -4789,10 +4999,60 @@ function screenChoice(bar,menu,options,onPick){
     bar.textContent=options[value];
   }};
 }
-const screenEdge=screenChoice($("edgeChoice"),$("edgeMenu"),SCREEN_EDGE_OPTIONS,
+/* A group of radios: the whole set on screen at once, which is the point of
+   them for these two rows. The caller's answer is what `set` marks, so a render
+   re-running on every round trip to the shell leaves the reader's choice alone.
+
+   Native inputs rather than drawn buttons - the app already styles its own
+   checkbox with `appearance:none` and a drawn mark, so a radio is the same
+   trick, and the keyboard, the arrow keys and the screen reader come with it.
+   The ROW is the target and not the circle, because a 20px circle is not a
+   phone's thumb.
+
+   The options array is read in order and the INDEX is what goes back to the
+   caller: for the Screen rows that index IS the stored mode, so the array may
+   not be rearranged - see the note above SCREEN_EDGE_OPTIONS. */
+function radioGroup(box,options,onPick){
+  const inputs=[];
+  box.replaceChildren();
+  options.forEach((label,i)=>{
+    const row=document.createElement("label");
+    row.className="radio-row";
+    const input=document.createElement("input");
+    input.type="radio";input.name=box.id;input.value=String(i);
+    input.onchange=()=>{if(input.checked)onPick(i)};
+    const text=document.createElement("span");
+    text.textContent=label;
+    row.append(input,text);
+    box.appendChild(row);
+    inputs.push(input);
+  });
+  return {set(v){
+    const i=Number.isInteger(v)&&v>=0&&v<options.length?v:0;
+    inputs[i].checked=true;
+  }};
+}
+const screenEdge=radioGroup($("edgeChoice"),SCREEN_EDGE_OPTIONS,
   mode=>appearanceSet("edgeMode",mode));
-const screenBars=screenChoice($("barsChoice"),$("barsMenu"),SCREEN_BARS_OPTIONS,
+const screenBars=radioGroup($("barsChoice"),SCREEN_BARS_OPTIONS,
   mask=>appearanceSet("bars",mask));
+/* The colour the margins are painted in belongs to the option that uses it, so
+   it rides on THAT option's row rather than on a row of its own. A field for a
+   value nothing is using is a question the reader has to answer before it means
+   anything - which is why it is still hidden while another option is chosen -
+   and a row labelled "Colour" under an option that already says "A colour you
+   pick" said it twice. Moved once, here, after the group exists. */
+(function(){
+  const rows=$("edgeChoice").querySelectorAll(".radio-row");
+  if(rows[EDGE_CUSTOM])rows[EDGE_CUSTOM].appendChild($("edgeColorBox"));
+})();
+/* The sheet's subject, in its head. Same component as the two above - a menu
+   the page draws, so it wears the app's background and wallpaper rather than
+   the platform's popup theme - and its rows are STYLER_SUBJECTS in
+   SUBJECT_ORDER, so a door's words and this menu's rows are the same words. */
+stylerSubjectChoice=screenChoice($("stylerSubject"),$("stylerSubjectMenu"),
+  SUBJECT_ORDER.map(id=>STYLER_SUBJECTS[id]),
+  i=>stylerSubjectSet(SUBJECT_ORDER[i]));
 /* One colour field's behaviour, wired twice (the window background and the
    margin colour). Both remember what they have been given - one list, the
    sheet's own, because a colour this reader likes is a colour this reader
@@ -4825,6 +5085,13 @@ function colorFieldWire(input,menu,apply){
 function appearanceRequest(request){
   if(!window.wudictNativeShell)return null;
   try{
+    // Which THEME this round trip is about. The sheet shows the ACTIVE theme's
+    // values - the shell answers for the theme it is told - and a write lands
+    // in that theme's slot, so setting a colour just after switching to day
+    // cannot land on the night one, and vice versa. Sent rather than inferred,
+    // because the shell's idea of the theme arrives by a slower road (the
+    // watcher's subresource request) and would race a switch.
+    request.night=themeIsDark();
     const answer=window.prompt("wudict:appearance",JSON.stringify(request));
     return answer===null?null:JSON.parse(answer);
   }catch(e){console.warn("appearance bridge:",e);return null}
@@ -4832,11 +5099,9 @@ function appearanceRequest(request){
 function appearanceRender(state){
   if(!state)return;
   appearanceState=state;
-  // The two shell groups exist only where a shell answers. Which of them is
-  // OPEN is appearanceOpen's business, not this function's - it re-runs on
-  // every round trip and must leave the bars as the reader set them.
-  $("appearanceBgGroup").hidden=false;
-  $("appearanceScreenGroup").hidden=false;
+  // The two shell subjects exist only where a shell answers. WHICH of them is
+  // on screen is stylerSubject's business, not this function's: it re-runs on
+  // every round trip and must leave the sheet showing what the reader chose.
   document.documentElement.setAttribute("data-native-appearance","");
   $("appearanceColorOn").checked=!!state.colorEnabled;
   $("appearanceColor").value=String(state.color||"").replace(/^#/,"").toUpperCase();
@@ -4890,7 +5155,18 @@ function appearanceRender(state){
   const edge=Number.isInteger(mode)&&mode>=0&&mode<=EDGE_NONE?mode:0;
   screenEdge.set(edge);
   screenBars.set(Number(state.bars)||0);
-  $("edgeColorRow").hidden=edge!==EDGE_CUSTOM;
+  // DISABLED, not hidden. The field is part of what the option "A colour you
+  // pick" IS, so a reader choosing between the five sees what each one offers -
+  // and an option whose field comes and goes reads as one with nothing behind
+  // it. Inert is the honest state: the value it holds is not in use, so it
+  // cannot be typed into, and picking that option is what makes it live again.
+  // (The app dims rather than disables where it can - the font stepper - but
+  // there the value is clamped and always in effect; here there is nothing to
+  // clamp.)
+  const custom=edge===EDGE_CUSTOM;
+  $("edgeColor").disabled=!custom;
+  $("edgeColorPick").disabled=!custom;
+  $("edgeColorBox").setAttribute("aria-disabled",String(!custom));
   $("edgeColor").value=String(state.edgeColor||"").replace(/^#/,"").toUpperCase();
   colorPickSync($("edgeColor"),$("edgeColorPick"));
   // The hint says what the answer MEANS, and EDGE_NONE is the one answer
@@ -4976,7 +5252,15 @@ function appearanceSet(field,value){
   appearanceRender(state);
   return state;
 }
-async function stylerOpen(){
+/* The pair a theme edits, out of /api/style's four files. The API names the
+   night files with a suffix rather than nesting them under a theme, so this is
+   the one place on the page that knows which is which - the twin of the
+   server's styleNamesFor, and the two must agree. */
+function stylePairFrom(j,night){
+  return night?{app:j.appNight||"",article:j.articleNight||""}
+              :{app:j.app||"",article:j.article||""};
+}
+async function stylerOpen(subject){
   hidePanel();
   $("styler").classList.add("show");
   appearanceRead();
@@ -4987,8 +5271,12 @@ async function stylerOpen(){
       const r=await fetch("/api/style");
       if(!r.ok)throw new Error("HTTP "+r.status);
       const j=await r.json();
-      stylerText={app:j.app||"",article:j.article||""};
+      // The pair the RESOLVED theme edits is the working copy; the other
+      // theme's pair is held beside it, so a switch is a swap and not a fetch.
+      const night=themeIsDark();
+      stylerText=stylePairFrom(j,night);
       stylerSaved={...stylerText};
+      stylerOther={text:stylePairFrom(j,!night),saved:stylePairFrom(j,!night)};
       stylerDir=j.writable?(j.dir||""):"";
       stylerLoaded=true;
       // Alongside, not on first click of the Files tab: the dot that says
@@ -5000,17 +5288,20 @@ async function stylerOpen(){
       return;
     }
   }
-  // The sheet opens on PRESETS, by the user's rule: the switches are the
-  // entry point and the text tabs are one tap away - which also keeps the
-  // keyboard from popping over the pane the moment it opens.
-  stylerShowPresets();
+  // WHICH SUBJECT the reader came for. The panel has one door per subject, so
+  // the sheet opens on the thing that was asked for; the head's menu is how
+  // they move to another without leaving, which is what the bars used to do.
+  const want=typeof subject==="string"&&subject?subject:"presets";
+  if(want==="presets")stylerShowPresets();
+  else if(want==="css"){stylerSubjectSet("css");stylerShowTab(stylerTab)}
+  else stylerSubjectSet(want);
   // Hand the app layer to the live element straight away, so a later Clear or
   // a deleted rule takes effect the moment it is typed rather than on reload.
   // Reopening also restores a preview that closing put back.
   stylerPreviewAll(stylerText);
   stylerNote();
   stylerFitStart();
-  if(stylerView==="css")$("stylerCSS").focus();
+  if(stylerView==="css"&&want==="css")$("stylerCSS").focus();
 }
 function stylerCloseSheet(){
   $("styler").classList.remove("show");
@@ -5088,10 +5379,14 @@ if(stylerVV){
 }
 async function stylerSave(){
   stylerCommit();
-  const body={};
+  // `theme` names the pair being written. The editor shows ONE theme's files,
+  // so a save at night must not overwrite the day sheet - which is what a
+  // single pair of files could not help doing.
+  const night=themeIsDark();
+  const body={theme:night?"dark":"light"};
   if(stylerDirty("app"))body.app=stylerText.app;
   if(stylerDirty("article"))body.article=stylerText.article;
-  if(!Object.keys(body).length){stylerNote("No changes");setTimeout(stylerNote,1400);return}
+  if(!("app" in body)&&!("article" in body)){stylerNote("No changes");setTimeout(stylerNote,1400);return}
   stylerNote("Saving…");
   try{
     const r=await fetch("/api/style",{method:"PUT",
@@ -5100,8 +5395,14 @@ async function stylerSave(){
       ? "there is nowhere to save: no configuration folder"
       : r.status===413 ? "that stylesheet is too large" : "HTTP "+r.status);
     const j=await r.json();
-    stylerText={app:j.app||"",article:j.article||""};
+    // Both pairs are refilled from the answer, and by the theme that is
+    // resolved NOW: a save is a round trip, and the reader can flip the theme
+    // while it is in flight.
+    const dark=themeIsDark();
+    stylerText=stylePairFrom(j,dark);
     stylerSaved={...stylerText};
+    // The other theme's DISK copy only: whatever was typed into it stays.
+    stylerOther.saved=stylePairFrom(j,!dark);
     $("stylerCSS").value=stylerText[stylerTab];
     stylerSync();
     stylerNote(Object.values(stylerText).some(Boolean)?"Saved":"Saved — nothing left, both files removed");
@@ -5110,7 +5411,11 @@ async function stylerSave(){
     stylerNote("Could not save: "+e.message);
   }
 }
-$("stylerLink").onclick=stylerOpen;
+/* One handler for the four doors, each carrying its subject in data-styler.
+   Wrapped rather than assigned straight, because onclick would hand the click
+   EVENT in as the subject. */
+for(const b of document.querySelectorAll("[data-styler]"))
+  b.onclick=()=>stylerOpen(b.dataset.styler);
 $("appearanceColorOn").onchange=e=>appearanceSet("colorEnabled",e.target.checked);
 /* The color field remembers what it has been given: the last ten accepted
    colors, most recent first, offered as swatches in a dropdown that opens
@@ -5277,7 +5582,6 @@ $("styler").addEventListener("keydown",e=>{
   // for a button costs the caret position.
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();stylerSave()}
 });
-$("tabPresets").onclick=stylerShowPresets;
 
 // settings first: they decide the panel's order and the search set, and the
 // fetch is a local file read — a millisecond, not a stall worth splitting the

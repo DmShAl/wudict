@@ -279,6 +279,14 @@
 				el.textContent = String(e.data.css || "");
 				requestAnimationFrame(post);
 			}
+		} else if (e.data.t === "fw") {
+			// The weight, the size's twin: the parent bakes it into our srcdoc
+			// at creation and this is how a later change arrives, for the same
+			// reason - a custom property cannot cross a document boundary.
+			// 400..700 is what the app offers; the clamp is a sanity check on
+			// an unauthenticated channel, not the range - applyFW owns that.
+			document.documentElement.style.fontWeight =
+				String(Math.min(700, Math.max(400, +e.data.w || 400)));
 		} else if (e.data.t === "fs") {
 			// The parent bakes the size into our srcdoc at creation; this is
 			// how every change AFTER that arrives, because a CSS custom

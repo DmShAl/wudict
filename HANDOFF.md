@@ -132,6 +132,390 @@ on `dev` on top of `3178bc1`.
   it could not have been verified. `android-go-x86_64` plus an emulator APK
   target is the obvious follow-up for the Unix side.
 
+## Branch `Night-Day`: a look per theme (2026-09-25, this session)
+
+The user's request: switching day/night should switch the appearance with it -
+the window background, the BACKGROUND presets, and the user's App/Article CSS.
+A branch off `dev` (`e1304c9`); `dev` is untouched and nothing is committed.
+
+**"Per theme" means the RESOLVED theme** (`themeIsDark()`, `data-dark`), not the
+stored mode - so "auto" following the system at sunset moves everything too.
+`syncAutoDark()` is the one place that knows it, and it drives the whole switch.
+
+- **The user CSS is four files now.** Day keeps `app.css`/`article.css`; night
+  gets `app_night.css`/`article_night.css`. `styleNamesFor(theme)` is the whole
+  mapping, and empty is a state rather than a gap: an empty night file emits no
+  `<link>` at all, so "no user CSS at night" IS the app's own dark theme.
+  Existing installs need no migration - their `app.css` is already the day file.
+- **Both pairs are linked and one is disabled** (`data-skin="light|dark"`),
+  rather than the server picking: the theme is a fact of the browser, not of the
+  request. Linking both keeps each file's own content-addressed URL, so editing
+  the day sheet does not invalidate the night one, and the sheet the reader is
+  about to need is already in memory.
+- **The editor edits the theme it is in.** `stylerText`/`stylerSaved` stay "the
+  pair being edited", so their twenty-odd readers are untouched; `stylerOther`
+  holds the other theme's text AND its disk copy, so a switch mid-edit swaps
+  instead of discarding. `PUT /api/style` gained `theme`.
+- **The presets needed no storing at all.** All four BACKGROUND presets were
+  ALREADY theme-scoped in their own CSS (`Sepia` is `html:not([data-dark])`,
+  `True black`/`Warm dark` are `html[data-dark]`); what stopped "Sepia by day,
+  True black by night" was the radio rule switching every group-mate off. It now
+  switches off only group-mates IN THE SAME THEME (`preset.Theme`, a new
+  manifest field), so both are simply on and each applies in its own theme.
+- **The window background is per theme in the SHELL**, chosen by
+  `ShellPrefs.pageDark` - the resolved theme it already tracks. That is what
+  lets the window be painted correctly BEFORE the page exists rather than
+  corrected a frame later. Every reader is theme-aware (`sepia`, `sepiaColor`,
+  `sepiaColorText`, `backgroundImage`), so the dozen call sites elsewhere in the
+  Java are untouched. The bridge carries `night` explicitly: inferring it from
+  `pageDark` would race, because the watcher's report comes by a slower road.
+- **A real bug found on the way, and it is the one reported from the start.**
+  `takeThemeReport` set `pageDark` and repainted the WebView but never re-told
+  the PAGE, so `data-shell-image`/`data-shell-sepia` kept the old theme's values
+  - a dark app whose history window still wore the day wallpaper. It now calls
+  `Shell.applyBackground(web)`, which is what pushes the new theme to the page.
+- **Verified on the emulator**, all of it: the skin links read
+  `light:ON,dark:off` and the reverse; a marker written into each file comes
+  back as the applied sheet (`rgb(1,2,3)` at light, `rgb(4,5,6)` at dark); the
+  window background reads `#112233` at light and `#445566` at dark; `sepia`
+  (light) and `true_black` (dark) are enabled TOGETHER; and on a LIVE switch -
+  no reload, the path that was broken - `data-shell-image` goes false and the
+  history window goes `rgb(10,10,10)`.
+- **Tests**: `go build`, `go vet`, the Go suite and the Java compile are clean.
+  The server suite leaves `TestOpenAPICoversEveryRoute` and `TestSetupFlow`,
+  both re-checked on a clean `dev` worktree and failing there identically.
+- **`paper_03.jpg` joined the built-in wallpapers** as the night one. The list
+  is duplicated - `WindowBackground.directory`'s array decides whether the file
+  is unpacked at all, `BUILTIN_BACKGROUNDS` in the page decides what the manager
+  says about it - and both now name it; the page's comment says so, because the
+  two must agree and nothing enforces it. Verified on the emulator: the shell
+  copied it into `.wudict/style/assets/` at startup and `appearanceRequest`'s
+  `images` offers all three.
+- **A second raw-key read, found from the phone and fixed.** `applyBackground`
+  asked the THEME-AWARE `WindowBackground.active(c)` whether there was an image
+  but read the image's NAME from the un-suffixed key, so at night it sent a
+  true image flag with the DAY wallpaper's name. The page then layered paper_01
+  over the night colour - which is what the reader saw and reported as "the
+  Appearance sheet kept the day's picture". It now reads through
+  `ShellPrefs.backgroundImage(c)`, and `grep '"background_image"'` across the
+  Java finds only the constant's own declaration.
+- **`background_image_article.css` lost every `:not([data-dark])`** (the user's
+  call): the article's paper treatment now applies in BOTH themes, which is what
+  the day/night pair made necessary - a rule restricted to the light theme left
+  a reader whose night background IS a paper looking at articles with no paper
+  behind them. Nothing names a theme now; every value comes from `--paper-bg`
+  and `--paper-bk-image`, which the host sets from the current theme, so an
+  article wears whichever paper is in force and a reader with no night paper
+  gets the app's own dark surface. The comments that said "LIGHT MODE ONLY"
+  were rewritten with it - a comment that describes a restriction that is gone
+  is worse than none. Verified: the served preset CSS has zero `data-dark`
+  occurrences and the page's `presetArticleCSS` carries the paper rules.
+- **`background_image_app.css` was wrong in two ways, both fixed** (the user's
+  call): it keyed on `:is([data-shell-sepia], [data-shell-image])` although the
+  preset is the IMAGE one (`requiresImage` in the manifest says so - a colour
+  with no wallpaper is the Sepia preset's case), and it carried the same
+  `:not([data-theme="dark"])` as the article half. The sepia hook is gone
+  entirely; the theme guard is gone everywhere EXCEPT the palette block, and
+  that exception is load-bearing rather than leftover: that block sets WARM, DARK
+  text (`--fg:#3b3229`), which is what reads on a light paper and is exactly what
+  must not be put on a dark one. So it was split - the two SURFACE variables
+  (`--bg-card`, `--wd-article-bg`) apply in both themes, the palette does not -
+  and it is now the only theme condition left in the file, with a comment saying
+  why. Measured with the preset on: light gives `--fg:#3b3229`,
+  `--bg-card:transparent`, `.bar` `rgb(237,209,166)`; dark gives `--fg:#d8d5d0`
+  (the app's own dark palette, untouched), `--bg-card:transparent`, `.bar`
+  `rgb(51,33,17)` - the night paper.
+- **The night theme was getting the light paper's colours - the reader's second
+  report, and the reason the Settings panel was unreadable on a near-black
+  paper.** `background_image_app.css` was 37 lines of LITERAL warm values -
+  cream washes, `rgba(120,90,45,…)` borders, `color:#79654b !important` on
+  `.meta` and friends - against only 7 rules whose values come from the host. So
+  the file is now split by what each rule is ABOUT: the 7 that paint the paper
+  itself (`--bg-card`, `--wd-article-bg`, `body`, the bar/panel/card paper
+  colour, a disabled card's opacity) carry no theme condition, and the other 26
+  - the palette and every warm wash - are light-only, with a comment saying why.
+  The article half got the same treatment for its two multiply rules: multiply
+  is what makes a white JPEG background read as the paper, and against a
+  near-black one it would crush the picture into it instead. Measured with the
+  preset on: light gives `--fg:#3b3229`, `--fg-soft:#5d4d3a`, `.meta`
+  `rgb(121,101,75)`; dark gives `--fg:#d8d5d0`, `--fg-soft:#96938d`, `.meta`
+  `rgb(95,92,87)` - the app's own, untouched - with `--bg-card` transparent and
+  the bar and cards on the NIGHT paper in both themes.
+- **Why not the two night files that were asked for**:
+  `background_image_app_night.css` would contain exactly the 7 rules the guard
+  leaves unguarded - the same behaviour - but it needs a per-theme half in the
+  manifest, in `presets.go`, in `presetLinksHTML` and in `presetApplyAll`, plus
+  the server's first-paint links carrying `data-skin` like the user CSS pair
+  does. Worth it if a preset ever needs a DIFFERENT dark look rather than no
+  dark look; not needed to keep the browns off a dark paper.
+- **A paper lifts the muted registers under a dark theme.** The dark palette's
+  `--fg-soft`/`--fg-faint` are tuned for the app's own near-black surface, and
+  on a paper of ANY kind - a colour or a texture - they landed within a shade of
+  it: the sheet's seg labels and the hints under the Screen dropdowns came out
+  unreadable, reported from the phone both with an image and without one. So
+  the rule lives in app.css, not in a preset: a preset would only cover the
+  paper it belongs to, and the complaint covered both. Keyed on
+  `html:is([data-shell-sepia],[data-shell-image])[data-dark]` it sets
+  `--fg-soft:#ded8cc`, `--fg-faint:#c6beaf`, `--line`/`--line-soft` - the values
+  lemmas.html and browse.html already use for their dark tone, so a paper reads
+  the same wherever the reader meets one. `--fg`, `--link` and `--accent` are
+  left alone. Measured: dark+paper gives `--fg-faint:#c6beaf` and the seg label
+  `rgb(198,190,175)`; light+paper keeps the app's own `#a5a19a`.
+- **The empty App and Article boxes now list their variables.** `stylerShowTab`
+  already set a two-line placeholder per tab; `STYLE_HINT` keeps those opening
+  sentences and adds the token list behind them - `--bg`/`--bg-card`/`--bg-bar`,
+  `--fg`/`--fg-soft`/`--fg-faint`, `--accent`, `--line`, `--link`, `--focus`,
+  `--paper-bg`/`--paper-bk-image`, `--wd-article-*` - plus what
+  `html[data-dark]` and `html[data-theme="dark"]` mean, and that the box edits
+  the LIGHT theme's file. A placeholder and not seeded text: it never reaches
+  the file, never shows in a diff, and is gone on the first keystroke. Both
+  lists were checked against app.css's `:root`; `--paper-bg` and
+  `--paper-bk-image` are not defined there because the HOST sets them at run
+  time, which is also why they are worth documenting.
+- **The panel's Appearance section is four doors now** (the user's proposal,
+  after two rounds of it): `Edges of the screen…`, `Window background…`,
+  `Visual presets…`, `Custom CSS…`, each opening the SAME non-modal sheet on
+  ITS OWN group. The old single row ("Screen, background, CSS…") opened all of
+  it at once, so a reader who wanted two rows about the screen got the whole
+  appearance surface - and could not see from the panel that the screen was in
+  there at all.
+- **Why rows and not the controls themselves, and why not dialogs**: each of
+  these is a LIVE PREVIEW - a wallpaper, a preset or an edge is judged by
+  watching the page change - and the sheet says `aria-modal="false"` for
+  exactly that reason. A dialog paints the paper over the very thing being
+  adjusted (`.group-dialog::backdrop` is the reader's own paper); the app's
+  colour window escapes that only because it carries a swatch of its own, which
+  a preset has no equivalent of. `stylerOpen(subject)` sets the groups by
+  subject; the bars stay, because they are how the reader moves between
+  subjects once inside AND because `appearanceGroupSet` is what makes the sheet
+  measure itself. A click straight on the function still opens on the presets,
+  where this sheet has always started.
+- **Verified on the emulator**: `screen` → only that group, sheet 375px; `bg` →
+  only that, 299px; `presets` → the css group on the Presets tab, 437px; `css` →
+  the same on App/Article. Each door now gets the sheet's own height, where
+  before every door gave the full one. The old `#stylerLink` id is gone.
+- **The sheet's head names its subject.** The panel's four doors say "Window
+  background…" and the sheet answered "Appearance" - a different word for the
+  thing just asked for, so the reader had to check they had got what they came
+  for. `stylerOpen(subject)` sets `#stylerTitle` from `STYLER_SUBJECTS`, one
+  map whose words are the doors' own, so the two cannot drift. Verified on the
+  emulator: all four subjects set their own title.
+- **The sheet was rebuilt: one subject at a time, chosen in its head.** The
+  panel's four doors already opened a subject each; what changed is that the
+  sheet now SHOWS one - the bars and the whole fold machinery are gone, and the
+  head carries a menu of the four (`#stylerSubject` + `#stylerSubjectMenu`,
+  drawn with the same `screenChoice` the two Screen answers use).
+  - `stylerSubjectSet(name)` is the whole state: it hides the other three panes,
+    ticks the menu, and measures the sheet. `appearanceOpen`, `appearanceBars`,
+    `appearanceBodies`, `appearanceGroupSet`, the bar handlers and the automatic
+    collapse of the Window-background group while the caret is in the CSS box
+    are all deleted.
+  - **Presets is a subject of its own**, not the CSS group's fourth tab: it is
+    not CSS, and reaching it meant opening Custom CSS. `stylerView` lost its
+    `presets` value; Custom CSS keeps App, Article and Files.
+  - **The sheet is its own height at all times** (`height:auto` with
+    `max-height:--styler-h` in app.css). The old `no-css` class said that for
+    one case; with a single subject on screen it is the only case.
+  - **A broken comment cost two builds and is worth remembering**: replacing the
+    first lines of a multi-line HTML comment left its TAIL un-commented, so the
+    prose rendered as page content - and it did not look like a markup error, it
+    looked like the sheet printing paragraphs into every subject. When editing a
+    comment by anchor, replace the whole comment.
+  - Verified on the emulator after the fix: the page's script runs, the panel's
+    four doors list as `screen/bg/presets/css`, the head's menu lists all four
+    names, and the Presets subject renders its groups and switches.
+- **The two Screen answers are radio groups now** (the user's call): five
+  options for the edges, four for the bars, every one of them on screen at once.
+  The menus they replace answered a problem that has since gone - a `<select>`
+  would open the platform's popup, which can wear neither the app's colour nor
+  its wallpaper - and a menu also HID the alternatives, which is the wrong trade
+  for a set this small (Material's own ceiling for radios is five, and the edges
+  row sits exactly there).
+  - `radioGroup(box, options, onPick)` has the SAME `{set(i)}` contract as
+    `screenChoice`, so `appearanceRender`'s two calls did not change. Native
+    inputs styled with `appearance:none` the way the group editor's checkbox
+    already is, so the keyboard, the arrow keys and the screen reader come with
+    them; the ROW is the target and not the 20px circle.
+  - **The option arrays are read in order and the INDEX is the stored mode** -
+    see the note above `SCREEN_EDGE_OPTIONS` - so neither may be rearranged.
+  - Verified on the emulator: 5 and 4 inputs render, the checked one is the
+    stored mode (3, "A colour you pick", at the time), and the colour field
+    appears only for that mode.
+  - `screenChoice` survives for the sheet's subject menu in the head, where
+    hiding the alternatives is right: there the list IS the thing.
+- **The margin colour rides on its own option's row** (the user's call). It used
+  to be a separate row labelled "Colour" under the group, shown only while "A
+  colour you pick" was the mode - which said the same thing twice (the option
+  already names it) and put the value one row away from the option that gives it
+  meaning. `#edgeColorRow` is gone; `#edgeColorBox` is moved onto that radio's
+  row once, at load, by an IIFE beside the group's construction, and it STILL
+  hides itself while another option is chosen - "a field for a value nothing is
+  using is a question the reader has to answer before it means anything" is the
+  app's own rule and it still holds. `.radio-row` wraps, so a narrow phone puts
+  the field under the label instead of squeezing the row.
+  Verified on the emulator: the box is a descendant of the 4th radio row (mode
+  3, EDGE_CUSTOM) and visible while that mode is the stored one.
+  Hiding has a trap that cost a round: a `display:none` element measures 0, so
+  the field looked collapsed to BOTH the reader and my first measurement. The
+  real cause was the width rule - `width:7.5em` lived on
+  `.appearance-row input[type=text]`, and the box had just LEFT that row, so the
+  input had no width of its own and, as a flex item of `.radio-row`, shrank to
+  nothing beside the pipette (an empty input's min-content width is zero). The
+  rule now names both rows and the box carries `flex:none`. Measured with the
+  box shown: input 98px, pipette 26px, row 44px.
+- **The margin colour rides on its own option's row, DIMMED rather than hidden
+  when another option is chosen** (the user's two calls, in that order). It used
+  to be a separate row labelled "Colour" shown only while "A colour you pick"
+  was the mode - which said the same thing twice and put the value a row away
+  from the option that gives it meaning.
+  - `#edgeColorRow` is gone; `#edgeColorBox` is moved onto that radio's row once,
+    at load, by an IIFE beside the group's construction.
+  - The field then STAYS VISIBLE and goes inert instead of disappearing: it is
+    part of what the option IS, so a reader choosing between the five sees what
+    each offers, and an option whose field comes and goes reads as one with
+    nothing behind it. `appearanceRender` sets `disabled` on the input and the
+    pipette plus `aria-disabled` on the box; the dim is opacity .45, the Clear
+    button's own disabled register. (The app dims where it CAN - the font
+    stepper - but there the value is clamped and always in effect; here there is
+    nothing to clamp.)
+- **Two traps paid for on the way, both worth remembering.**
+  - The field's width came from `.appearance-row input[type=text]`, and the box
+    had just LEFT that row: the input had no width of its own and, as a flex
+    item of `.radio-row`, shrank to nothing beside the pipette - which is what
+    the reader saw as "squeezed to a circle". The rule now names both rows, and
+    the box carries `flex:none` so a long option label cannot squeeze it.
+  - **A `display:none` element measures 0**, so the first measurement of that
+    collapse "confirmed" it for the wrong reason. Show the element first, then
+    measure - and note that the box is legitimately hidden when the stored mode
+    is not "A colour you pick".
+  - Verified: input 98px (7.5em at 13px - room for `FFFFFF`), pipette 26px, row
+    44px, opacity .45 while inert.
+- **A preset that cannot apply where the reader is is SHOWN AND DISABLED, with
+  the reason on its row** (the user's call, three cases). `Background image` used
+  to be skipped entirely when the shell had no wallpaper, and `Sepia` /
+  `True black` / `Warm dark` were offered in BOTH themes although their own CSS
+  is scoped to one - so a reader could switch on something that would never do
+  anything. A missing row answers "why is this not here?" with silence, and the
+  theme and the wallpaper are not properties of the preset: they are WHERE IT
+  WORKS, which is the one thing a reader deciding whether to switch it on needs.
+  The reason REPLACES the description while it is in force, because the row has
+  one line for explaining itself and "why can I not switch this on" is the
+  question in front of the reader:
+  - `Pick an image in Window background first`
+  - `Light theme only — the page is in the dark one`
+  - `Dark theme only — the page is in the light one`
+  Both facts were already in the payload - `requiresImage`, and `theme` which
+  was added to the manifest earlier in this branch - so this is entirely
+  `presetsPaneRender` plus a `.pr.off` dim. Verified on the emulator: on a light
+  page with a wallpaper, True black and Warm dark are disabled with the reason
+  while Sepia and Background image stay live and High contrast (no restriction)
+  is untouched; with `data-shell-image` taken away in the DOM only, Background
+  image turns disabled with its own reason and back.
+  **The same anchoring trap as the comment one, in CSS**: replacing the FIRST
+  LINE of a multi-line rule leaves its body dangling - and the balanced-brace
+  check does not catch it, because the braces still add up. Anchor on the whole
+  rule.
+  And the fourth preset in that group says where IT works too: `theme: "both"`
+  on `Background image`, because within one group the reader learns "Sepia:
+  light", "True black: dark" and needs to know the one that is neither - a set
+  of restrictions with one silent member reads as if the fourth were restricted
+  too. "Both" is as explicit as the other two, and a preset that says NOTHING
+  still says nothing, which is right for the fourteen that are not about a
+  theme. The note is ` · light theme` / ` · dark theme` / ` · both themes`,
+  appended only while no reason is in force (that reason is about the theme, and
+  the line has room for one).
+  **And a trap the balanced-brace check cannot see**: `theme` was added to this
+  manifest twice - once when the flags went in, once for "both" - and a
+  DUPLICATE JSON KEY wins silently by POSITION (Go's Unmarshal takes the last),
+  so the page said "light theme" while the file appeared to say both. Run a
+  strict parse with `object_pairs_hook` before the build; it is the only check
+  that catches it.
+- **The theme is TWO buttons now, not a cycle** (the user's design, and it
+  closes the loop on this session's first bug). `Auto` and the state it resolves
+  to, with the accent marking which of the two is IN FORCE - and that is the one
+  thing a cycle could not say: following the phone and pinning a theme are
+  different KINDS of answer, and "auto over a light phone" is indistinguishable
+  on screen from "pinned light", so moving between them was an invisible press.
+  - `setTheme(t)` replaces `cycleTheme`. The `Auto` buttons set `auto`; the state
+    buttons set the OPPOSITE of what is on screen, so a tap while Auto is on
+    takes over AND switches.
+  - `applyThemeControls()` owns the ring (`aria-pressed` on the pair) and the
+    glyph, and `syncAutoDark` calls it - the phone can flip the theme under an
+    active Auto at sunset and the glyph has to follow.
+  - The state button's label names the ACTION, not the state ("Switch to day"):
+    while Auto is on the button SHOWS what is on screen and a tap switches, so a
+    label reading "Day" would describe the wrong half of the press.
+  - Storage is untouched - auto/light/dark - so nothing needs migrating and an
+    older build reads the same key. `THEMES` and `cycleTheme` are gone.
+  - `#panelTheme` became `.themeSwitch`, and the three display rules that named
+    the old id and class (the wide-screen hide, the bar's phone hide, the
+    panel's phone show) now name the wrapper.
+  - Verified on the emulator by CLICKING the real buttons: auto → ring on Auto,
+    glyph ☀, "Switch to night"; tap → stored `dark`, ring on the state button,
+    ☾, "Switch to day"; tap → `light`, ring still on it, ☀; tap Auto → back to
+    `auto` with the ring on Auto. Every press does something visible.
+- **A probe-authoring note for the next session.** Three times in this one I
+  wrote a CDP probe ending `}})'''` for `JSON.stringify((function(){…})` - one
+  closing paren short - and each time the result read as a page error
+  ("Uncaught", "SyntaxError") when it was the probe. Check the expression's own
+  parens before believing a red result.
+- **Font weight joined Font size** (the user's ask), and it is the size's twin
+  all the way down: `--wd-fw` on the root, read by the article's shadow style
+  (`font-weight:var(--wd-fw,400)`), BAKED into the frames' srcdoc and also sent
+  to them as `{t:"fw",w}` - a custom property cannot cross a document boundary,
+  which is why the size has both routes too. Persisted as `ui.fontWeight` in
+  `state.json` (a new field on UIPrefs), so it follows the person rather than
+  the browser, exactly as the size does.
+  - Three steps and no more: 400/500/700, named Normal/Medium/Bold. The faces in
+    the stack a dictionary is read in - Roboto, SF, Segoe - have those reliably,
+    and 300 is either missing or SYNTHESISED, which reads as a mistake rather
+    than as lighter text.
+  - The same stepper as the size, with its value button showing the NAME rather
+    than the number: the reader is choosing a look, not a value.
+  - The existing `bolder_text` preset is NOT a weight - it is
+    `-webkit-text-stroke:.2px` - so the two coexist rather than overlap: a stroke
+    thickens any face by a fixed amount, a weight picks another face.
+  - Verified on the emulator: 400 Normal → 500 Medium → 700 Bold, the bounds dim
+    (`.lim`, the app's dim-not-disable rule), tapping the value resets, and the
+    value button is wide enough for its word ("Normal" 44px, "Medium" 48px
+    natural) instead of clipping it.
+  - **The styles were then NOT shared** (the user's follow-up: "apply the same
+    styles to Font weight as to Font size - colour and so on"). All seven
+    stepper rules were scoped to `#fsCtl` alone, so the weight control got
+    none of it: no colour, no border, no 22px box, no hover, no focus ring,
+    and its `.lim` never dimmed anything. Both containers are named in every
+    rule now — `#fsCtl button,#fwCtl button` and so on, NOT
+    `#fsCtl,#fwCtl button`, which reads as "the size CONTAINER or a weight
+    button" and strips the size of its own sizing.
+  - The two rows also read as one column now: the label is 60px (the longer of
+    "Font size"/"Font weight") and `.fsval` is 48px (the wider of "32px" and
+    "Medium"), so both − buttons and both + buttons sit at the same x.
+    Scoped with `.facts:has(>#fsCtl)` / `:has(>#fwCtl)` so the panel's other
+    `.facts` rows — which put their control at the right edge — cannot move;
+    checked, and these are the only two `.rowlabel`s in the document.
+  - **Verified in the page's own raster** (`Page.captureScreenshot`, clip +
+    PIL, not the screenshot read by eye — which at that zoom said the opposite):
+    the border columns of the two rows are identical to a tenth of a CSS px —
+    `−` at 214.2, value box 238.2–285.5, `+` at 288.2–309.5 — and all six
+    buttons compute the same colour, border and font-size. The weight's `−`
+    reads fainter in the raster only because Normal is the floor (`.lim`).
+    Note for the next raster probe: `clip.scale` MULTIPLIES the DPR, so
+    `scale:2` on a 2x device is 4 device px per CSS px, not 2.
+  - **Both themes checked**, and the pair is right in each: with the paper
+    wallpaper on, the light theme computes ink `#5d4d3a` and line `#cdbb96`
+    (the BACKGROUND preset's warm inks) and the dark theme `#ded8cc` and
+    `rgba(230,220,201,.4)` (the sepia-dark override at app.css:392). The
+    steppers only read the vars, so they needed nothing of their own.
+  - **A probe trap this cost me.** Reading `getComputedStyle` on the buttons in
+    the SAME evaluate that called `setTheme("dark")` returned the LIGHT values,
+    while the root's `--fg` and the panel's own colour in that same read were
+    already dark. I nearly recorded a dark-mode ink bug that does not exist.
+    Set the theme in one call, measure in the next.
+- **Not done**: nothing is committed; `README`/`pages/docs` still describe one
+  stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
+  manages the files the App and Article sheets reference (its labels say "used
+  in App/Article") - say the word if it should be a subject of its own.
+
 ## The theme button said "night" in daylight (2026-09-25, this session)
 
 Reported from the phone: at launch the button beside the ✕ showed night while
@@ -179,10 +563,39 @@ after the heading it sits under.
 - **Verified on the emulator**: the rows stack and their labels share one x;
   clicking Off then On flips `aria-pressed` both ways; `hlOff` still
   round-trips through state.json; `go build ./...` and the asset tests pass.
-- **The rows are two columns**: `.facts .seg>span{flex:1 1 auto}` lets the
-  label take the slack, so the pair sits at the row's right edge. Measured:
-  labels all at x=147, pairs all ending at 514, starting at 447/394/368 — the
-  pair's own width is what differs, which is the shape that was asked for.
+- **The rows are ONE column, and it is the sheet's column** (two reports from
+  the user, the second with a picture). As built first, `.facts .seg>span
+  {flex:1 1 auto}` made the label a spring: it took the row's slack and pinned
+  the pair to the right edge (x=514) while each pair kept the natural width of
+  its own two words, so the three rows started at 447/394/368 — "On | Off"
+  could not be read as the same control as "Alphabetical | My order". Then:
+  "like the font controls — move them left". So the label is a fixed column
+  now — `flex:0 1 96px;min-width:0`, with an ellipsis below that — and it is
+  the SAME 96px the two font rows' labels take, which puts every control in
+  the panel at one x: measured, labels 147..243 and pairs and both steppers
+  starting at 249/250. Same at 411 and 360. `flex-shrink` and the ellipsis are
+  what a narrow phone gets instead of the old squeezed label.
+- **Both halves of a pair are the same width**: `min-width:80px;
+  justify-content:center` on `.facts .seg .act`. 80 and not 79, which is what
+  `Alphabetical` measures (79.33) and which left that one row a pixel out of
+  line. `.facts` exists only in index.html and only those six buttons are
+  `.act`s inside a `.seg`, so nothing else in the app can move.
+- **Below 345px the pair wraps under its label**, and only there, in a media
+  query. Not a permanent `flex-wrap`: a wrapping flex container reserves the
+  height of a second line whether or not it uses one — measured, the row went
+  from 22px to 51px at EVERY width, a lot of panel for the narrowest phones
+  only. Verified at 320/345/360/411/540: no overflow at any of them and 22px
+  rows everywhere above the query.
+- **A raster trap that cost me a detour**: a clipped `Page.captureScreenshot`
+  came back as a stitched frame — the labels drawn twice, the buttons cut off
+  mid-word — while the DOM said everything was in place. The compositor had
+  stale tiles. `adb exec-out screencap -p` plus a PIL crop is the reliable
+  picture; the page raster is for measuring pixel columns, and even then the
+  DOM rects are what settle a question.
+- **The embedded assets are CRLF**, so a byte search in `libwudict.so` for a
+  multi-line CSS snippet must include the `\r\n`. Searching for one cost me a
+  rebuilt APK I thought had not been rebuilt — the single-line probes matched,
+  the multi-line one did not.
 
 ## The chips name their scope, with no receding state (2026-09-24, this session)
 
@@ -1483,3 +1896,41 @@ input lives INSIDE the hidden block, but the trigger being the textarea's
 caret means typing a hex keeps the block — the caret is elsewhere. The
 overlap-based LIFT stays in stylerFit for window modes where the keyboard
 draws over the page instead of shrinking it.
+
+## Merged `Night-Day` into `dev2` (2026-09-25, this session)
+
+The user merged the appearance branch into their integration branch and hit a
+conflict; the resolution is recorded here because two of the three things that
+had to be fixed were NOT the conflict itself.
+
+- **`internal/server/web/index.html`, two hunks, one shape**: `dev2` had added
+  `speakOff`/`applySpeak` to `loadPrefs`/`savePrefs`, `Night-Day` had added
+  `fontWeight`/`applyFW` to the same two lines. Both sides are independent
+  additions, so the resolution keeps BOTH — `applyFS, applyFW, applyHL,
+  applySpeak, applyOpenOrder, applySortOrder` on load and
+  `fontSize, fontWeight, hlOff, speakOff, fastFirst, sortMine` on save.
+- **`LookupActivity.java` did not compile, and the merge did not do it**:
+  `dev2` already carried `onPageFinished` TWICE in the same anonymous
+  `WebViewClient` (one calling `Shell.applyBackground`, one calling
+  `speech.inject`) — `javac: method onPageFinished(WebView,String) is already
+  defined`. `Night-Day` and the merge base each had it once. Fixed by merging
+  the two bodies into one method in `MainActivity`'s order
+  (`applyBackground` then `speech.inject`). Verified with
+  `:app:compileFossDebugJavaWithJavac`.
+- **What the merge did NOT lose**, though a grep says it might: `dev2`'s
+  `.themeBtn` and `#tabPresets` are gone from the merged file, because
+  `Night-Day` deliberately replaced the cycling theme button with the
+  two-button `.themeSwitch` and the sheet's tab row with the head's subject
+  menu. `themeSwitch`/`themeAuto`/`themeFlip` are present, and the control
+  reads `Auto ☀` on the device.
+- **Verified after the merge**: `go build`, `go vet`, the server suite (only
+  the two known Windows failures), the Java compile, a full
+  `build-android.cmd debug intel`, and on the emulator — the page loads with
+  no console errors, `#fsVal` 18px and `#fwVal` Medium (the weight stepper
+  round-trips Medium → Bold → Medium), the speak button exists, all four
+  `data-styler` doors open the sheet, and the Presets pane renders its 18
+  switches. Note for the impatient: the sheet's FIRST open fetches
+  `/api/style` and the file list before the presets, so the pane reads
+  "Loading…" for a moment — that is not a hang. `/api/presets` answers in
+  20ms from inside the app; a `curl` through `adb forward` does NOT reach it,
+  which cost me a false alarm about the server.

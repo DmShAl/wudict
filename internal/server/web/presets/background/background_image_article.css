@@ -23,28 +23,26 @@
 
 
 /* =========================================================
-   LIGHT MODE ONLY:
    LOCAL PAPER BACKDROP BEHIND IMAGES
    ========================================================= */
 
 /*
-   Image processing is deliberately restricted to light mode.
+   Applies in BOTH themes, which is what the day/night background pair made
+   necessary: the shell holds a paper per theme now, so a rule restricted to
+   the light one left a reader whose night background IS a paper looking at
+   articles with no paper behind them.
 
-   Shadow-DOM articles:
-     :host(:not([data-dark]))
-
-   iframe articles:
-     :root:not([data-dark]) > body
-
-   In dark mode none of the rules below match, so wuDict's native
-   dark-mode image handling is left completely untouched.
+   Nothing here names a theme, deliberately. Every value below comes from
+   --paper-bg and --paper-bk-image, which the host sets from the CURRENT theme,
+   so the article wears whichever paper is in force - and a reader with no
+   night paper gets the app's own dark surface, which is the right answer too.
 */
 
-:host(:not([data-dark])) :is(p, div, figure, td, span):has(> img),
-:root:not([data-dark]) > body :is(p, div, figure, td, span):has(> img),
+:host :is(p, div, figure, td, span):has(> img),
+:root > body :is(p, div, figure, td, span):has(> img),
 
-:host(:not([data-dark])) :is(p, div, figure, td, span):has(> a > img),
-:root:not([data-dark]) > body :is(p, div, figure, td, span):has(> a > img) {
+:host :is(p, div, figure, td, span):has(> a > img),
+:root > body :is(p, div, figure, td, span):has(> a > img) {
 
   background-color:var(--paper-bg, transparent) !important;
 
@@ -62,18 +60,19 @@
 
 
 /* =========================================================
-   LIGHT MODE ONLY:
    MAKE WHITE IMAGE BACKGROUNDS LOOK TRANSPARENT
    ========================================================= */
 
 /*
-   JPEG has no real transparency.
-
-   In light mode:
+   JPEG has no real transparency, and multiply is what makes a white
+   background read as the paper instead of as a white box:
 
        white × paper = paper
 
-   In dark mode this rule does not apply at all.
+   LIGHT PAPER ONLY, and that is not a leftover: multiply against a near-black
+   paper gives near-black, so at night this would crush the picture into the
+   background rather than lift it onto it. A dark paper wants the image as it
+   is, which is what leaving the rule off does.
 */
 
 :host(:not([data-dark])) img,
@@ -106,10 +105,10 @@
 
 
 /* ---------------------------------------------------------
-   SHADOW-ROOT ARTICLES — LIGHT MODE ONLY
+   SHADOW-ROOT ARTICLES
    --------------------------------------------------------- */
 
-:host(:not([data-dark])) #ox-enlarge {
+:host #ox-enlarge {
   background:none !important;
 }
 
@@ -119,8 +118,8 @@
    inline-block prevents the backdrop from occupying a larger line box.
 */
 
-:host(:not([data-dark])) #ox-enlarge > a.topic,
-:host(:not([data-dark])) #ox-enlarge > a.topic:hover {
+:host #ox-enlarge > a.topic,
+:host #ox-enlarge > a.topic:hover {
   display:inline-block !important;
 
   padding:0 !important;
@@ -153,7 +152,10 @@
    Keep Oxford's own display:none / display:block switching intact.
 */
 
-:host(:not([data-dark])) #ox-enlarge img:is(.thumb, .fullsize) {
+/* Warm frame and multiply, both tuned for a light paper - see the note above. */
+
+:host(:not([data-dark])) #ox-enlarge img:is(.thumb, .fullsize),
+:root:not([data-dark]) > body #ox-enlarge img:is(.thumb, .fullsize) {
   vertical-align:top !important;
 
   background:transparent !important;
@@ -174,16 +176,16 @@
 
 
 /* ---------------------------------------------------------
-   IFRAME ARTICLES — LIGHT MODE ONLY
+   IFRAME ARTICLES
    --------------------------------------------------------- */
 
-:root:not([data-dark]) > body #ox-enlarge {
+:root > body #ox-enlarge {
   background:none !important;
 }
 
 
-:root:not([data-dark]) > body #ox-enlarge > a.topic,
-:root:not([data-dark]) > body #ox-enlarge > a.topic:hover {
+:root > body #ox-enlarge > a.topic,
+:root > body #ox-enlarge > a.topic:hover {
   display:inline-block !important;
 
   padding:0 !important;
@@ -203,18 +205,5 @@
   color:inherit !important;
 
   isolation:isolate;
-}
-
-
-:root:not([data-dark]) > body #ox-enlarge img:is(.thumb, .fullsize) {
-  vertical-align:top !important;
-
-  background:transparent !important;
-  mix-blend-mode:multiply !important;
-
-  border:0 !important;
-
-  outline:1px solid rgba(90,65,35,.48) !important;
-  outline-offset:0 !important;
 }
 

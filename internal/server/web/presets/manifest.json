@@ -9,6 +9,7 @@
           "title": "Background image",
           "desc": "The shell's background image and paper colour behind the app and every article.",
           "requiresImage": true,
+          "theme": "both",
           "app": "background_image_app.css",
           "article": "background_image_article.css"
         },
@@ -16,6 +17,7 @@
           "id": "sepia",
           "title": "Sepia",
           "desc": "Warm sepia paper everywhere: #f4ecd8 in the app, lighter paper in articles.",
+          "theme": "light",
           "app": "sepia_app.css",
           "article": "sepia_article.css"
         },
@@ -23,12 +25,14 @@
           "id": "true_black",
           "title": "True black",
           "desc": "OLED black chrome; in dark mode articles flip to white on black.",
+          "theme": "dark",
           "app": "true_black_app.css"
         },
         {
           "id": "warm_dark",
           "title": "Warm dark",
           "desc": "Dark mode in warm browns instead of grey.",
+          "theme": "dark",
           "app": "warm_dark_app.css"
         }
       ]

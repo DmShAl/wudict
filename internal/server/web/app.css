@@ -360,7 +360,12 @@ html{--styler-h:min(45vh,420px)}
    window - see stylerFit in index.html. */
 #styler{position:fixed;left:0;right:0;bottom:var(--styler-bottom,0);z-index:210;
   display:none;
-  height:var(--styler-h);flex-direction:column;
+  /* The sheet is its OWN height, whatever subject it is showing: a subject with
+     two rows gives a short sheet rather than the full one standing half empty,
+     and the CSS editor is capped by --styler-h and scrolls inside it. This used
+     to be a class the script toggled for the folded-editor case; with one
+     subject on screen at a time it is the only case there is. */
+  height:auto;max-height:var(--styler-h);flex-direction:column;
   background:var(--bg);border-top:1px solid var(--line);box-shadow:var(--shadow);
   padding:var(--sp-2) var(--sp-3);
   padding-bottom:calc(var(--sp-2) + var(--wd-inset-bottom,0px))}
@@ -375,6 +380,18 @@ html[data-shell-image] #styler{
   background-color:var(--paper-bg,var(--bg));
   background-image:linear-gradient(#ffffff24,#ffffff24),var(--paper-bk-image);
   background-size:100% 100%}
+/* A PAPER LIFTS THE MUTED REGISTERS UNDER A DARK THEME. The dark palette's
+   --fg-soft and --fg-faint are tuned for the app's own near-black surface, and
+   on a paper of any kind - a colour or a texture, chosen by the reader - they
+   land within a shade of it: the sheet's row labels and the hints under the
+   Screen dropdowns came out unreadable, which is what a reader reported from
+   the phone. The values are the ones lemmas.html and browse.html already use
+   for their dark tone, so a paper reads the same wherever the reader meets
+   one. --fg, --link and --accent are left alone: the dark theme's are already
+   light enough over a paper. */
+html:is([data-shell-sepia],[data-shell-image])[data-dark]{
+  --fg-soft:#ded8cc; --fg-faint:#c6beaf;
+  --line:rgba(230,220,201,.4); --line-soft:rgba(230,220,201,.2)}
 body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
 /* The three headings are kept apart by hairlines rather than by spacing
    alone: the sheet is tall, sections scroll past each other, and a line under
@@ -382,7 +399,14 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    reads as structure instead of drift. */
 #stylerHead{flex:none;display:flex;align-items:center;gap:.4em;
   border-bottom:1px solid var(--line);padding-bottom:.4em;margin-bottom:.45em}
-#stylerHead strong{font-size:13px;font-weight:600;color:var(--fg)}
+/* The head's subject menu, which is also the sheet's title: the same .choice-btn
+   the Screen rows use, sized to a heading rather than to a row, because what it
+   names is the whole sheet and the list behind it is how the reader moves to
+   another subject without leaving (the bars used to do that). */
+#stylerHead .choice-btn{width:auto;background:none;border:0;padding:.1em 0;
+  gap:.35em;font-size:14px;font-weight:600}
+#stylerHead .choice-btn:hover{border:0;color:var(--fg)}
+#stylerHead .choice-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* THE SETTINGS AREA, and it is the sheet's whole scroll. The three sections
    live in here, one after another, each one holding its bar and its contents -
    so every section behaves the same way: its bar travels with what it folds,
@@ -392,21 +416,8 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    flex:1 1 auto: it takes whatever the head and the note leave, and its
    contents scroll inside it. */
 #appearanceGroups{flex:1 1 auto;min-height:0;overflow-y:auto}
-/* THE BAR: one per group, the strip and the triangle the whole sheet is
-   folded by. A drawn triangle rather than a glyph (the same 4px border
-   triangle the search chips wear), turned down while the group is open, so
-   there is no font to depend on and no icon font to load. */
-.group-bar{display:flex;align-items:center;gap:.45em;width:100%;
-  margin:.35em 0 .25em;padding:.3em .45em;border:0;border-radius:5px;
-  background:var(--line-soft);color:var(--fg-soft);
-  font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
-.group-bar:first-child{margin-top:0}
-.group-bar::before{content:"";flex:none;width:0;height:0;
-  border:4px solid transparent;border-left-color:var(--fg-soft);
-  transition:transform .18s ease}
-.group-bar[aria-expanded="true"]::before{transform:rotate(90deg)}
-.group-bar:hover,.group-bar:focus-visible{color:var(--fg)}
-.group-bar:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* THE BAR is gone with the groups it folded: the sheet shows one subject, and
+   the head's menu is how the reader moves between them. */
 /* `hidden` is AUTHORITATIVE inside the sheet, and it is not by default: an
    author rule such as `.appearance-row{display:flex}` outranks the
    user-agent's `[hidden]{display:none}` however specific either is, so an
@@ -423,21 +434,19 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    from the script (stylerEditing), because it is a group now and the bar has
    to keep telling the truth about it. */
 #styler.editing #stylerNote{display:none}
-/* Custom CSS closed: the sheet stops being a sheet. Its height is the
-   groups' own - measured onto --styler-shown by appearanceSheetHeight - so
-   closing the editor gives the page back the rest of the screen instead of
-   leaving the sheet standing empty over it. max-height keeps that honest on a
-   SHORT viewport: an auto height has no opinion about the keyboard, and the
-   colour fields can raise one with the editor folded, so above --styler-h the
-   scroller takes over as it does everywhere else. The section's own contents
-   are hidden by the group's own `hidden` (appearanceGroupSet), as for the two
-   window groups; the class here is only about the sheet's height. */
-#styler.no-css{height:auto;max-height:var(--styler-h)}
+/* The sheet's height is its own at all times now - see #styler above - so the
+   class that said so for the folded-editor case is gone, and so are the group
+   bars that case was about: one subject per opening, chosen in the head. */
 .appearance-row{display:flex;align-items:center;gap:.5em;min-height:2.5em}
 /* One narrow label column for both rows - "Color" and "Image" say enough
    under the section heading, and every em here is strip width. */
 .appearance-row label,.appearance-row .appearance-label{flex:0 0 4.2em;font-size:13px}
-.appearance-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
+/* The field is the same field wherever its box rides: it hangs off the
+   Window-background row and off the Screen option that uses it, and the rule
+   that gives it a width has to name both or the second one collapses to the
+   pipette's own size with nowhere left to type a hex value. */
+.appearance-row input[type=text],
+.radio-row input[type=text]{width:7.5em;max-width:100%;min-width:0;
   font:inherit;font-size:13px;
   background:var(--bg-card);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:.25em}
 /* The color box wraps the input, the picker AND the dropdown, so the 35% row
@@ -446,6 +455,17 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    reader's finger is already going and where it does not push the hex digits
    away from the label that names them. */
 .color-box{display:inline-flex;align-items:center;gap:.3em;max-width:35%}
+/* On an option's row there is no 35% to spend: the row is mostly the option's
+   own label, and the cap would leave the field narrower than the value it is
+   there to hold. The row wraps instead - see .radio-row.
+   flex:none is the load-bearing half: as a flex item the box would otherwise
+   SHRINK to make room for that long label, and an empty input's min-content
+   width is zero, so it collapsed to nothing beside the pipette. */
+.radio-row .color-box{max-width:none;flex:none}
+/* Dimmed while another option is chosen: present, so the option that owns it
+   shows what it offers, and inert, because a value nothing is using is not a
+   value. The dim is the same the Clear button uses for its disabled state. */
+.radio-row .color-box:has(input:disabled){opacity:.45}
 .color-pick{flex:none;display:flex;align-items:center;justify-content:center;
   width:2em;height:2em;padding:0;cursor:pointer;
   font-size:13px;background:var(--bg-card);color:var(--fg-soft);
@@ -545,10 +565,21 @@ html[data-shell-image] .menu-card{
   border:4px solid transparent;border-top-color:var(--fg-faint)}
 .choice-btn:hover{border-color:var(--fg-faint)}
 .choice-btn:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-/* The menu is exactly as wide as the control it speaks for (data-w, set by
-   the markup and read in place()), so the answer and its alternatives line
-   up in one column; the long edge labels then wrap rather than run off a
-   phone's sheet. */
+/* A group of radios, the two Screen answers: everything on screen at once,
+   which is what these two rows need and what the menus they replace were bad
+   at. Drawn like the group editor's checkbox - appearance:none and a mark of
+   our own - so they follow the theme and the paper the same way. The ROW is the
+   target; 44px is the floor the rest of the app's rows sit on. */
+.radio-group{display:flex;flex-direction:column;gap:.05em}
+.radio-row{display:flex;align-items:center;gap:.55em;min-height:44px;
+  flex-wrap:wrap;cursor:pointer;font-size:13px;color:var(--fg)}
+.radio-row input{appearance:none;-webkit-appearance:none;flex:none;
+  width:20px;height:20px;margin:0;border:1.5px solid var(--fg);border-radius:50%;
+  background-color:var(--paper-bg,var(--bg));position:relative;cursor:pointer}
+.radio-row input:checked::after{content:"";position:absolute;inset:4px;
+  border-radius:50%;background:var(--fg)}
+.radio-row input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.radio-row:hover input{border-color:var(--accent)}
 .choice-menu{min-width:12em;max-height:min(60vh,340px)}
 .choice-menu .choice-item::before{content:"";flex:none;width:1em;
   color:var(--accent);font-weight:400}
@@ -724,6 +755,11 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
   color:var(--fg-faint);font-size:12px}
 #stylerPresetsPane .ph{padding:.55em .6em .2em;font-size:11px;font-weight:600;
   color:var(--fg-soft);text-transform:uppercase;letter-spacing:.04em}
+/* A preset that cannot take effect where the reader is: shown, dimmed and
+   inert, with the reason on its own line - see presetsPaneRender. Hiding it
+   instead answered "why is this not here?" with silence. */
+.pr.off{opacity:.55}
+.pr.off .en{cursor:default}
 #stylerPresetsPane .pr{display:flex;align-items:center;gap:.6em;padding:.4em .6em;
   border-bottom:1px solid var(--line-soft)}
 #stylerPresetsPane .pr:last-child{border-bottom:0}
@@ -771,9 +807,17 @@ dialog.panel-card:not([open]){display:none}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
 .panel-card h2 .headacts{margin-left:auto;display:flex;gap:var(--sp-1)}
-/* the theme button only exists here on narrow screens, where the bar has no
-   room for it; see the responsive block */
-#panelTheme{display:none}
+/* The theme control is TWO buttons - Auto, and the state it resolves to - and
+   it has two mount points: the bar's pair above 600px, the panel's below it,
+   where the bar has no room. This is the wide-screen half of that rule; the
+   responsive block flips both.
+   The RING marks which of the two is in force, and that is the one thing a
+   single cycling button could not say: following the phone and pinning a theme
+   are different KINDS of answer, and only the accent tells them apart. */
+.themeSwitch{display:inline-flex;align-items:center;gap:.25em}
+#panel .themeSwitch{display:none}
+.themeSwitch .themeAuto[aria-pressed="true"],
+.themeSwitch .themeFlip[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
 /* Identity and the close button, and nothing else (D143). With 55 dictionaries
    the ✕ must not be somewhere up the page, so this row never scrolls. Nothing
    that spends disk or CPU belongs in it: top-right is the most-clicked real
@@ -962,18 +1006,28 @@ dialog.panel-card:not([open]){display:none}
    The buttons are never `disabled` at the bounds, only dimmed. Clamping in
    applyFS is what holds the range and .lim is what says so; a control that
    stops taking presses reads as broken, and the bound is two presses away. */
-#fsCtl{flex:none;display:flex;align-items:center;gap:2px}
-#fsCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
+/* The pair is read as one column with the reading strip's pairs below it, so
+   the label column is the same 96px theirs is — the whole panel then has ONE
+   control column, which is what "like the font controls" means when the rows
+   are read down the sheet. Scoped to the rows that hold a stepper: no other
+   `.facts` row has a `.rowlabel` at all. */
+.facts:has(>#fsCtl)>.rowlabel,.facts:has(>#fwCtl)>.rowlabel{
+  flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#fsCtl,#fwCtl{flex:none;display:flex;align-items:center;gap:2px}
+#fsCtl button,#fwCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   color:var(--fg-soft);background:var(--bg-card);border:1px solid var(--line);
   border-radius:6px;transition:color .12s,border-color .12s,opacity .12s}
-#fsCtl button:hover{color:var(--fg);border-color:var(--fg-faint)}
-#fsCtl button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-#fsCtl .fsbtn{width:22px;height:22px;font-size:13px}
-#fsCtl .fsbtn.lim{opacity:.3}
-/* min-width holds "32px" — the widest value — so the two buttons never move
-   as the number changes; tabular-nums holds the digits still within it. */
-#fsCtl .fsval{height:22px;min-width:34px;padding:0 3px;font-size:11px;
+#fsCtl button:hover,#fwCtl button:hover{color:var(--fg);border-color:var(--fg-faint)}
+#fsCtl button:focus-visible,#fwCtl button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#fsCtl .fsbtn,#fwCtl .fsbtn{width:22px;height:22px;font-size:13px}
+#fsCtl .fsbtn.lim,#fwCtl .fsbtn.lim{opacity:.3}
+/* min-width holds the widest value of EACH stepper, so that neither the
+   buttons nor the other row moves as the value changes: "32px" is the widest
+   size, "Medium" the widest weight, and both boxes take the wider of the two.
+   tabular-nums holds the digits still within it. */
+#fsCtl .fsval,#fwCtl .fsval{height:22px;min-width:48px;padding:0 3px;font-size:11px;
   color:var(--fg-faint);font-variant-numeric:tabular-nums}
 /* A group's name over the rows it heads — "Dictionary folders", "Library",
    "Config file". Sentence case and a heavier weight, NOT the uppercase+tracking
@@ -1031,12 +1085,34 @@ dialog.panel-card:not([open]){display:none}
    kind of thing. The span is a different element type from the buttons, so
    :first/:last-of-type below address the two halves and never the label. */
 .facts .seg{display:inline-flex;align-items:center;justify-content:flex-start;gap:.4em}
-/* The label takes the row's slack, so the pair sits at the RIGHT edge and the
-   rows read as two columns — labels down one, buttons down the other. Without
-   it every pair hugs its own label and the button column comes out ragged,
-   which is what a wrapped row used to hide. */
-.facts .seg>span{flex:1 1 auto;font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
-.facts .seg .act{position:relative;border-radius:0}
+/* The narrowest phones only. The label is a fixed column and the two halves
+   never shrink (their equal widths ARE the column), so below ~345px the pair
+   has nowhere to go but the next line. It is a media query rather than a
+   permanent `wrap` because a wrapping flex container reserves a second line's
+   height whether or not it uses one: measured, the row went from 22px to 51px
+   at every width, which is a lot of panel for a case this rare. */
+@media (max-width:345px){
+  .facts .seg{flex-wrap:wrap}
+}
+/* The label is the column, not a spring. A fixed 96px — the width of the
+   longest name in the sheet, "Highlight matches" — and every control in the
+   panel begins at the same x, the pairs directly after their labels exactly
+   as the font rows have theirs. It used to GROW instead, take the row's slack
+   and pin the pair to the right edge, which is where the reader looked last
+   for a control that belongs to the label on its left.
+   `flex-shrink:1` with `min-width:0` and the ellipsis are for a phone
+   narrower than these names are long: the label gives up room it does not
+   need and says so, rather than the pair sliding out of the row. */
+.facts .seg>span{flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;font-size:11.5px;line-height:1.2;color:var(--fg-faint)}
+/* Both halves of every pair are as wide as the widest word in the section, so
+   the six buttons make ONE column and the edge the halves share falls at the
+   same x in all three rows. At their natural widths the rows came out ragged:
+   the pair still ended at the right edge, but it STARTED wherever its own
+   label happened to end, so "On | Off" and "Alphabetical | My order" could not
+   be read as the same control in two states. */
+.facts .seg .act{position:relative;border-radius:0;min-width:80px;
+  justify-content:center}
 .facts .seg .act:first-of-type{border-radius:8px 0 0 8px}
 .facts .seg .act:last-of-type{border-radius:0 8px 8px 0;margin-left:-1px}
 /* Raised over its neighbour so the edge they share is the accent one; the
@@ -1178,10 +1254,11 @@ dialog.panel-card:not([open]){display:none}
   /* Dropped rather than shrunk, because each is a big-screen affordance.
      ⇔: below 600 .col is already auto, so wide mode has nothing left to
      widen. ⊞: putting a hundred articles on screen at once is not a phone
-     act. The theme control keeps working from the panel — see #panelTheme.
-     (🔍 is not here: it is gone at every width, see the form markup.) */
-  #wideBtn,#expandBtn,#frm .themeBtn{display:none}
-  #panelTheme{display:block}
+  act. The theme control keeps working from the panel, where its pair takes the
+  place the bar's has just given up. (🔍 is not here: it is gone at every width,
+  see the form markup.) */
+  #wideBtn,#expandBtn,#frm .themeSwitch{display:none}
+  #panel .themeSwitch{display:inline-flex}
 
   .pill{display:flex;flex:1;min-width:0;align-items:center;gap:.25em;
     background:var(--bg-card);border:1px solid var(--line);border-radius:10px;

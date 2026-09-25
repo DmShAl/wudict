@@ -57,6 +57,16 @@ type preset struct {
 	// active - it has nothing to show otherwise, exactly like the old menu
 	// item it replaces.
 	RequiresImage bool
+	// Theme names the theme this preset is FOR: "light", "dark", or "" for one
+	// that belongs to neither. It is the presets' half of the same idea the
+	// two stylesheet pairs carry - a look is per theme - and it changes
+	// exactly one thing: the radio rule. Two presets in one group but in
+	// DIFFERENT themes no longer switch each other off, because they are not
+	// competing for the same surface: each applies in its own theme, which the
+	// preset's own CSS already decides (html[data-dark] and its inverse). So
+	// "Sepia by day, True black by night" needs no switching logic at all -
+	// both are simply on, and neither is a lie at any moment.
+	Theme string
 	// App / Article name the files inside Dir; "" when the preset has no
 	// half for that scope.
 	App, Article string
@@ -86,11 +96,12 @@ func presetRegistry() ([]*presetGroup, map[string]*preset) {
 		var man struct {
 			Groups []struct {
 				Dir, Title string
-				Presets    []struct {
-					ID, Title, Desc string
-					RequiresImage   bool
-					App, Article    string
-				}
+					Presets    []struct {
+						ID, Title, Desc string
+						RequiresImage   bool
+						Theme           string
+						App, Article    string
+					}
 			} `json:"groups"`
 		}
 		if err := json.Unmarshal(presetManifest, &man); err != nil {
@@ -105,7 +116,8 @@ func presetRegistry() ([]*presetGroup, map[string]*preset) {
 				preset := &preset{
 					ID: p.ID, Title: p.Title, Desc: p.Desc,
 					Dir: g.Dir, RequiresImage: p.RequiresImage,
-					App: p.App, Article: p.Article,
+					Theme: p.Theme,
+					App:   p.App, Article: p.Article,
 				}
 				load := func(name string) ([]byte, string, string) {
 					if name == "" {
@@ -259,6 +271,7 @@ func (s *Server) presetPayload() map[string]any {
 				"title":         p.Title,
 				"desc":          p.Desc,
 				"requiresImage": p.RequiresImage,
+				"theme":         p.Theme,
 				"enabled":       on[p.ID],
 			}
 			if p.appCSS != nil {
@@ -310,12 +323,15 @@ func (s *Server) handlePresetSave(w http.ResponseWriter, r *http.Request) {
 	}
 	enabled := s.presetEnabled()
 	if req.On {
-		// Radio within the group: the group-mates go off first. Groups of
-		// one - every preset that conflicts with nothing - simply never find
-		// a mate to switch off.
+		// Radio within the group AND the theme: only presets competing for
+		// the same surface go off. A group-mate in the OTHER theme is not a
+		// competitor - each applies in its own theme, by its own CSS - so a
+		// light and a dark preset can be on together, which is the whole point
+		// of naming a theme on a preset. Groups of one, and presets in no
+		// theme at all, simply never find a mate to switch off.
 		next := make([]string, 0, len(enabled)+1)
 		for _, id := range enabled {
-			if other, ok := index[id]; ok && other.Dir == p.Dir {
+			if other, ok := index[id]; ok && other.Dir == p.Dir && other.Theme == p.Theme {
 				continue
 			}
 			next = append(next, id)

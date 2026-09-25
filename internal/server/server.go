@@ -366,16 +366,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	// ?style=off is the way back in after app.css has hidden its own editor
 	// (style.go). It resolves to the same bytes as "no stylesheet at all", so
 	// it costs no second cache entry.
-	tag := ""
+	tag, nightTag := "", ""
 	links := ""
 	if !styleOff(r) {
-		tag = s.appStyleTag()
+		tag = s.appStyleTag(appCSSName)
+		nightTag = s.appStyleTag(appNightCSSName)
 		// ?style=off drops the whole chrome, presets included: they are the
 		// same surface as the stylesheet it already omits, and the way back
 		// in must not depend on any of it.
 		links = s.presetLinksHTML()
 	}
-	page, etag := s.pageFor(tag, links)
+	page, etag := s.pageFor(tag, nightTag, links)
 	w.Header().Set("ETag", etag)
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(page))
 }
@@ -419,16 +420,27 @@ func (s *Server) basePage() []byte {
 // hashes, the preset set AND the stylesheet hash are all part of what the
 // browser is holding, so a change to any of them must invalidate. The cache
 // key is therefore both parts, not just the stylesheet's.
-func (s *Server) pageFor(tag, presetLinks string) ([]byte, string) {
+func (s *Server) pageFor(dayTag, nightTag, presetLinks string) ([]byte, string) {
 	s.styleMu.Lock()
 	defer s.styleMu.Unlock()
-	key := tag + "\x00" + presetLinks
+	key := dayTag + "\x00" + nightTag + "\x00" + presetLinks
 	if s.styledPage != nil && s.styledTag == key {
 		return s.styledPage, s.styledETag
 	}
+	// BOTH pairs are linked, each marked with the skin it belongs to, and the
+	// page disables the one its resolved theme is not. The server cannot pick
+	// for it - the theme is a fact of the browser (localStorage), not of the
+	// request. Linking rather than omitting is what makes the switch instant
+	// and the cache correct: each file keeps its own content-addressed URL,
+	// and the sheet the reader is about to need is already in memory. An
+	// EMPTY night file emits no link at all, which is the right answer too -
+	// no user CSS at night is a state, not a missing file.
 	links := ""
-	if tag != "" {
-		links = `<link rel="stylesheet" href="/style/` + appCSSName + `?v=` + tag + `">`
+	if dayTag != "" {
+		links += `<link rel="stylesheet" href="/style/` + appCSSName + `?v=` + dayTag + `" data-skin="light">`
+	}
+	if nightTag != "" {
+		links += `<link rel="stylesheet" href="/style/` + appNightCSSName + `?v=` + nightTag + `" data-skin="dark">`
 	}
 	page := []byte(strings.ReplaceAll(string(s.basePage()), "{{USERCSS}}", presetLinks+links+"\n"))
 	s.styledTag, s.styledPage, s.styledETag = key, page, `"`+assetTag(page)+`"`
