@@ -245,6 +245,46 @@ stored mode - so "auto" following the system at sunset moves everything too.
   lists were checked against app.css's `:root`; `--paper-bg` and
   `--paper-bk-image` are not defined there because the HOST sets them at run
   time, which is also why they are worth documenting.
+- **The panel's Appearance section is four doors now** (the user's proposal,
+  after two rounds of it): `Edges of the screen…`, `Window background…`,
+  `Visual presets…`, `Custom CSS…`, each opening the SAME non-modal sheet on
+  ITS OWN group. The old single row ("Screen, background, CSS…") opened all of
+  it at once, so a reader who wanted two rows about the screen got the whole
+  appearance surface - and could not see from the panel that the screen was in
+  there at all.
+- **Why rows and not the controls themselves, and why not dialogs**: each of
+  these is a LIVE PREVIEW - a wallpaper, a preset or an edge is judged by
+  watching the page change - and the sheet says `aria-modal="false"` for
+  exactly that reason. A dialog paints the paper over the very thing being
+  adjusted (`.group-dialog::backdrop` is the reader's own paper); the app's
+  colour window escapes that only because it carries a swatch of its own, which
+  a preset has no equivalent of. `stylerOpen(subject)` sets the groups by
+  subject; the bars stay, because they are how the reader moves between
+  subjects once inside AND because `appearanceGroupSet` is what makes the sheet
+  measure itself. A click straight on the function still opens on the presets,
+  where this sheet has always started.
+- **Verified on the emulator**: `screen` → only that group, sheet 375px; `bg` →
+  only that, 299px; `presets` → the css group on the Presets tab, 437px; `css` →
+  the same on App/Article. Each door now gets the sheet's own height, where
+  before every door gave the full one. The old `#stylerLink` id is gone.
+- **The sheet's head names its subject.** The panel's four doors say "Window
+  background…" and the sheet answered "Appearance" - a different word for the
+  thing just asked for, so the reader had to check they had got what they came
+  for. `stylerOpen(subject)` sets `#stylerTitle` from `STYLER_SUBJECTS`, one
+  map whose words are the doors' own, so the two cannot drift. Verified on the
+  emulator: all four subjects set their own title.
+- **NEXT, and deliberately not started**: the rest of the same plan - show ONLY
+  the chosen subject (the bars and the fold machinery go), make Presets a
+  subject of its own (Custom CSS keeps App, Article and Files), and turn the
+  head into a dropdown of the four. That is a RESTRUCTURE of the sheet, not an
+  addition to it, and the pieces interlock: three group wrappers each holding a
+  bar, `appearanceOpen`, `appearanceBars`, `appearanceBodies`,
+  `appearanceGroupSet`, the bar handlers, the automatic collapse of the
+  Window-background group while the caret is in the CSS box (`stylerEditing` /
+  `appearanceBgAutoRestore`), and `stylerView`'s css/files/presets values -
+  while `#stylerPresetsPane` currently lives INSIDE `#stylerBody` as the fourth
+  tab. Ten coupled edits across markup, script and app.css; it wants doing as
+  one piece with the four subjects verified in both themes.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
   stylesheet.
 

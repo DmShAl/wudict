@@ -313,14 +313,24 @@ window.wudictShellBackground = function (color, image, imageName) {
       <button type="button" class="fsbtn" id="fsUp" aria-label="Larger article text">+</button>
     </span>
   </div>
-  <!-- The rest of the look lives one door down: the sheet holds the screen
-       edges, the window background and the user's own CSS, and it is long
-       enough to fold its own sections. The row names those three rather than
-       saying "Appearance…" again — the heading above it already says that, and
-       a door under a heading of its own name tells the reader nothing about
-       what is behind it. -->
+  <!-- One door per subject, and the sheet opens on the one that was asked for.
+       It used to be a single row called "Screen, background, CSS…" opening one
+       sheet with all three groups expanded - so a reader who wanted two rows
+       about the screen got the whole appearance surface, and could not see
+       from here that the screen was even in there.
+
+       These are ROWS and not the controls themselves, which is the difference
+       that matters: every one of them is a LIVE PREVIEW - you judge a
+       wallpaper, a preset or an edge by watching the page change - and the
+       sheet is deliberately non-modal (aria-modal="false") so the page stays
+       in sight. A dialog would paint the paper over the very thing being
+       adjusted; the app's own colour window escapes that only by carrying a
+       swatch of its own. -->
   <div class="facts">
-    <button type="button" class="mrow door" id="stylerLink" title="Screen edges, window background and custom styles">Screen, background, CSS…</button>
+    <button type="button" class="mrow door" data-styler="screen" title="What fills the margins around the page, and whether the bars hide while you read">Edges of the screen…</button>
+    <button type="button" class="mrow door" data-styler="bg" title="The colour and the wallpaper behind the app and its articles">Window background…</button>
+    <button type="button" class="mrow door" data-styler="presets" title="Switch whole looks on and off — the same switches as the CSS sheet's Presets tab">Visual presets…</button>
+    <button type="button" class="mrow door" data-styler="css" title="Your own stylesheets, for the app and for the articles">Custom CSS…</button>
   </div>
 </section>
 
@@ -413,7 +423,12 @@ window.wudictShellBackground = function (color, image, imageName) {
        the tabs is not where anyone looks for it. It also gives the sheet the
        name its opening button promises. -->
   <div id="stylerHead">
-    <strong>Appearance</strong>
+    <!-- The subject, not "Appearance". The reader arrives through a door in the
+         panel that NAMES its subject ("Window background…"), so a sheet that
+         answers with a different word makes them check whether they got what
+         they asked for. This is where the dropdown of the other subjects goes;
+         until then it says which one is showing. -->
+    <strong id="stylerTitle">Appearance</strong>
     <span class="grow"></span>
     <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
   </div>
@@ -4637,6 +4652,17 @@ function presetRemovePasted(p){
    room anyway. Open/closed lives here and is never read back off the DOM:
    appearanceRender re-runs on every round trip to the shell, and a render
    that reopened a group the reader had closed would make the bar useless. */
+/* The sheet's subjects, named with the SAME words as the panel's doors: the
+   reader arrives through "Window background…", and the sheet answers with those
+   words rather than with "Appearance". One map, so a door's label and the
+   sheet's head cannot drift apart - and the head's dropdown, when it comes,
+   reads this list instead of repeating it. */
+const STYLER_SUBJECTS={
+  screen:"Edges of the screen",
+  bg:"Window background",
+  presets:"Visual presets",
+  css:"Custom CSS"
+};
 const appearanceOpen={bg:true,screen:true,css:true};
 const appearanceBars={
   bg:$("appearanceBgBar"),
@@ -5019,7 +5045,7 @@ function stylePairFrom(j,night){
   return night?{app:j.appNight||"",article:j.articleNight||""}
               :{app:j.app||"",article:j.article||""};
 }
-async function stylerOpen(){
+async function stylerOpen(subject){
   hidePanel();
   $("styler").classList.add("show");
   appearanceRead();
@@ -5047,17 +5073,29 @@ async function stylerOpen(){
       return;
     }
   }
-  // The sheet opens on PRESETS, by the user's rule: the switches are the
-  // entry point and the text tabs are one tap away - which also keeps the
-  // keyboard from popping over the pane the moment it opens.
-  stylerShowPresets();
+  // WHICH SUBJECT the reader came for. The panel now has one row per subject,
+  // so the sheet opens on the thing that was asked for instead of on all three
+  // groups at once - and since a folded sheet is its OWN height, a short
+  // subject gives a short sheet rather than the full one.
+  //
+  // The group BARS stay: they are how the reader moves between the subjects
+  // once inside, and appearanceGroupSet is also what makes the sheet measure
+  // itself. A click straight on the function - no argument - still opens on the
+  // presets, which is where this sheet has always started.
+  const want=typeof subject==="string"&&subject?subject:"presets";
+  const wantsCss=want==="css"||want==="presets";
+  for(const id in appearanceOpen)appearanceGroupSet(id,id==="css"?wantsCss:id===want);
+  $("stylerTitle").textContent=STYLER_SUBJECTS[want]||"Appearance";
+  if(want==="presets")stylerShowPresets();
+  else if(want==="css")stylerShowTab(stylerTab);
+  else stylerSetView("css");
   // Hand the app layer to the live element straight away, so a later Clear or
   // a deleted rule takes effect the moment it is typed rather than on reload.
   // Reopening also restores a preview that closing put back.
   stylerPreviewAll(stylerText);
   stylerNote();
   stylerFitStart();
-  if(stylerView==="css")$("stylerCSS").focus();
+  if(stylerView==="css"&&want==="css")$("stylerCSS").focus();
 }
 function stylerCloseSheet(){
   $("styler").classList.remove("show");
@@ -5167,7 +5205,11 @@ async function stylerSave(){
     stylerNote("Could not save: "+e.message);
   }
 }
-$("stylerLink").onclick=stylerOpen;
+/* One handler for the four doors, each carrying its subject in data-styler.
+   Wrapped rather than assigned straight, because onclick would hand the click
+   EVENT in as the subject. */
+for(const b of document.querySelectorAll("[data-styler]"))
+  b.onclick=()=>stylerOpen(b.dataset.styler);
 $("appearanceColorOn").onchange=e=>appearanceSet("colorEnabled",e.target.checked);
 /* The color field remembers what it has been given: the last ten accepted
    colors, most recent first, offered as swatches in a dropdown that opens
