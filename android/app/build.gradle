@@ -9,6 +9,18 @@ plugins {
     id 'com.android.application'
 }
 
+// -PemuX86=1 (build-android.cmd `intel`) adds a SECOND ABI to the debug build,
+// so one APK runs on the x86_64 emulator as well as on arm64 hardware. The
+// emulator's ARM translation cannot execute the Go server at all - every Go
+// binary dies with SIGSEGV inside the translated code, a hello-world included
+// - so an x86_64 libwudict.so is the only way to run the app there.
+//
+// A property, not a "does the file exist" test, because the extra lib sits
+// OUTSIDE every default source dir (see sourceSets below): without the flag it
+// is invisible to all variants, which is what keeps a release APK arm64-only
+// no matter what is lying around on disk.
+def emuX86 = providers.gradleProperty('emuX86').isPresent()
+
 // Same stamp the Makefile puts into the Go binary: git describe, or "dev".
 // build-android.yml overrides versionName with the release TAG; versionCode is
 // computed here and nowhere else, so a local build and a CI build of the same
@@ -124,6 +136,18 @@ android {
         }
     }
 
+    // The emulator ABI (see emuX86 above). `src/emuX86/jniLibs` is a default
+    // location for no source set, so this is the only thing that can make AGP
+    // look at it - and it is wired to `debug` alone, so a release build cannot
+    // package x86_64 even if someone passes the flag.
+    if (emuX86) {
+        sourceSets {
+            debug {
+                jniLibs.srcDir 'src/emuX86/jniLibs'
+            }
+        }
+    }
+
     packaging {
         jniLibs {
             // The server ships as jniLibs/<abi>/libwudict.so and is exec'd
@@ -164,11 +188,12 @@ androidComponents {
     // selector().all() is passed explicitly: the no-selector overload is a
     // Kotlin default argument and is not callable from the Groovy DSL.
     onVariants(selector().all()) { variant ->
+        def abi = emuX86 && variant.buildType == 'debug' ? 'arm64-x86_64' : apkAbi
         def suffix = variant.buildType == 'release'
                 ? (apkSigned ? '' : '-unsigned')
                 : "-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("wudict-android-${apkAbi}-${variant.flavorName}${suffix}-${apkVersion}.apk")
+            output.outputFileName.set("wudict-android-${abi}-${variant.flavorName}${suffix}-${apkVersion}.apk")
         }
     }
 }
