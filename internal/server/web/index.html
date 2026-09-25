@@ -164,7 +164,7 @@ window.wudictShellBackground = function (color, image, imageName) {
      never waits for a keypress at all, because the input handler searches
      as you type. The button's only remaining ground was a magnifier next
      to a magnifier. -->
-<button type="button" class="btn tools themeBtn" title="Theme" aria-label="Toggle theme">☀☾</button>
+<span class="themeSwitch tools"><button type="button" class="btn themeAuto" aria-pressed="false" title="Follow the phone's light or dark setting">Auto</button><button type="button" class="btn themeFlip" aria-pressed="true" title="Switch to night">☀☾</button></span>
 <button type="button" class="btn tools" id="wideBtn" title="Toggle wide layout" aria-label="Toggle wide layout">⇔</button>
 <button type="button" class="btn tools" id="expandBtn" title="Expand all results" aria-label="Expand all results" aria-pressed="false">⊞</button>
 <button type="button" class="btn tools" id="panelBtn" title="Settings" aria-label="Settings">☰</button>
@@ -184,9 +184,9 @@ window.wudictShellBackground = function (color, image, imageName) {
 <div class="panel-head"><h2>Settings
 <span class="headacts">
 <!-- The theme control's narrow-viewport home. Not a second control: both
-     elements carry .themeBtn and one handler drives the pair, the way the
-     wordmark has two mount points selected by media query. -->
-<button type="button" class="btn themeBtn" id="panelTheme" title="Theme" aria-label="Toggle theme">☀☾</button>
+     mounts hold the same two buttons, and one pair of handlers drives them the
+     way the wordmark has two mount points selected by media query. -->
+<span class="themeSwitch"><button type="button" class="btn themeAuto" aria-pressed="false" title="Follow the phone's light or dark setting">Auto</button><button type="button" class="btn themeFlip" aria-pressed="true" title="Switch to night">☀☾</button></span>
 <button class="btn" id="closePanel" aria-label="Close">✕</button></span></h2></div>
 <div class="panel-scroll">
 <!-- Five sections, one subject each, in the order a reader arrives: what the
@@ -693,23 +693,14 @@ function groupLabel(sel){
 }
 
 /* ── theme: auto → light → dark, persisted ─────────────────────────── */
-const THEMES=["auto","light","dark"];
 function applyTheme(t){
   if(t==="auto")document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme",t);
   // Two mount points, one state: the bar's button above 600px, the panel's
   // below it (see the responsive block). A NodeList rather than two ids keeps
   // this one code path — nothing about the pair can drift.
-  // Three states, three glyphs - and the AUTO one is a PAIR: ☀☾ says "follows
-  // day and night". It used to be ◐, which at this size is a black half-disc
-  // and reads as a MOON, so an app sitting in auto over a light system
-  // announced "night" at every launch; the first press (auto -> light) then
-  // changed nothing on screen, because both are light. The pair says what the
-  // state actually is, and every press of the cycle is now visible.
-  for(const b of document.querySelectorAll(".themeBtn")){
-    b.textContent=t==="auto"?"☀☾":(t==="light"?"☀":"☾");
-    b.title=t==="auto"?"Theme: auto — following the system":"Theme: "+t;
-  }
+  // The glyphs and the ring live in applyThemeControls, which the resolved
+  // theme has to drive: the phone can flip it under an active Auto at sunset.
   syncAutoDark();
 }
 function themeIsDark(){
@@ -735,6 +726,9 @@ function syncAutoDark(){
   // because this is the function that knows the RESOLVED theme: it runs for a
   // pinned light/dark and for "auto" following the system at sunset alike.
   if(window.wudictSkinLinks)window.wudictSkinLinks(dark);
+  // And the controls, for the same reason: the glyph shows which theme is on
+  // screen, so a phone that flips at sunset has to move it.
+  applyThemeControls();
   // A theme change moves the EDITOR's files with it. The swap is in memory, so
   // unsaved edits survive it, and the live preview is re-run from the pair
   // that is now active - the path a save already takes. Guarded on a real
@@ -1030,12 +1024,41 @@ $("expandBtn").onclick=()=>{
   for(const d of $("out").querySelectorAll("details.dict:not([data-deferred]):not(.noindex)"))d.open=expandAll;
 };
 
-function cycleTheme(){
-  const cur=localStorage.getItem("wudict_theme")||"auto";
-  const next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];
-  localStorage.setItem("wudict_theme",next);applyTheme(next);
+/* The theme is TWO controls and not a cycle: Auto, and the state it resolves
+   to. A cycle could not avoid a press that changes nothing - "auto over a light
+   phone" and "pinned light" look identical on screen, so moving between them is
+   invisible - and it also hid the fact that following the phone and pinning a
+   theme are different KINDS of answer. Here the ring says which kind is in
+   force, the glyph says which theme is on screen, and every press does one of
+   the two things visibly. It is also the shape the search bar's own pairs
+   already wear: buttons, with the one in force marked in the accent.
+   The stored values are unchanged - auto / light / dark - so nothing needs
+   migrating and an older build reads the same key. */
+function applyThemeControls(){
+  const auto=(localStorage.getItem("wudict_theme")||"auto")==="auto";
+  const dark=themeIsDark();
+  for(const b of document.querySelectorAll(".themeAuto"))
+    b.setAttribute("aria-pressed",String(auto));
+  for(const b of document.querySelectorAll(".themeFlip")){
+    b.setAttribute("aria-pressed",String(!auto));
+    // The label names the ACTION, not the state. While Auto is on, this button
+    // shows what is on screen and a tap takes over AND switches, so a label
+    // reading "Day" would describe the wrong half of what the press does.
+    const label=dark?"Switch to day":"Switch to night";
+    b.textContent=dark?"☾":"☀";
+    b.title=label;b.setAttribute("aria-label",label);
+  }
 }
-for(const b of document.querySelectorAll(".themeBtn"))b.onclick=cycleTheme;
+/* Two mount points, one state: the bar's pair above 600px and the panel's below
+   it (see the responsive block). NodeLists rather than ids, so nothing about
+   the two can drift. */
+function setTheme(t){
+  localStorage.setItem("wudict_theme",t);
+  applyTheme(t);applyThemeControls();
+}
+for(const b of document.querySelectorAll(".themeAuto"))b.onclick=()=>setTheme("auto");
+for(const b of document.querySelectorAll(".themeFlip"))
+  b.onclick=()=>setTheme(themeIsDark()?"light":"dark");
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncAutoDark);
 applyTheme(localStorage.getItem("wudict_theme")||"auto");
 

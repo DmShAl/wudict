@@ -403,6 +403,35 @@ stored mode - so "auto" following the system at sunset moves everything too.
   so the page said "light theme" while the file appeared to say both. Run a
   strict parse with `object_pairs_hook` before the build; it is the only check
   that catches it.
+- **The theme is TWO buttons now, not a cycle** (the user's design, and it
+  closes the loop on this session's first bug). `Auto` and the state it resolves
+  to, with the accent marking which of the two is IN FORCE - and that is the one
+  thing a cycle could not say: following the phone and pinning a theme are
+  different KINDS of answer, and "auto over a light phone" is indistinguishable
+  on screen from "pinned light", so moving between them was an invisible press.
+  - `setTheme(t)` replaces `cycleTheme`. The `Auto` buttons set `auto`; the state
+    buttons set the OPPOSITE of what is on screen, so a tap while Auto is on
+    takes over AND switches.
+  - `applyThemeControls()` owns the ring (`aria-pressed` on the pair) and the
+    glyph, and `syncAutoDark` calls it - the phone can flip the theme under an
+    active Auto at sunset and the glyph has to follow.
+  - The state button's label names the ACTION, not the state ("Switch to day"):
+    while Auto is on the button SHOWS what is on screen and a tap switches, so a
+    label reading "Day" would describe the wrong half of the press.
+  - Storage is untouched - auto/light/dark - so nothing needs migrating and an
+    older build reads the same key. `THEMES` and `cycleTheme` are gone.
+  - `#panelTheme` became `.themeSwitch`, and the three display rules that named
+    the old id and class (the wide-screen hide, the bar's phone hide, the
+    panel's phone show) now name the wrapper.
+  - Verified on the emulator by CLICKING the real buttons: auto → ring on Auto,
+    glyph ☀, "Switch to night"; tap → stored `dark`, ring on the state button,
+    ☾, "Switch to day"; tap → `light`, ring still on it, ☀; tap Auto → back to
+    `auto` with the ring on Auto. Every press does something visible.
+- **A probe-authoring note for the next session.** Three times in this one I
+  wrote a CDP probe ending `}})'''` for `JSON.stringify((function(){…})` - one
+  closing paren short - and each time the result read as a page error
+  ("Uncaught", "SyntaxError") when it was the probe. Check the expression's own
+  parens before believing a red result.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
   stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
   manages the files the App and Article sheets reference (its labels say "used

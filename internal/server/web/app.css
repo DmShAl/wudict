@@ -807,9 +807,17 @@ dialog.panel-card:not([open]){display:none}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
   display:flex;align-items:center}
 .panel-card h2 .headacts{margin-left:auto;display:flex;gap:var(--sp-1)}
-/* the theme button only exists here on narrow screens, where the bar has no
-   room for it; see the responsive block */
-#panelTheme{display:none}
+/* The theme control is TWO buttons - Auto, and the state it resolves to - and
+   it has two mount points: the bar's pair above 600px, the panel's below it,
+   where the bar has no room. This is the wide-screen half of that rule; the
+   responsive block flips both.
+   The RING marks which of the two is in force, and that is the one thing a
+   single cycling button could not say: following the phone and pinning a theme
+   are different KINDS of answer, and only the accent tells them apart. */
+.themeSwitch{display:inline-flex;align-items:center;gap:.25em}
+#panel .themeSwitch{display:none}
+.themeSwitch .themeAuto[aria-pressed="true"],
+.themeSwitch .themeFlip[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
 /* Identity and the close button, and nothing else (D143). With 55 dictionaries
    the ✕ must not be somewhere up the page, so this row never scrolls. Nothing
    that spends disk or CPU belongs in it: top-right is the most-clicked real
@@ -1210,10 +1218,11 @@ dialog.panel-card:not([open]){display:none}
   /* Dropped rather than shrunk, because each is a big-screen affordance.
      ⇔: below 600 .col is already auto, so wide mode has nothing left to
      widen. ⊞: putting a hundred articles on screen at once is not a phone
-     act. The theme control keeps working from the panel — see #panelTheme.
-     (🔍 is not here: it is gone at every width, see the form markup.) */
-  #wideBtn,#expandBtn,#frm .themeBtn{display:none}
-  #panelTheme{display:block}
+  act. The theme control keeps working from the panel, where its pair takes the
+  place the bar's has just given up. (🔍 is not here: it is gone at every width,
+  see the form markup.) */
+  #wideBtn,#expandBtn,#frm .themeSwitch{display:none}
+  #panel .themeSwitch{display:inline-flex}
 
   .pill{display:flex;flex:1;min-width:0;align-items:center;gap:.25em;
     background:var(--bg-card);border:1px solid var(--line);border-radius:10px;
