@@ -9,7 +9,7 @@
           "title": "Background image",
           "desc": "The shell's background image and paper colour behind the app and every article.",
           "requiresImage": true,
-          "theme": "light",
+          "theme": "both",
           "app": "background_image_app.css",
           "article": "background_image_article.css"
         },

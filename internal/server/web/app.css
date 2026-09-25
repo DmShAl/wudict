@@ -755,6 +755,11 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
   color:var(--fg-faint);font-size:12px}
 #stylerPresetsPane .ph{padding:.55em .6em .2em;font-size:11px;font-weight:600;
   color:var(--fg-soft);text-transform:uppercase;letter-spacing:.04em}
+/* A preset that cannot take effect where the reader is: shown, dimmed and
+   inert, with the reason on its own line - see presetsPaneRender. Hiding it
+   instead answered "why is this not here?" with silence. */
+.pr.off{opacity:.55}
+.pr.off .en{cursor:default}
 #stylerPresetsPane .pr{display:flex;align-items:center;gap:.6em;padding:.4em .6em;
   border-bottom:1px solid var(--line-soft)}
 #stylerPresetsPane .pr:last-child{border-bottom:0}

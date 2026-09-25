@@ -363,6 +363,46 @@ stored mode - so "auto" following the system at sunset moves everything too.
     is not "A colour you pick".
   - Verified: input 98px (7.5em at 13px - room for `FFFFFF`), pipette 26px, row
     44px, opacity .45 while inert.
+- **A preset that cannot apply where the reader is is SHOWN AND DISABLED, with
+  the reason on its row** (the user's call, three cases). `Background image` used
+  to be skipped entirely when the shell had no wallpaper, and `Sepia` /
+  `True black` / `Warm dark` were offered in BOTH themes although their own CSS
+  is scoped to one - so a reader could switch on something that would never do
+  anything. A missing row answers "why is this not here?" with silence, and the
+  theme and the wallpaper are not properties of the preset: they are WHERE IT
+  WORKS, which is the one thing a reader deciding whether to switch it on needs.
+  The reason REPLACES the description while it is in force, because the row has
+  one line for explaining itself and "why can I not switch this on" is the
+  question in front of the reader:
+  - `Pick an image in Window background first`
+  - `Light theme only — the page is in the dark one`
+  - `Dark theme only — the page is in the light one`
+  Both facts were already in the payload - `requiresImage`, and `theme` which
+  was added to the manifest earlier in this branch - so this is entirely
+  `presetsPaneRender` plus a `.pr.off` dim. Verified on the emulator: on a light
+  page with a wallpaper, True black and Warm dark are disabled with the reason
+  while Sepia and Background image stay live and High contrast (no restriction)
+  is untouched; with `data-shell-image` taken away in the DOM only, Background
+  image turns disabled with its own reason and back.
+  **The same anchoring trap as the comment one, in CSS**: replacing the FIRST
+  LINE of a multi-line rule leaves its body dangling - and the balanced-brace
+  check does not catch it, because the braces still add up. Anchor on the whole
+  rule.
+  And the fourth preset in that group says where IT works too: `theme: "both"`
+  on `Background image`, because within one group the reader learns "Sepia:
+  light", "True black: dark" and needs to know the one that is neither - a set
+  of restrictions with one silent member reads as if the fourth were restricted
+  too. "Both" is as explicit as the other two, and a preset that says NOTHING
+  still says nothing, which is right for the fourteen that are not about a
+  theme. The note is ` · light theme` / ` · dark theme` / ` · both themes`,
+  appended only while no reason is in force (that reason is about the theme, and
+  the line has room for one).
+  **And a trap the balanced-brace check cannot see**: `theme` was added to this
+  manifest twice - once when the flags went in, once for "both" - and a
+  DUPLICATE JSON KEY wins silently by POSITION (Go's Unmarshal takes the last),
+  so the page said "light theme" while the file appeared to say both. Run a
+  strict parse with `object_pairs_hook` before the build; it is the only check
+  that catches it.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
   stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
   manages the files the App and Article sheets reference (its labels say "used

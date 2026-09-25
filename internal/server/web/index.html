@@ -4532,15 +4532,27 @@ function presetsPaneRender(){
     return;
   }
   const hasImage=document.documentElement.hasAttribute("data-shell-image");
+  const dark=themeIsDark();
   for(const g of (PRESETS.groups||[])){
     const head=document.createElement("div");head.className="ph";
     head.textContent=g.title+(g.presets.length>1?" — pick one":"");
     pane.appendChild(head);
     for(const p of g.presets){
-      if(p.requiresImage&&!hasImage)continue;
-      const row=document.createElement("div");row.className="pr";
+      // A preset that cannot take effect WHERE THE READER IS is SHOWN and
+      // disabled, with the reason written on the row, rather than hidden. A
+      // missing row answers "why is this not here?" with silence, and the
+      // wallpaper and the two themes are not properties of the preset - they
+      // are where it works, which is the one thing a reader deciding whether to
+      // switch it on has to know. Both facts are the manifest's: requiresImage
+      // and theme.
+      const blocked=p.requiresImage&&!hasImage?"Pick an image in Window background first"
+                   :p.theme==="light"&&dark?"Light theme only — the page is in the dark one"
+                   :p.theme==="dark"&&!dark?"Dark theme only — the page is in the light one"
+                   :"";
+      const row=document.createElement("div");row.className="pr"+(blocked?" off":"");
       const sw=document.createElement("input");
       sw.type="checkbox";sw.className="en";sw.checked=!!p.enabled;
+      if(blocked)sw.disabled=true;
       sw.setAttribute("aria-label",p.title);
       sw.onchange=()=>presetToggle(p.id,sw.checked);
       row.appendChild(sw);
@@ -4548,7 +4560,22 @@ function presetsPaneRender(){
       const b=document.createElement("b");b.textContent=p.title;
       n.appendChild(b);
       const s=document.createElement("s");
-      s.textContent=p.desc+(p.enabled?" — on":"");
+      // The reason REPLACES the description while it is in force: the row has
+      // one line for explaining itself, and "why can I not switch this on" is
+      // the question in front of the reader.
+      // WHERE it works, on the row. Within one group the reader learns that
+      // Sepia is light-only and True black is dark-only, so the one that works
+      // in both has to say so too - otherwise the group reads as a set of
+      // restrictions with one silent member. `theme` is the manifest's, and
+      // "both" is as explicit as the other two: a preset that says nothing says
+      // nothing, which is the fourteen that are not about a theme at all.
+      // Left off while a reason is in force, because that reason IS about the
+      // theme and the line has room for one.
+      const themeNote=p.theme==="light"?"light theme"
+                     :p.theme==="dark"?"dark theme"
+                     :p.theme==="both"?"both themes":"";
+      s.textContent=(blocked||p.desc)+(p.enabled?" — on":"")
+        +(blocked||!themeNote?"":" · "+themeNote);
       n.appendChild(s);
       // Legacy pastes, detected by their exact text in a box: the switch
       // and the pasted copy would apply the same rules twice, and the copy
