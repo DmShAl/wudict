@@ -48,9 +48,9 @@ type Meta struct {
 	IndexLang string
 
 	// ContentsLang is the ISO 639-1 code of the language the ARTICLE BODIES are
-	// in, where the format declares it (Lingvo's #CONTENTS_LANGUAGE). DSL is
-	// currently the only one that says; "" everywhere else, and the About panel
-	// simply omits the row. Same rule as IndexLang: what the dictionary
+	// in, where the format declares it (Lingvo's #CONTENTS_LANGUAGE, Babylon's
+	// target language). DSL and BGL are currently the only ones that say; ""
+	// everywhere else, and the About panel simply omits the row. Same rule as IndexLang: what the dictionary
 	// declared, never what a file name suggested.
 	ContentsLang string
 

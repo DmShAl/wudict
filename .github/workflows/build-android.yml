@@ -150,9 +150,9 @@ jobs:
           # a second name (wudict-android-arm64.apk) that said nothing about
           # the flavour and existed nowhere else in the project.
           if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
-            APK="$(make -s print-APK_FOSS)"
+            APK="$(make -s print-APK_FOSS VERSION="$TAG")"
           else
-            APK="$(make -s print-APK_FOSS_DEBUG)"
+            APK="$(make -s print-APK_FOSS_DEBUG VERSION="$TAG")"
           fi
           if [ ! -f "$APK" ]; then
             echo "expected $APK - Gradle produced:"

@@ -59,6 +59,16 @@ def gitCount = {
     }
 }
 
+// The one versionName, computed once: defaultConfig stamps it and the APK file
+// name carries it (below), so the two cannot disagree. The Makefile passes it
+// as -PversionName=$(VERSION) and CI as the release tag; gitVersion() is only
+// the fallback for a bare `./gradlew`.
+def appVersion = project.hasProperty('versionName') ? project.property('versionName') as String : gitVersion()
+// File-name form: no leading "v" (v3.7.5 -> 3.7.5, as the Windows installer
+// already does) and no "/" (legal in a tag, a directory in a path). The
+// Makefile's APK_VERSION applies the same two rules - change both or neither.
+def apkVersion = appVersion.replaceFirst(/^v/, '').replace('/', '_')
+
 android {
     // Keep the upstream Java namespace so its Android changes merge cleanly.
     namespace = 'com.legbehindneck.wudict'
@@ -88,7 +98,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode(project.hasProperty('versionCode') ? project.property('versionCode') as int : gitCount())
-        versionName(project.hasProperty('versionName') ? project.property('versionName') as String : gitVersion())
+        versionName(appVersion)
     }
 
     // Two distributions, one source tree (D62). `foss` is the GitHub/F-Droid

@@ -22,7 +22,7 @@ func TestScriptsAreContentAddressed(t *testing.T) {
 	page, _ := s.pageFor("", "")
 	pageStr := string(page)
 
-	for name, body := range map[string][]byte{"frame.js": frameJS, "pick.js": pickJS} {
+	for name, body := range map[string][]byte{"frame.js": frameJS, "pick.js": pickJS, "speak.js": speakJS} {
 		if want := "/assets/" + name + "?v=" + assetTag(body); !strings.Contains(pageStr, want) {
 			t.Errorf("index.html does not request %s by content hash (%s)", name, want)
 		}
@@ -67,7 +67,7 @@ func TestAssetCacheHeaders(t *testing.T) {
 		"/assets/frame.js?v=abc123", "/assets/app.css?v=abc123",
 		"/assets/history.css?v=abc123", "/assets/history.js?v=abc123",
 		"/assets/group-editor.css?v=abc123", "/assets/group-editor.js?v=abc123",
-		"/assets/pick.js?v=abc123",
+		"/assets/pick.js?v=abc123", "/assets/speak.js?v=abc123",
 	} {
 		rec := get(p)
 		if rec.Code != 200 || rec.Body.Len() == 0 {

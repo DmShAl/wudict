@@ -73,6 +73,7 @@ var authFree = map[string]bool{
 	"GET /lemmas":             true,
 	"GET /assets/frame.js":    true,
 	"GET /assets/pick.js":     true,
+	"GET /assets/speak.js":    true,
 	"GET /assets/setup.css":   true,
 	"GET /assets/favicon.svg": true,
 	"GET /favicon.ico":        true,

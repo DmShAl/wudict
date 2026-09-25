@@ -902,6 +902,10 @@ dialog.panel-card:not([open]){display:none}
   font-size:11.5px;color:var(--fg-faint);text-decoration:none}
 .pd .acts a.browse:hover{color:var(--accent)}
 .pd .acts a.browse svg{width:13px;height:13px;flex:none}
+.facts .act[hidden]{display:none}
+.facts .seg.multi{flex-wrap:wrap}
+.facts .seg.multi .act{border-radius:8px;margin-left:0}
+.facts .seg[hidden]{display:none}
 /* ── the drawer's sections ───────────────────────────────────────────
    One heading per subject, a hairline between neighbours. The drawer answers a
    handful of unrelated questions — what is in the collection, how an answer is

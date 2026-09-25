@@ -318,6 +318,29 @@ func TestPrefsUIFlags(t *testing.T) {
 	}
 }
 
+// speakOff (D148) joins the same record under the same rule: absent is "on",
+// and it neither clears nor is cleared by the flags beside it.
+func TestPrefsSpeakOff(t *testing.T) {
+	s, state := newPrefsServer(t)
+	for _, tc := range []struct {
+		name, body string
+		want, hl   bool
+	}{
+		{"absent is on", `{"ui":{"fontSize":24}}`, false, false},
+		{"off", `{"ui":{"speakOff":true}}`, true, false},
+		{"off beside highlighting off", `{"ui":{"speakOff":true,"hlOff":true}}`, true, true},
+		{"back on, highlighting still off", `{"ui":{"hlOff":true}}`, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			putPrefs(t, s, tc.body)
+			ui := LoadPrefs(state).UI()
+			if hl, _ := ui.flags(); ui.spoken() != tc.want || hl != tc.hl {
+				t.Fatalf("reloaded speakOff=%v hlOff=%v, want %v/%v", ui.spoken(), hl, tc.want, tc.hl)
+			}
+		})
+	}
+}
+
 func (u *UIPrefs) size() int {
 	if u == nil {
 		return 0
@@ -339,15 +362,13 @@ func (u *UIPrefs) sorted() bool {
 	return u.SortMine
 }
 
-// The file-name rung of heal's identity ladder, from both sides. It is the
-// weakest rung and the only one that can guess wrong, so it fires only when
-// the name names exactly one thing in the registry AND exactly one thing in
-// the stored records. The stored side is the half that was missing: a library
-// folder the user removes leaves a record behind (kept on purpose - an
-// unplugged drive looks the same), every one of those records has a path
-// ending "text.db", and with one prepared dictionary left the dead record
-// would otherwise adopt the live one, taking its off switch and its place in
-// the order with it.
+func (u *UIPrefs) spoken() bool {
+	if u == nil {
+		return false
+	}
+	return u.SpeakOff
+}
+
 func TestPrefsFileNameRungNeedsBothSidesUnique(t *testing.T) {
 	const live0, live1 = "live00000000", "live11111111"
 	lib := func(name string) string { return filepath.Join("/lib", name, "text.db") }

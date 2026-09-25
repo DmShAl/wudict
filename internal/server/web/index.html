@@ -228,6 +228,11 @@ window.wudictShellBackground = function (color, image, imageName) {
     <button type="button" class="act" id="hlOn" aria-pressed="true" title="Mark the words you searched for inside each article — full-text search only">On</button>
     <button type="button" class="act" id="hlOff" aria-pressed="false" title="Show the article exactly as the dictionary wrote it, with nothing marked">Off</button>
   </span>
+  <!-- Selecting text in an article offers a speaker that reads it aloud in a
+       system voice (D148). Here because it costs nothing until a reader
+       selects something, and a reader who never wants it should be able to
+       make the offer stop appearing. Hidden where the browser cannot speak. -->
+  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.8a3 3 0 0 1 0 4.4"/><path d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
@@ -569,7 +574,7 @@ async function loadPrefs(){
     prefsReady=true;
     // Read before the exists branch below returns: on a first run there is no
     // ui record, but there is also nothing here that can go wrong.
-    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
+    if(st.ui){applyFS(st.ui.fontSize,false);applyHL(!st.ui.hlOff,false);applySpeak(!st.ui.speakOff,false);applyOpenOrder(!st.ui.fastFirst,false);applySortOrder(st.ui.sortMine,false)}
     if(!st.exists){adoptLocalPrefs();return} // first run: keep whatever we had
     prefOrder=rows.map(d=>d.id);
   }catch(e){
@@ -593,7 +598,7 @@ function savePrefs(now){
   // omitempty zero value), which is what retires a flag set by the switches
   // that no longer exist.
   const body=JSON.stringify({dicts:orderedDicts().map(d=>({id:d.id,name:dictLabel(d)})),
-    ui:{fontSize:articleFS,hlOff:!hlOn,fastFirst:!orderFirst,sortMine:sortOwn}});
+    ui:{fontSize:articleFS,hlOff:!hlOn,speakOff:!speakOn,fastFirst:!orderFirst,sortMine:sortOwn}});
   if(body===prefsSent)return;
   prefsSent=body;
   fetch("/api/prefs",{method:"PUT",headers:{"Content-Type":"application/json"},body})
@@ -790,6 +795,73 @@ for(const [id,want] of [["hlOff",false],["hlOn",true]])
     if(applyHL(want,true)&&$("mode").value==="fts"&&$("q").value.trim())doSearch();
   });
 applyHL(true,false);
+/* Read aloud (D148). Off costs nothing: no listener, no fetch, no voice list.
+   On, and until a reader first selects text in an article, it costs two
+   listeners — speak.js itself, and with it the platform speech engine, is
+   fetched by that first selection and never before. After that speak.js owns
+   the listening and this gate steps aside.
+
+   Server state like hlOff and for the same reason: a reading habit follows
+   the reader to the phone. Stored negated, so the absent key is "on". */
+let speakOn=true,speakLoad=null,speakRoot=null,speakPtr="mouse";
+const speakCan=()=>"speechSynthesis" in window;
+const speakCtx={
+  // The dictionary's two languages: what its articles are written in, and
+  // what its headwords are. speak.js picks between them by script.
+  langs(id){
+    const d=dicts.find(x=>x.id===id);
+    const g=d&&(d.groups||[]).find(g=>g.f==="lang");
+    return {a:(d&&d.articleLang)||"",h:(g&&g.v)||""};
+  },
+  top(){return $("bar").getBoundingClientRect().bottom}
+};
+function speakDown(e){
+  speakPtr=e.pointerType||"mouse";
+  const host=e.composedPath().find(el=>el.classList&&el.classList.contains("article"));
+  speakRoot=(host&&host.shadowRoot)||null;
+}
+function speakSel(){
+  if(!speakRoot||!speakCan())return;
+  let t="";
+  try{t=String(speakRoot.getSelection?speakRoot.getSelection():document.getSelection()).trim()}catch(_){}
+  // Safari has no shadow-root selection and flattens the document's to the
+  // host; any non-empty selection after a press in an article is enough to
+  // fetch the script, which reads the shadow selection properly.
+  if(t||!speakRoot.getSelection&&String(document.getSelection()).trim())speakWake();
+}
+function speakGate(on){
+  const f=on?document.addEventListener:document.removeEventListener;
+  f.call(document,"pointerdown",speakDown,true);
+  f.call(document,"selectionchange",speakSel);
+}
+function speakWake(){
+  if(!speakLoad)speakLoad=new Promise((ok,no)=>{
+    const s=document.createElement("script");
+    s.src="/assets/speak.js?v={{SPEAKJS}}";
+    s.onload=()=>{
+      speakGate(false);
+      if(window.wuSpeak){window.wuSpeak.on(speakOn,speakCtx,{root:speakRoot,ptr:speakPtr});ok()}
+      else no(new Error("speak.js did not load"));
+    };
+    s.onerror=()=>{s.remove();speakLoad=null;no(new Error("speak.js did not load"))};
+    document.head.appendChild(s);
+  });
+  return speakLoad;
+}
+function applySpeak(on,save){
+  const v=!!on,moved=v!==speakOn;
+  speakOn=v;
+  const b=$("speakBtn");
+  b.setAttribute("aria-pressed",v?"true":"false");
+  b.style.color=v?"var(--accent)":"";
+  if(window.wuSpeak)window.wuSpeak.on(v);
+  else speakGate(v);
+  if(moved)for(const f of document.querySelectorAll("iframe.article"))
+    f.contentWindow&&f.contentWindow.postMessage({t:"speak",on:v},"*");
+  if(save&&moved)savePrefs();
+}
+$("speakBtn").addEventListener("click",()=>applySpeak(!speakOn,true));
+applySpeak(true,false);
 /* Which section auto-expands: the first dictionary in the user's own order
    that has a result (D142, and the default since D144), or the one that
    ANSWERS first (D73, now the opt-out). Stored as `fastFirst`, so an absent
@@ -1702,7 +1774,7 @@ function reissueIfCorpusMoved(){
   if(!(sc==="all"||sc.startsWith("g:")))return;
   if(was!==panelSnap)doSearch();
 }
-function showPanel(){panelSnap=panelState();$("panel").classList.add("show");loadFolders()}
+function showPanel(){panelSnap=panelState();$("speakBtn").hidden=!speakCan();$("panel").classList.add("show");loadFolders()}
 function hidePanel(){
   if(!$("panel").classList.contains("show"))return;
   $("panel").classList.remove("show");
@@ -2409,7 +2481,7 @@ function frameDoc(content,fid,dark,dictID,frag){
     'html.dark :is(img,picture,video,svg,canvas,iframe,embed,object,[data-noinvert]){filter:invert(1) hue-rotate(180deg)}'+
     ARTCSS+
     '</style><script src="/assets/pick.js?v={{PICKJS}}"><\/script><script src="/assets/frame.js?v={{FRAMEJS}}" data-fid="'+fid+'" data-dict="'+(dictID||"")+
-    '" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
+    '" data-speak="'+(speakOn?1:0)+'" data-frag="'+esc(frag||"").replace(/"/g,"&quot;")+'"><\/script></head><body>'+content+
     /* A stylesheet written for a full page sizes html and body from the
        VIEWPORT — LDOCE's ldoce.css opens with `html, body{height:100%}`. Here the
        viewport is a frame we sized from what the frame measured, so every
@@ -2515,6 +2587,14 @@ addEventListener("message",e=>{
       s.title="This dictionary's own script failed: "+(d.msg||"script error");
       sum.appendChild(s);
     }
+  }else if(d.t==="sel"&&d.fid){
+    // A selection inside a sandboxed article (frame.js): read aloud (D148).
+    if(!speakOn)return;
+    const f=document.querySelector('iframe[data-fid="'+CSS.escape(d.fid)+'"]');
+    if(!f||e.source!==f.contentWindow)return;
+    const go=()=>window.wuSpeak.frame(f,String(d.s||""),d.r,d.p);
+    if(window.wuSpeak)go();
+    else if(d.s&&speakCan())speakWake().then(go,err=>console.warn("wudict:",err.message));
   }else if(d.t==="anchor"&&d.fid){
     // an in-article jump inside a sandboxed iframe. The iframe is sized to its
     // content and never scrolls itself, so the position it reports is relative

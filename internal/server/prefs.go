@@ -100,6 +100,13 @@ type UIPrefs struct {
 	// dictionary answers first is a property of the collection, not of how a
 	// menu happens to be sorted.
 	SortMine bool `json:"sortMine,omitempty"`
+
+	// SpeakOff turns OFF the read-aloud button that appears over a text
+	// selection in an article. Negated like HLOff: the feature is on unless
+	// the person said otherwise. Which VOICE reads is not here - the voices
+	// are whatever the device in front of them has installed, so that choice
+	// stays in that browser's localStorage.
+	SpeakOff bool `json:"speakOff,omitempty"`
 }
 
 // Article text-size bounds. The ceiling is deliberately past what the layout
@@ -115,14 +122,11 @@ const (
 // zeroing, because "40" is a legible statement of intent that deserves the
 // nearest size we offer, not a silent snap back to the default.
 func (u *UIPrefs) normalize() {
-	if u == nil || u.FontSize == 0 {
+	if u == nil {
 		return
 	}
-	if u.FontSize < FontSizeMin {
-		u.FontSize = FontSizeMin
-	}
-	if u.FontSize > FontSizeMax {
-		u.FontSize = FontSizeMax
+	if u.FontSize != 0 {
+		u.FontSize = max(FontSizeMin, min(FontSizeMax, u.FontSize))
 	}
 }
 

@@ -15,6 +15,9 @@
 	// a #fragment the incoming cross-reference asked for, jumped to once the
 	// article has reported its height (see the load handler)
 	var wantFrag = document.currentScript.dataset.frag || "";
+	// read-aloud offer (D148): the host draws the speaker, we only say what
+	// is selected and where
+	var speakOn = document.currentScript.dataset.speak === "1";
 	var audioEl = null; // reused across clicks so playback isn't GC'd mid-load
 
 	// ------------------------------------------------------------------ host
@@ -288,8 +291,53 @@
 			// layout settles; posting on the next frame lets the parent grow
 			// the iframe in the same beat as the text reflows inside it.
 			requestAnimationFrame(post);
+		} else if (e.data.t === "speak") {
+			speakOn = !!e.data.on;
 		}
 	});
+
+	// --- selection, for read-aloud (D148) ---------------------------------
+	// The host cannot see into this document, so the selected text and the
+	// rectangle it ends in travel as data; the host maps the rectangle through
+	// our frame and draws the speaker in its own document. Reported once the
+	// selection has stopped changing — Android's handles deliver no events to
+	// the page while they are dragged — and never while a mouse button is
+	// still down on a drag.
+	var ptrType = "mouse", btnDown = false, selT = 0, selShown = false;
+	function reportSel() {
+		if (!speakOn || btnDown) return;
+		var sel = document.getSelection();
+		var text = sel ? String(sel).trim() : "";
+		if (!text && !selShown) return;
+		selShown = !!text;
+		var r = null;
+		if (text && sel.rangeCount) {
+			var rs = sel.getRangeAt(sel.rangeCount - 1).getClientRects();
+			var b = rs.length ? rs[rs.length - 1] : sel.getRangeAt(0).getBoundingClientRect();
+			r = { x: b.left, y: b.top, w: b.width, h: b.height };
+		}
+		HOST.postMessage({ t: "sel", fid: fid, s: text.slice(0, 8000), r: r, p: ptrType }, "*");
+	}
+	addEventListener("pointerdown", function (e) {
+		ptrType = e.pointerType || "mouse";
+		if (ptrType === "mouse" && e.button === 0) btnDown = true;
+	}, true);
+	addEventListener("pointerup", function (e) {
+		if (!btnDown || e.pointerType !== "mouse") return;
+		btnDown = false;
+		clearTimeout(selT);
+		selT = setTimeout(reportSel, 120);
+	}, true);
+	// a drag released outside the frame never sends us its pointerup
+	function lostBtn() { if (btnDown) { btnDown = false; reportSel(); } }
+	addEventListener("pointercancel", lostBtn, true);
+	addEventListener("blur", lostBtn);
+	document.addEventListener("selectionchange", function () {
+		if (!speakOn) return;
+		clearTimeout(selT);
+		selT = setTimeout(reportSel, ptrType === "touch" ? 350 : 200);
+	});
+
 	addEventListener("load", function () {
 		if (window.ResizeObserver) {
 			new ResizeObserver(post).observe(document.body);

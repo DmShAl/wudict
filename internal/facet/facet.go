@@ -34,6 +34,7 @@ package facet
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -42,14 +43,14 @@ import (
 
 // Group is one (facet, value) membership, carrying its own labels so the
 // client holds no taxonomy at all: it renders what it is given and never has
-// to know that "lang" means language or that "mono" is a kind of dictionary
+// to know that "lang" means language or that "en-ru" is a pair of them
 // (D102 - none of these internal ids reach a user's eye).
 //
 // FO is the facet's rank in the picker. It travels per row because a row is
 // the only thing this API sends: the facets that exist are not known until the
 // last dictionary has resolved, so there is no header line to put an order in.
 type Group struct {
-	F  string `json:"f"`  // facet id: lang | dir | kind | pub
+	F  string `json:"f"`  // facet id: lang | pair | kind | pub
 	FL string `json:"fl"` // facet label, as the picker heads the group
 	FO int    `json:"fo"` // facet rank, ascending
 	V  string `json:"v"`  // value id, unique within the facet
@@ -66,12 +67,12 @@ type Input struct {
 	Path     string   // source path, or library folder
 	Roots    []string // configured dictionary directories, to bound the folder walk
 	Declared string   // what the format declares for the HEADWORD language
-	Contents string   // what it declares for the ARTICLE language (DSL only)
+	Contents string   // what it declares for the ARTICLE language (DSL, BGL)
 }
 
 const (
 	foLang = 1
-	foDir  = 2
+	foPair = 2
 	foKind = 3
 	foPub  = 4
 )
@@ -83,21 +84,29 @@ func Derive(in Input) []Group {
 	if code := lang.Resolve(in.Declared, in.Path, in.Roots, in.Name); code != "" {
 		out = append(out, Group{F: "lang", FL: "Language", FO: foLang, V: code, VL: lang.Name(code)})
 	}
-	if v, l := direction(in); v != "" {
-		out = append(out, Group{F: "dir", FL: "Type", FO: foDir, V: v, VL: l})
+	if v, l := languagePair(in); v != "" {
+		out = append(out, Group{F: "pair", FL: "Language pair", FO: foPair, V: v, VL: l})
 	}
 	out = append(out, match(kinds, "kind", "Content", foKind, in.Name)...)
 	out = append(out, match(publishers, "pub", "Publisher", foPub, in.Name)...)
 	return out
 }
 
-// direction says whether a dictionary covers one language or two, and only
-// ever from an EXPLICIT pair: two declared fields, or two language tokens
-// joined the way a dictionary title joins them ("English-Russian", "es-es",
-// "Ru–En"). A single language hint says nothing about this - "Oxford English
-// Dictionary" and "Oxford English-Russian" both resolve to English - so a
-// dictionary with one hint and no pair joins no group here.
-func direction(in Input) (string, string) {
+// languagePair names the two languages a dictionary joins, from an EXPLICIT
+// pair only: two declared fields, or two language tokens joined the way a
+// title, a file name or a folder name joins them ("English-Russian", "es-es",
+// "En-Ru/", "英汉"). A single language hint says nothing about this - "Oxford
+// English Dictionary" and "Oxford English-Russian" both resolve to English -
+// so a dictionary with one hint and no pair joins no group here.
+//
+// It replaced a mono/bi "Type" facet (D149). "Bilingual" gathered every pair
+// into one choice nobody searches with; a pair is the unit a reader actually
+// picks by - the dictionaries that explain English in Russian. The pair is
+// UNDIRECTED: en-ru and ru-en are one value. Directed, each half is often a
+// single dictionary and the single-member rule would drop both; together they
+// are the set a reader of that pair wants, and a query only matches the
+// headwords of the side it is written in anyway.
+func languagePair(in Input) (string, string) {
 	a, b := lang.FromDeclared(in.Declared), lang.FromDeclared(in.Contents)
 	if a == "" || b == "" {
 		a, b = pair(in.Name)
@@ -105,16 +114,91 @@ func direction(in Input) (string, string) {
 	if a == "" || b == "" {
 		a, b = pair(stem(in.Path))
 	}
+	if a == "" || b == "" {
+		a, b = folderPair(in.Path, in.Roots)
+	}
 	switch {
 	case a == "" || b == "":
 		return "", ""
 	case a == b:
-		// es-es, spa-spa, "English-English": a pair that names the same
+		// es-es, spa-spa, "English-English", 英英: a pair that names the same
 		// language twice is the standard way a monolingual dictionary is
 		// labelled, and it is stated, not inferred.
-		return "mono", "Monolingual"
-	default:
-		return "bi", "Bilingual"
+		return a, "Monolingual " + lang.Name(a)
+	}
+	if a > b {
+		a, b = b, a // the id is order-free: en-ru and ru-en are one group
+	}
+	na, nb := lang.Name(a), lang.Name(b)
+	if strings.ToLower(nb) < strings.ToLower(na) {
+		na, nb = nb, na
+	}
+	return a + "-" + b, na + " ↔ " + nb
+}
+
+// ArticleLang is the language the dictionary's ARTICLE BODIES are written in -
+// the second half of a pair - as an ISO 639-1 code, or "" when nothing says.
+// It is the default voice for reading a selection aloud; the client refines it
+// per selection by script, choosing between this and the headword language,
+// because a bilingual article quotes both.
+//
+// Evidence, first hit wins: the declared contents language; the second code
+// of a pair in the title ("Oxford Russian-English"), then in the file name
+// ("eng-eus", "en_fr"), then in an enclosing folder name up to the configured
+// root. A dictionary with no pair anywhere is taken to be monolingual, so its
+// headword language answers. Unlike a group label this value is never shown -
+// it picks a voice, and the reader overrides a wrong one with a tap - which is
+// why the monolingual assumption is acceptable here and not in Derive.
+func ArticleLang(in Input) string {
+	if c := lang.FromDeclared(in.Contents); c != "" {
+		return c
+	}
+	if _, b := pair(in.Name); b != "" {
+		return b
+	}
+	if _, b := pair(stem(in.Path)); b != "" {
+		return b
+	}
+	if _, b := folderPair(in.Path, in.Roots); b != "" {
+		return b
+	}
+	return lang.Resolve(in.Declared, in.Path, in.Roots, in.Name)
+}
+
+// folderPair is the pair the nearest enclosing folder is named as
+// ("En-Ru/apresyan.dsl"). The walk stops at the configured root it is
+// under, root included, exactly as the headword-language folder walk does; a
+// path under no root has only its own folder read. Strings only - no disk.
+func folderPair(path string, roots []string) (string, string) {
+	if path == "" {
+		return "", ""
+	}
+	dir := filepath.Clean(filepath.Dir(path))
+	inside := false
+	for _, r := range roots {
+		if r == "" {
+			continue
+		}
+		r = filepath.Clean(r)
+		if dir == r || strings.HasPrefix(dir, r+string(filepath.Separator)) {
+			inside = true
+			break
+		}
+	}
+	for {
+		if a, b := pair(filepath.Base(dir)); b != "" {
+			return a, b
+		}
+		if !inside || slices.ContainsFunc(roots, func(r string) bool {
+			return r != "" && filepath.Clean(r) == dir
+		}) {
+			return "", ""
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", ""
+		}
+		dir = parent
 	}
 }
 
@@ -131,6 +215,35 @@ func pair(s string) (string, string) {
 		if a != "" && b != "" {
 			return a, b
 		}
+	}
+	return hanPair(s)
+}
+
+// hanPair reads the pair a Chinese or Japanese title writes with no separator
+// at all: one character per language, "英汉" (English-Chinese), "汉英", "俄汉",
+// "英和" (English-Japanese), "英英" (monolingual). Two characters that both
+// name a language are not yet a pair - "语和汉语" would read as one - so the
+// pair must be followed by the word the title is naming: 词典/辞典/字典/辞書,
+// optionally sized (大/中/小), or 双解 ("bilingual explanations"). That is how
+// "牛津高阶英汉双解词典" and "新英和中辞典" are written, and it is what keeps a
+// sentence out.
+//
+// Only characters that are unambiguous in that position are in the table. 西
+// (Spanish) is not: 西汉 is also the Western Han dynasty. 和 names Japanese
+// only against 英, the one pairing it is used in; elsewhere it is "and".
+var hanPairRe = regexp.MustCompile(`([英汉漢中俄日法德韩韓意葡拉和])([英汉漢中俄日法德韩韓意葡拉和])(?:[大中小]?(?:词典|詞典|辞典|辭典|字典|辞書|辭書)|双解|雙解)`)
+
+var hanLang = map[string]string{
+	"英": "en", "汉": "zh", "漢": "zh", "中": "zh", "俄": "ru", "日": "ja", "法": "fr",
+	"德": "de", "韩": "ko", "韓": "ko", "意": "it", "葡": "pt", "拉": "la", "和": "ja",
+}
+
+func hanPair(s string) (string, string) {
+	for _, m := range hanPairRe.FindAllStringSubmatch(s, -1) {
+		if (m[1] == "和" || m[2] == "和") && m[1]+m[2] != "英和" && m[1]+m[2] != "和英" {
+			continue
+		}
+		return hanLang[m[1]], hanLang[m[2]]
 	}
 	return "", ""
 }
