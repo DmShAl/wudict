@@ -1152,7 +1152,7 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
          rather than the book from the dictionary chip above: that book already
          means "a dictionary", and one glyph cannot mean two things without
          meaning neither. No dictionary in the href on purpose; /browse with
-         none asks which, and only the indexed ones can answer. -->
+         none asks which. -->
     <a class="act" id="browseLink" href="/browse" title="Read a dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse A–Z…</a>
     <!-- Reading appearance lives in this row, beside the size stepper in the
          summary above it. A brush, not a cog: the cog on the summary already
@@ -2287,10 +2287,12 @@ function renderPanel(){
     // media, a source to pack it from, and it isn't already packed.
     let acts="";
     if(d.error)acts=`<span class="err">${esc(d.error)}</span>`;
-    /* Gated on the index, because browsing IS the index: the same 409 the
-       page would show is better not linked to at all. This is the card for
-       one dictionary, so unlike the row above it carries the id. */
-    else if(indexed)acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
+    /* Offered whether or not the index exists yet: browsing IS the index, so
+       following this link on an unprepared dictionary is the request to build
+       it, and the browse page asks for it and opens the list when it is ready.
+       This is the card for one dictionary, so unlike the row above it carries
+       the id. */
+    else acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
     div.innerHTML=`<div class="hd">
         <span class="grip" draggable="true" title="Drag to reorder">⠿</span>
         <b tabindex="0" role="button" title="Search only this dictionary">${esc(dictLabel(d))}</b>

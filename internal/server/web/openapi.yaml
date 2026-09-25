@@ -1272,7 +1272,8 @@ paths:
         Idempotent: repeated selection of the same dictionary neither queues a
         second ingest nor restarts a running one, and a failed preparation is
         retried only after a cooldown. Does nothing when `AUTO_INDEX` is off,
-        where preparation is the dictionary panel's job; the response then
+        where preparation is the dictionary panel's job, unless `explicit=1`
+        says the user asked for the index itself (browsing); the response then
         reports `indexing: false`.
 
 
@@ -1284,6 +1285,13 @@ paths:
           required: true
           description: Dictionary id, as returned by `/api/dicts`.
           schema: { type: string }
+        - name: explicit
+          in: query
+          required: false
+          description: >
+            `1` when the user asked for something only the index can serve
+            (browsing). Prepares even when `AUTO_INDEX` is off.
+          schema: { type: string, enum: ["1"] }
       x-codeSamples:
         - lang: Shell
           label: curl
@@ -1294,7 +1302,8 @@ paths:
           description: >
             The demand was recorded. `indexing` reports whether a preparation
             for this dictionary is now queued or running, which is false when it
-            is already prepared and when `AUTO_INDEX` is off.
+            is already prepared, when `AUTO_INDEX` is off without `explicit=1`,
+            and while a failed preparation is cooling down.
           content:
             application/json:
               schema:
