@@ -62,6 +62,9 @@ var frameJS []byte // bridge script for sandboxed article iframes
 //go:embed web/pick.js
 var pickJS []byte // word-at-point for a double tap, loaded by both article surfaces
 
+//go:embed web/speak.js
+var speakJS []byte // read-aloud of selected article text, fetched on the first selection
+
 //go:embed web/favicon.svg
 var faviconSVG []byte // "Lookup" mark: magnifier over headword lines
 
@@ -83,7 +86,7 @@ type Server struct {
 	Version string
 
 	// indexOnce caches the substitutions index.html needs that never change
-	// after startup ({{VERSION}} in the About box, the {{FRAMEJS}} and {{PICKJS}} hashes,
+	// after startup ({{VERSION}} in the About box, the {{FRAMEJS}}, {{PICKJS}} and {{SPEAKJS}} hashes,
 	// {{ARTCSS}}).
 	// Version is assigned after the Server is built, so this cannot be done at
 	// embed time; doing it per request would re-copy the whole page on every
@@ -366,6 +369,7 @@ func (s *Server) basePage() []byte {
 		page := strings.ReplaceAll(string(indexHTML), "{{VERSION}}", v)
 		page = strings.ReplaceAll(page, "{{FRAMEJS}}", assetTag(frameJS))
 		page = strings.ReplaceAll(page, "{{PICKJS}}", assetTag(pickJS))
+		page = strings.ReplaceAll(page, "{{SPEAKJS}}", assetTag(speakJS))
 		// The role stylesheet for articles wudict writes itself
 		// (internal/artmark). It is a floor under BOTH article surfaces, so
 		// it is substituted once here and index.html hands it to the shadow
@@ -656,6 +660,11 @@ type dictInfo struct {
 	// see internal/facet, which also says why absence never becomes a value.
 	Groups []facet.Group `json:"groups,omitempty"`
 
+	// ArticleLang: the ISO 639-1 language the articles are written in, the
+	// default voice for reading a selection aloud (facet.ArticleLang). Derived
+	// alongside Groups from the same evidence; "" when nothing says.
+	ArticleLang string `json:"articleLang,omitempty"`
+
 	// provenance (panel display): where the dictionary came from and what
 	// derived files exist. All optional and filesystem-cheap.
 	Source   string   `json:"source,omitempty"`    // foreign source file, if still on disk
@@ -758,13 +767,14 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 	if textDB, ok := preparedTextDB(e.Path); ok {
 		if meta, err := store.ReadMeta(textDB); err == nil {
 			ec, _ := strconv.Atoi(meta["entry_count"])
-			return dictInfo{
+			info := dictInfo{
 				ID: e.ID, Path: e.Path, Name: meta["name"], Format: meta["format"], Entries: ec,
 				Caps:          dict.Caps{Exact: true, Prefix: true, Contains: meta["has_trigram"] == "1", FTS: meta["ingest_level"] != string(store.LevelHeadwords)},
 				DBPath:        textDB,
 				ContainsStale: store.FoldStale(meta),
-				Groups:        s.groupsFor(e.Path, meta["name"], meta["index_lang"], meta["contents_lang"]),
 			}
+			s.langFacts(&info, meta["name"], meta["index_lang"], meta["contents_lang"])
+			return info
 		}
 	}
 	// only probe formats with a real cheap prober - otherwise dict.Probe
@@ -772,11 +782,12 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 	// can trigger DSL auto-ingest), racing the background warm.
 	if dict.HasProber(e.Path) {
 		if m, err := dict.Probe(e.Path); err == nil {
-			return dictInfo{ // probeable, not prepared → direct backend
+			info := dictInfo{ // probeable, not prepared → direct backend
 				ID: e.ID, Path: e.Path, Name: m.Name, Format: m.Format, Entries: m.EntryCount,
-				Caps:   dict.Caps{Exact: true, Prefix: true},
-				Groups: s.groupsFor(e.Path, m.Name, m.IndexLang, m.ContentsLang),
+				Caps: dict.Caps{Exact: true, Prefix: true},
 			}
+			s.langFacts(&info, m.Name, m.IndexLang, m.ContentsLang)
+			return info
 		}
 	}
 	// fall back to a full open (non-probeable formats, or probe errors).
@@ -788,7 +799,7 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 	}
 	m := d.Meta()
 	info.Name, info.Format, info.Entries, info.Caps = m.Name, m.Format, m.EntryCount, d.Caps()
-	info.Groups = s.groupsFor(e.Path, m.Name, m.IndexLang, m.ContentsLang)
+	s.langFacts(&info, m.Name, m.IndexLang, m.ContentsLang)
 	if cs, ok := d.(interface{ ContainsStale() bool }); ok {
 		info.ContainsStale = cs.ContainsStale()
 	}
@@ -798,20 +809,22 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 	return info
 }
 
-// groupsFor derives one row's picker groups. It is called from every branch of
-// baseDictInfo with whatever that branch already read - no branch opens or
-// reads anything extra for it, which is the condition on which grouping was
-// allowed into this path at all: /api/dicts fans out across the whole library
-// (see docs.local/PERF.md M1), and a per-row cost here is paid a hundred times
-// at startup.
-func (s *Server) groupsFor(path, name, declared, contents string) []facet.Group {
-	return facet.Derive(facet.Input{
+// langFacts derives one row's picker groups and the language its articles are
+// read aloud in. It is called from every branch of baseDictInfo with whatever
+// that branch already read - no branch opens or reads anything extra for it,
+// which is the condition on which grouping was allowed into this path at all:
+// /api/dicts fans out across the whole library (see docs.local/PERF.md M1), and
+// a per-row cost here is paid a hundred times at startup.
+func (s *Server) langFacts(info *dictInfo, name, declared, contents string) {
+	in := facet.Input{
 		Name:     name,
-		Path:     langPath(path),
+		Path:     langPath(info.Path),
 		Roots:    s.reg.Dirs(),
 		Declared: declared,
 		Contents: contents,
-	})
+	}
+	info.Groups = facet.Derive(in)
+	info.ArticleLang = facet.ArticleLang(in)
 }
 
 // dbPathOf is the prepared database path for an entry, or "" when it has none.

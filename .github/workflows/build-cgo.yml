@@ -136,13 +136,19 @@ jobs:
           APP_BIN="$PWD/wudict" BUILD_DIR="$PWD/dist" sh tools/make-app.sh
           # ditto, not zip: it is the only archiver Apple guarantees keeps the
           # bundle's symlinks, xattrs and code signature intact.
-          ditto -c -k --keepParent "$(cat dist/.app-path)" wudict-macos-app.zip
+          # Versioned like every other asset (wudict-windows-x64-setup-3.7.5.exe),
+          # from the binary's own --version via the same helper make-app.sh
+          # used, so the zip and the bundle inside it cannot disagree. Same
+          # file-name rules as the APK: leading "v" dropped, "/" -> "_".
+          eval "$(sh tools/version.sh ./wudict)"
+          ZIPVER=$(printf '%s' "${WUDICT_VERSION#v}" | tr '/' '_')
+          ditto -c -k --keepParent "$(cat dist/.app-path)" "wudict-macos-universal-app-${ZIPVER}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: wudict-macos-app
-          path: wudict-macos-app.zip
+          path: wudict-macos-universal-app-*.zip
           if-no-files-found: warn
 
   # The Windows installer (D76). Per-user, no admin prompt, and ONE wudict.exe:

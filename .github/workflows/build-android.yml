@@ -146,13 +146,15 @@ jobs:
           # No renaming here any more. app/build.gradle names the APK
           # (androidComponents.onVariants) and the Makefile exports the path,
           # so the published asset, `make apk-foss-release` and dist/ all carry
-          # ONE name: wudict-android-arm64-foss.apk. The old copy step invented
-          # a second name (wudict-android-arm64.apk) that said nothing about
-          # the flavour and existed nowhere else in the project.
+          # ONE name: wudict-android-arm64-foss-<version>.apk. The old copy step
+          # invented a second name (wudict-android-arm64.apk) that said nothing
+          # about the flavour and existed nowhere else in the project.
+          # VERSION=$TAG: the name ends in the version Gradle was given above
+          # (-PversionName), and the Makefile's own default is git describe.
           if [ "${{ steps.signing.outputs.enabled }}" = "true" ]; then
-            APK="$(make -s print-APK_FOSS)"
+            APK="$(make -s print-APK_FOSS VERSION="$TAG")"
           else
-            APK="$(make -s print-APK_FOSS_DEBUG)"
+            APK="$(make -s print-APK_FOSS_DEBUG VERSION="$TAG")"
           fi
           if [ ! -f "$APK" ]; then
             echo "expected $APK - Gradle produced:"

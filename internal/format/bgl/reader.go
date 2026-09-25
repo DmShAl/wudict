@@ -258,9 +258,12 @@ func NewReader(path string) (*Reader, error) {
 	if desc == "" && r.sourceLang != nil && r.targetLang != nil {
 		desc = r.sourceLang.name + " → " + r.targetLang.name
 	}
-	srcLang := ""
+	srcLang, dstLang := "", ""
 	if r.sourceLang != nil {
 		srcLang = r.sourceLang.name
+	}
+	if r.targetLang != nil {
+		dstLang = r.targetLang.name
 	}
 	r.meta = dict.Meta{
 		Name:        name,
@@ -272,8 +275,9 @@ func NewReader(path string) (*Reader, error) {
 		// than re-parsed out of desc. languageByCode also holds encoding
 		// GROUPS ("Other Russian languages"); those name no language and
 		// internal/lang resolves them to "", which is the honest answer.
-		IndexLang: lang.FromDeclared(srcLang),
-		Header:    header,
+		IndexLang:    lang.FromDeclared(srcLang),
+		ContentsLang: lang.FromDeclared(dstLang),
+		Header:       header,
 	}
 	return r, nil
 }

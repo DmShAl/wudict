@@ -22,7 +22,7 @@ func TestScriptsAreContentAddressed(t *testing.T) {
 	page, _ := s.pageFor("")
 	pageStr := string(page)
 
-	for name, body := range map[string][]byte{"frame.js": frameJS, "pick.js": pickJS} {
+	for name, body := range map[string][]byte{"frame.js": frameJS, "pick.js": pickJS, "speak.js": speakJS} {
 		if want := "/assets/" + name + "?v=" + assetTag(body); !strings.Contains(pageStr, want) {
 			t.Errorf("index.html does not request %s by content hash (%s)", name, want)
 		}
@@ -49,7 +49,7 @@ func TestAssetCacheHeaders(t *testing.T) {
 	if got := get("/").Header().Get("Cache-Control"); got != "no-cache" {
 		t.Errorf(`GET / Cache-Control = %q, want "no-cache" - a stale page would ask for stale scripts`, got)
 	}
-	for _, p := range []string{"/assets/frame.js?v=abc123", "/assets/pick.js?v=abc123"} {
+	for _, p := range []string{"/assets/frame.js?v=abc123", "/assets/pick.js?v=abc123", "/assets/speak.js?v=abc123"} {
 		rec := get(p)
 		if rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Errorf("GET %s: status %d, %d bytes", p, rec.Code, rec.Body.Len())

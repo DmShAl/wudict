@@ -185,14 +185,25 @@ ANDROID_LIB  := android/app/src/main/jniLibs/arm64-v8a/libwudict.so
 # APK names come from android/app/build.gradle (androidComponents.onVariants),
 # which is also what build-android.yml publishes - the workflow no longer
 # renames anything, so there is one name per artifact and it is written once.
-# versionName/versionCode likewise come from git inside build.gradle; nothing
-# is passed on the Gradle command line, so local and CI cannot drift.
+# The name ends in the version, so these paths are only right if Gradle and
+# this file agree on it: every gradlew call below passes GRADLE_VERSION, and
+# Gradle names the file from exactly that. (Letting Gradle re-run git describe
+# was not enough: android-go runs after this file is parsed, and a tree that
+# turns -dirty in between would give the APK a name nothing here expects.)
+# versionCode is still derived inside build.gradle, from the commit count.
+# CI overrides VERSION with the release tag: make -s print-APK_FOSS VERSION=v3.7.5
+# APK_VERSION is build.gradle's apkVersion: leading "v" dropped, "/" -> "_".
+GRADLE_VERSION := -PversionName="$(VERSION)"
+APK_VERSION  := $(subst /,_,$(patsubst v%,%,$(VERSION)))
 ANDROID_ABI  := arm64
 APK_OUT      := android/app/build/outputs/apk
-APK_FOSS           := $(APK_OUT)/foss/release/$(BINARY)-android-$(ANDROID_ABI)-foss.apk
-APK_FOSS_DEBUG     := $(APK_OUT)/foss/debug/$(BINARY)-android-$(ANDROID_ABI)-foss-debug.apk
-APK_PLAY           := $(APK_OUT)/play/release/$(BINARY)-android-$(ANDROID_ABI)-play.apk
-APK_PLAY_DEBUG     := $(APK_OUT)/play/debug/$(BINARY)-android-$(ANDROID_ABI)-play-debug.apk
+# Mirrors build.gradle's apkSigned = System.getenv("KEYSTORE") != null: set,
+# even empty, counts as signed; only an absent KEYSTORE yields -unsigned.
+APK_SIGNED   := $(if $(filter undefined,$(origin KEYSTORE)),-unsigned)
+APK_FOSS           := $(APK_OUT)/foss/release/$(BINARY)-android-$(ANDROID_ABI)-foss$(APK_SIGNED)-$(APK_VERSION).apk
+APK_FOSS_DEBUG     := $(APK_OUT)/foss/debug/$(BINARY)-android-$(ANDROID_ABI)-foss-debug-$(APK_VERSION).apk
+APK_PLAY           := $(APK_OUT)/play/release/$(BINARY)-android-$(ANDROID_ABI)-play$(APK_SIGNED)-$(APK_VERSION).apk
+APK_PLAY_DEBUG     := $(APK_OUT)/play/debug/$(BINARY)-android-$(ANDROID_ABI)-play-debug-$(APK_VERSION).apk
 AAB_PLAY           := android/app/build/outputs/bundle/playRelease/$(BINARY)-play-release.aab
 
 # Lets CI read a path out of here instead of restating it: make -s print-APK_FOSS
@@ -242,7 +253,8 @@ android-require-keystore:
 	  || { echo "error: the keystore, the alias or the password was rejected."; exit 2; }
 
 # `ALLOW_UNSIGNED=1` drops the preflight; the APK is then named
-# ...-foss-unsigned.apk by build.gradle, so it can never be mistaken for one.
+# ...-foss-unsigned-<version>.apk by build.gradle (APK_SIGNED above follows it),
+# so it can never be mistaken for one.
 ifeq ($(ALLOW_UNSIGNED),1)
 KEYSTORE_GUARD :=
 else
@@ -254,7 +266,7 @@ endif
 # SAF. Both package the same libwudict.so, so android-go is a shared prereq.
 .PHONY: apk-foss-debug
 apk-foss-debug: android-go ## Build the FOSS debug APK (needs Android SDK: ANDROID_HOME or local.properties)
-	cd android && ./gradlew assembleFossDebug
+	cd android && ./gradlew assembleFossDebug $(GRADLE_VERSION)
 	@echo "$(APK_FOSS_DEBUG)"
 
 .PHONY: apk-foss-debug-install
@@ -267,9 +279,11 @@ apk-foss-release: $(KEYSTORE_GUARD) android-go ## Build + sign the FOSS release 
 	@# FAILED build is one `adb install dist/...` away from silently
 	@# reinstalling yesterday's APK, exactly while you are debugging and
 	@# least likely to notice. Deleting first makes a failed build leave
-	@# nothing behind rather than something stale.
-	@rm -f "dist/$(notdir $(APK_FOSS))"
-	cd android && ./gradlew assembleFossRelease
+	@# nothing behind rather than something stale. Every version, not just
+	@# this one: the names now differ per commit, so yesterday's copy would
+	@# otherwise sit next to today's with a name just as plausible.
+	@rm -f dist/$(BINARY)-android-$(ANDROID_ABI)-foss-*.apk
+	cd android && ./gradlew assembleFossRelease $(GRADLE_VERSION)
 	@mkdir -p dist && cp "$(APK_FOSS)" dist/
 	@echo "dist/$(notdir $(APK_FOSS))"
 
@@ -279,12 +293,12 @@ apk-foss-release-install: apk-foss-release ## build FOSS release and install via
 
 .PHONY: apk-play-debug
 apk-play-debug: android-go ## Build the Play-flavour debug APK (SAF import)
-	cd android && ./gradlew assemblePlayDebug
+	cd android && ./gradlew assemblePlayDebug $(GRADLE_VERSION)
 	@echo "$(APK_PLAY_DEBUG)"
 
 .PHONY: apk-play-release
 apk-play-release: $(KEYSTORE_GUARD) android-go ## Build the Play-flavour release APK (SAF import)
-	cd android && ./gradlew assemblePlayRelease
+	cd android && ./gradlew assemblePlayRelease $(GRADLE_VERSION)
 	@echo "$(APK_PLAY)"
 
 .PHONY: apk-play-release-install
@@ -293,7 +307,7 @@ apk-play-release-install: apk-play-release ## build Play release and install via
 
 .PHONY: aab-play
 aab-play: android-go ## Build the Play release bundle (unsigned: Play App Signing owns the key)
-	cd android && ./gradlew bundlePlayRelease
+	cd android && ./gradlew bundlePlayRelease $(GRADLE_VERSION)
 	@echo "$(AAB_PLAY)"
 
 .PHONY: apk-verify

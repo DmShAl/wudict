@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -316,6 +317,64 @@ func TestPrefsUIFlags(t *testing.T) {
 	if _, ff := LoadPrefs(state).UI().flags(); !ff {
 		t.Fatal("a dicts-only write cleared fastFirst")
 	}
+}
+
+// speakOff (D148) joins the same record under the same rule: absent is "on",
+// and it neither clears nor is cleared by the flags beside it.
+func TestPrefsSpeakOff(t *testing.T) {
+	s, state := newPrefsServer(t)
+	for _, tc := range []struct {
+		name, body string
+		want, hl   bool
+	}{
+		{"absent is on", `{"ui":{"fontSize":24}}`, false, false},
+		{"off", `{"ui":{"speakOff":true}}`, true, false},
+		{"off beside highlighting off", `{"ui":{"speakOff":true,"hlOff":true}}`, true, true},
+		{"back on, highlighting still off", `{"ui":{"hlOff":true}}`, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			putPrefs(t, s, tc.body)
+			ui := LoadPrefs(state).UI()
+			if hl, _ := ui.flags(); ui.spoken() != tc.want || hl != tc.hl {
+				t.Fatalf("reloaded speakOff=%v hlOff=%v, want %v/%v", ui.spoken(), hl, tc.want, tc.hl)
+			}
+		})
+	}
+}
+
+// groupsOff (D149) is a set of opaque facet ids: bounded, de-duplicated and
+// sorted on the way in, left alone by a write that does not mention it, and
+// cleared only by one that sends it empty.
+func TestPrefsGroupsOff(t *testing.T) {
+	s, state := newPrefsServer(t)
+	long := strings.Repeat("x", 33)
+	for _, tc := range []struct {
+		name, body string
+		want       []string
+	}{
+		{"absent shows everything", `{"ui":{"fontSize":24}}`, nil},
+		{"hidden, cleaned", `{"ui":{"groupsOff":["pub"," kind ","pub","","` + long + `"]}}`, []string{"kind", "pub"}},
+		{"a dicts-only write keeps it", `{"dicts":[]}`, []string{"kind", "pub"}},
+		{"empty shows everything again", `{"ui":{"groupsOff":[]}}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			putPrefs(t, s, tc.body)
+			var got []string
+			if ui := LoadPrefs(state).UI(); ui != nil {
+				got = ui.GroupsOff
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("groupsOff = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func (u *UIPrefs) spoken() bool {
+	if u == nil {
+		return false
+	}
+	return u.SpeakOff
 }
 
 func (u *UIPrefs) size() int {
