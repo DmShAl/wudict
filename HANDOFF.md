@@ -72,6 +72,17 @@ commit's message. Three facts that are not derivable from the code:
   two.** The server resource/index, `dsl` and `lemmas` failures were upstream's
   fixes arriving, not something left to re-fix.
 
+**Rechecked 2026-09-25:** `dev` sits untouched at `e1304c9`; the upstream sync
+went to the user's branch `dev2` instead, now at `024c4c1` — upstream master
+(`69e73d1`+`e666d96`) merged per the user's decisions: the read-aloud feature
+(speak) taken whole; upstream's configurable picker grouping (groupSeg/groupsOff)
+NOT taken, the fork's dictionary groups stay; sortAZ/sortOwn picker sorting is
+the fork's own feature; artifact names stay `wudict2-android-arm64-*.apk`.
+Resolution trial-merged and verified first: build/vet green, tests green except
+known-failing TestSetupFlow (fails on clean `dev` too). The upstream build was
+also stood up for the user to evaluate on `http://127.0.0.1:6890` (temp db dir,
+pure-Go build) — stop it when no longer needed.
+
 ## Emulator builds: `build-android.cmd debug intel` (2026-09-24, this session)
 
 The user's Android Studio AVD is x86_64 (`sdk_gphone16k_x86_64`, Android
