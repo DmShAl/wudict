@@ -360,7 +360,12 @@ html{--styler-h:min(45vh,420px)}
    window - see stylerFit in index.html. */
 #styler{position:fixed;left:0;right:0;bottom:var(--styler-bottom,0);z-index:210;
   display:none;
-  height:var(--styler-h);flex-direction:column;
+  /* The sheet is its OWN height, whatever subject it is showing: a subject with
+     two rows gives a short sheet rather than the full one standing half empty,
+     and the CSS editor is capped by --styler-h and scrolls inside it. This used
+     to be a class the script toggled for the folded-editor case; with one
+     subject on screen at a time it is the only case there is. */
+  height:auto;max-height:var(--styler-h);flex-direction:column;
   background:var(--bg);border-top:1px solid var(--line);box-shadow:var(--shadow);
   padding:var(--sp-2) var(--sp-3);
   padding-bottom:calc(var(--sp-2) + var(--wd-inset-bottom,0px))}
@@ -394,7 +399,14 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    reads as structure instead of drift. */
 #stylerHead{flex:none;display:flex;align-items:center;gap:.4em;
   border-bottom:1px solid var(--line);padding-bottom:.4em;margin-bottom:.45em}
-#stylerHead strong{font-size:13px;font-weight:600;color:var(--fg)}
+/* The head's subject menu, which is also the sheet's title: the same .choice-btn
+   the Screen rows use, sized to a heading rather than to a row, because what it
+   names is the whole sheet and the list behind it is how the reader moves to
+   another subject without leaving (the bars used to do that). */
+#stylerHead .choice-btn{width:auto;background:none;border:0;padding:.1em 0;
+  gap:.35em;font-size:14px;font-weight:600}
+#stylerHead .choice-btn:hover{border:0;color:var(--fg)}
+#stylerHead .choice-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* THE SETTINGS AREA, and it is the sheet's whole scroll. The three sections
    live in here, one after another, each one holding its bar and its contents -
    so every section behaves the same way: its bar travels with what it folds,
@@ -404,21 +416,8 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    flex:1 1 auto: it takes whatever the head and the note leave, and its
    contents scroll inside it. */
 #appearanceGroups{flex:1 1 auto;min-height:0;overflow-y:auto}
-/* THE BAR: one per group, the strip and the triangle the whole sheet is
-   folded by. A drawn triangle rather than a glyph (the same 4px border
-   triangle the search chips wear), turned down while the group is open, so
-   there is no font to depend on and no icon font to load. */
-.group-bar{display:flex;align-items:center;gap:.45em;width:100%;
-  margin:.35em 0 .25em;padding:.3em .45em;border:0;border-radius:5px;
-  background:var(--line-soft);color:var(--fg-soft);
-  font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
-.group-bar:first-child{margin-top:0}
-.group-bar::before{content:"";flex:none;width:0;height:0;
-  border:4px solid transparent;border-left-color:var(--fg-soft);
-  transition:transform .18s ease}
-.group-bar[aria-expanded="true"]::before{transform:rotate(90deg)}
-.group-bar:hover,.group-bar:focus-visible{color:var(--fg)}
-.group-bar:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* THE BAR is gone with the groups it folded: the sheet shows one subject, and
+   the head's menu is how the reader moves between them. */
 /* `hidden` is AUTHORITATIVE inside the sheet, and it is not by default: an
    author rule such as `.appearance-row{display:flex}` outranks the
    user-agent's `[hidden]{display:none}` however specific either is, so an
@@ -435,16 +434,9 @@ body.styling{padding-bottom:var(--styler-shown,var(--styler-h))}
    from the script (stylerEditing), because it is a group now and the bar has
    to keep telling the truth about it. */
 #styler.editing #stylerNote{display:none}
-/* Custom CSS closed: the sheet stops being a sheet. Its height is the
-   groups' own - measured onto --styler-shown by appearanceSheetHeight - so
-   closing the editor gives the page back the rest of the screen instead of
-   leaving the sheet standing empty over it. max-height keeps that honest on a
-   SHORT viewport: an auto height has no opinion about the keyboard, and the
-   colour fields can raise one with the editor folded, so above --styler-h the
-   scroller takes over as it does everywhere else. The section's own contents
-   are hidden by the group's own `hidden` (appearanceGroupSet), as for the two
-   window groups; the class here is only about the sheet's height. */
-#styler.no-css{height:auto;max-height:var(--styler-h)}
+/* The sheet's height is its own at all times now - see #styler above - so the
+   class that said so for the folded-editor case is gone, and so are the group
+   bars that case was about: one subject per opening, chosen in the head. */
 .appearance-row{display:flex;align-items:center;gap:.5em;min-height:2.5em}
 /* One narrow label column for both rows - "Color" and "Image" say enough
    under the section heading, and every em here is strip width. */

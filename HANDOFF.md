@@ -273,20 +273,34 @@ stored mode - so "auto" following the system at sunset moves everything too.
   for. `stylerOpen(subject)` sets `#stylerTitle` from `STYLER_SUBJECTS`, one
   map whose words are the doors' own, so the two cannot drift. Verified on the
   emulator: all four subjects set their own title.
-- **NEXT, and deliberately not started**: the rest of the same plan - show ONLY
-  the chosen subject (the bars and the fold machinery go), make Presets a
-  subject of its own (Custom CSS keeps App, Article and Files), and turn the
-  head into a dropdown of the four. That is a RESTRUCTURE of the sheet, not an
-  addition to it, and the pieces interlock: three group wrappers each holding a
-  bar, `appearanceOpen`, `appearanceBars`, `appearanceBodies`,
-  `appearanceGroupSet`, the bar handlers, the automatic collapse of the
-  Window-background group while the caret is in the CSS box (`stylerEditing` /
-  `appearanceBgAutoRestore`), and `stylerView`'s css/files/presets values -
-  while `#stylerPresetsPane` currently lives INSIDE `#stylerBody` as the fourth
-  tab. Ten coupled edits across markup, script and app.css; it wants doing as
-  one piece with the four subjects verified in both themes.
+- **The sheet was rebuilt: one subject at a time, chosen in its head.** The
+  panel's four doors already opened a subject each; what changed is that the
+  sheet now SHOWS one - the bars and the whole fold machinery are gone, and the
+  head carries a menu of the four (`#stylerSubject` + `#stylerSubjectMenu`,
+  drawn with the same `screenChoice` the two Screen answers use).
+  - `stylerSubjectSet(name)` is the whole state: it hides the other three panes,
+    ticks the menu, and measures the sheet. `appearanceOpen`, `appearanceBars`,
+    `appearanceBodies`, `appearanceGroupSet`, the bar handlers and the automatic
+    collapse of the Window-background group while the caret is in the CSS box
+    are all deleted.
+  - **Presets is a subject of its own**, not the CSS group's fourth tab: it is
+    not CSS, and reaching it meant opening Custom CSS. `stylerView` lost its
+    `presets` value; Custom CSS keeps App, Article and Files.
+  - **The sheet is its own height at all times** (`height:auto` with
+    `max-height:--styler-h` in app.css). The old `no-css` class said that for
+    one case; with a single subject on screen it is the only case.
+  - **A broken comment cost two builds and is worth remembering**: replacing the
+    first lines of a multi-line HTML comment left its TAIL un-commented, so the
+    prose rendered as page content - and it did not look like a markup error, it
+    looked like the sheet printing paragraphs into every subject. When editing a
+    comment by anchor, replace the whole comment.
+  - Verified on the emulator after the fix: the page's script runs, the panel's
+    four doors list as `screen/bg/presets/css`, the head's menu lists all four
+    names, and the Presets subject renders its groups and switches.
 - **Not done**: nothing is committed; `README`/`pages/docs` still describe one
-  stylesheet.
+  stylesheet; and the Files tab stayed in Custom CSS, on the reasoning that it
+  manages the files the App and Article sheets reference (its labels say "used
+  in App/Article") - say the word if it should be a subject of its own.
 
 ## The theme button said "night" in daylight (2026-09-25, this session)
 

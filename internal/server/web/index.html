@@ -423,28 +423,32 @@ window.wudictShellBackground = function (color, image, imageName) {
        the tabs is not where anyone looks for it. It also gives the sheet the
        name its opening button promises. -->
   <div id="stylerHead">
-    <!-- The subject, not "Appearance". The reader arrives through a door in the
-         panel that NAMES its subject ("Window background…"), so a sheet that
-         answers with a different word makes them check whether they got what
-         they asked for. This is where the dropdown of the other subjects goes;
-         until then it says which one is showing. -->
-    <strong id="stylerTitle">Appearance</strong>
+    <!-- WHICH SUBJECT the sheet is showing, and the list of the others. A menu
+         the page draws rather than a <select>, for the reason the Screen rows
+         give below: the platform's popup wears the system's theme and can wear
+         neither the app's background colour nor its wallpaper.
+
+         The subject lives in the HEAD and not in a row of tabs, because the CSS
+         box already has a tab row for ITS three subjects (App, Article, Files)
+         and this is a level above them. Before this, all four shared one sheet
+         behind a bar each, so the reader came through a door naming one subject
+         and got the whole appearance surface. -->
+    <button type="button" class="choice-btn" id="stylerSubject" aria-haspopup="listbox" aria-expanded="false" aria-label="Which part of the appearance to show"></button>
+    <div class="choice-menu menu-card" id="stylerSubjectMenu" role="listbox" data-w="anchor" hidden></div>
     <span class="grow"></span>
     <button type="button" class="btn" id="stylerClose" aria-label="Close">✕</button>
   </div>
-  <!-- The sheet's groups, each behind a bar with a triangle, so which parts of
-       the sheet take its room is the reader's decision and not a layout's. The
-       state is in appearanceOpen (index.html's script), because the render
-       re-runs on every round trip to the shell and must never reopen a group
-       the reader closed.
-
-       TWO PLACES, deliberately. Only the window groups are inside
-       #appearanceGroups - the scrolling area - where a bar and the rows it
-       folds scroll together. The Custom CSS bar is NOT in there: it sits
-       directly on top of the tabs, the editor and the panes it folds, outside
-       the scroller, so that bar and those contents can never part company on
-       screen. (The first version had it in the scroller, and on a phone the
-       section's own control scrolled away from the section it folds.) -->
+  <!-- The sheet's subjects, one at a time, in ONE scroller. The panel's four
+       doors open a subject each and the head's menu moves between them, so
+       there are no bars here any more: they existed because all four subjects
+       shared this sheet, and a door that named one of them had to hand over the
+       whole surface. What is hidden is decided by stylerSubjectSet, and the
+       render that re-runs on every round trip to the shell leaves it alone.
+       (Before this, every subject was a group behind a bar inside this one
+       scroller - EXCEPT Custom CSS, whose bar sat outside it so that bar and
+       its contents could not part company on screen. With one subject at a time
+       that whole arrangement is gone: the CSS subject owns the sheet's only
+       scroller now, and the other three are short enough not to need one.) -->
   <div id="appearanceGroups">
   <!-- Screen: the app WINDOW's own two facts, moved here from the shell's
        settings screen - the one reached by long-pressing the launcher icon -
@@ -456,9 +460,7 @@ window.wudictShellBackground = function (color, image, imageName) {
        window, which wears the system's theme and can wear neither the app's
        background colour nor its wallpaper - see .menu-card in app.css, the
        surface every floating menu in the app wears. -->
-  <div id="appearanceScreenGroup" hidden>
-    <button type="button" class="group-bar" id="appearanceScreenBar" aria-expanded="true" aria-controls="appearanceScreen">Screen</button>
-    <div id="appearanceScreen">
+  <div id="appearanceScreen" hidden>
     <div class="screen-row">
       <div class="screen-title" id="edgeTitle">Edges of the screen</div>
       <button type="button" class="choice-btn" id="edgeChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="edgeTitle"></button>
@@ -476,10 +478,7 @@ window.wudictShellBackground = function (color, image, imageName) {
       <small id="barsHint">Swipe in from the top or bottom edge to bring them back for a moment.</small>
     </div>
     </div>
-  </div>
-  <div id="appearanceBgGroup" hidden>
-    <button type="button" class="group-bar" id="appearanceBgBar" aria-expanded="true" aria-controls="appearanceBackground">Window background</button>
-    <div id="appearanceBackground">
+  <div id="appearanceBackground" hidden>
     <div class="appearance-row"><label for="appearanceColorOn">Color</label><input id="appearanceColorOn" type="checkbox"><div class="color-box" id="appearanceColorBox"><input id="appearanceColor" type="text" inputmode="text" maxlength="7" autocomplete="off" aria-label="Background color, six hexadecimal digits"><button type="button" class="color-pick" id="appearanceColorPick" aria-label="Pick a colour" title="Pick a colour"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L4.16 14.7c-.39.39-.39 1.02 0 1.41l3.71 3.71c.39.39 1.02.39 1.41 0l7.24-7.24 1.42 1.42 1.41-1.41-1.91-1.93 3.12-3.12c.38-.38.38-1.02 0-1.4l-.92-.92c-.19-.2-.45-.29-.71-.29z"/></svg></button><div id="appearanceColorMenu" class="color-history menu-card" hidden></div></div></div>
     <!-- The strip IS the image picker: a tap on a thumbnail applies it, and
          the "+" tile opens the device picker directly - no second panel, no
@@ -490,13 +489,13 @@ window.wudictShellBackground = function (color, image, imageName) {
     <div class="appearance-row"><span class="appearance-label">Image</span><div id="appearanceStripWrap"><div id="appearanceStrip" role="group" aria-label="Background image"></div><button type="button" class="stripArrow" id="appearanceStripL" aria-label="Scroll background thumbnails left" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.6 2L3 8l1.6 6"/></svg></button><button type="button" class="stripArrow" id="appearanceStripR" aria-label="Scroll background thumbnails right" hidden><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11.4 2L13 8l-1.6 6"/></svg></button></div></div>
     <small>Color remains behind the image. None removes the image.</small>
     </div>
-  </div>
-  <div id="appearanceCssGroup">
-  <button type="button" class="group-bar" id="appearanceCssBar" aria-expanded="true" aria-controls="stylerBody">Custom CSS</button>
-  <!-- Every group is the same shape - a wrapper holding its bar and a body -
-       and Custom CSS is no exception: its tabs, its editor and its panes are
-       the body, they scroll with their bar, and folding the bar folds them. -->
-  <div id="stylerBody">
+  <!-- Style presets are a SUBJECT of their own, not a tab among the
+       stylesheets: they are layers the page attaches and detaches around
+       whatever is written in the App and Article boxes, and a switch here never
+       touches those boxes. They used to be the CSS group's fourth tab, which
+       made the reader open Custom CSS to find something that is not CSS. -->
+  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
+  <div id="stylerBody" hidden>
   <div class="row" id="stylerDock">
     <button type="button" class="tab" id="tabApp" role="tab" aria-selected="true" aria-controls="stylerCSS">App</button>
     <button type="button" class="tab" id="tabArticle" role="tab" aria-selected="false" aria-controls="stylerCSS">Article</button>
@@ -504,10 +503,6 @@ window.wudictShellBackground = function (color, image, imageName) {
          two can point at. Same sheet, because a file is uploaded in order to
          be referenced, and the reference is written one tab away. -->
     <button type="button" class="tab" id="tabFiles" role="tab" aria-selected="false" aria-controls="stylerFiles">Files</button>
-    <!-- The fourth tab is not a stylesheet at all: these are LAYERS the page
-         attaches and detaches around whatever is written in the other two
-         tabs. A switch here never touches the boxes. -->
-    <button type="button" class="tab" id="tabPresets" role="tab" aria-selected="false" aria-controls="stylerPresetsPane">Presets</button>
     <span class="grow"></span>
     <!-- Hidden while the box is empty: an action that would do nothing is a
          control you have to read and dismiss on every visit. -->
@@ -519,9 +514,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   </div>
   <textarea id="stylerCSS" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Custom CSS"></textarea>
   <div id="stylerFiles" hidden role="tabpanel" aria-label="Uploaded files"></div>
-  <div id="stylerPresetsPane" hidden role="tabpanel" aria-label="Style presets"></div>
   <input type="file" id="stylerUpload" multiple hidden aria-hidden="true" tabindex="-1">
-  </div>
   </div>
   </div>
   <div id="stylerNote"></div>
@@ -4073,15 +4066,13 @@ function stylerMark(tab,has,dirty){
    that writes there. */
 function stylerSetView(v){
   stylerView=v;
-  const files=v==="files",presets=v==="presets";
-  $("stylerCSS").hidden=files||presets;
+  const files=v==="files";
+  $("stylerCSS").hidden=files;
   $("stylerFiles").hidden=!files;
-  $("stylerPresetsPane").hidden=!presets;
-  $("stylerSave").hidden=files||presets;
+  $("stylerSave").hidden=files;
   $("stylerAdd").hidden=!files;
   $("tabFiles").setAttribute("aria-selected",String(files));
-  $("tabPresets").setAttribute("aria-selected",String(presets));
-  if(files||presets){
+  if(files){
     $("tabApp").setAttribute("aria-selected","false");
     $("tabArticle").setAttribute("aria-selected","false");
   }
@@ -4583,10 +4574,10 @@ function presetsPaneRender(){
 /* The shell re-reports the background while the sheet is open; the pane must
    follow, because the Background preset's visibility hangs on it. */
 function presetsPaneRefresh(){
-  if(stylerView==="presets")presetsPaneRender();
+  if(stylerSubject==="presets")presetsPaneRender();
 }
 async function stylerShowPresets(){
-  stylerSetView("presets");
+  stylerSubjectSet("presets");
   if(!PRESETS){
     presetsPaneRender();
     await presetsLoad();
@@ -4643,7 +4634,7 @@ function presetRemovePasted(p){
   stylerShowTab(stylerTab);
   stylerSync();stylerPreview();
   stylerNote(p.title+" removed from your CSS — press Save to keep it that way");
-  if(stylerView==="presets")presetsPaneRender();
+  if(stylerSubject==="presets")presetsPaneRender();
 }
 /* ── the sheet's groups ──────────────────────────────────────────────
    Every part of the sheet is behind a bar with a triangle on it, so the
@@ -4663,59 +4654,42 @@ const STYLER_SUBJECTS={
   presets:"Visual presets",
   css:"Custom CSS"
 };
-const appearanceOpen={bg:true,screen:true,css:true};
-const appearanceBars={
-  bg:$("appearanceBgBar"),
-  screen:$("appearanceScreenBar"),
-  css:$("appearanceCssBar")
-};
-/* Every group is the same shape - a wrapper holding its bar and a body - so
-   one lookup per id says everything about folding one: the bar tells the truth
-   about the body, and the body is what hides. Custom CSS is no exception, its
-   body being the tabs, the editor and the panes. */
-const appearanceBodies={
-  bg:$("appearanceBackground"),
+/* WHICH SUBJECT the sheet is showing, one at a time. It used to be three
+   groups, each behind a bar, all in one sheet - so the reader came through a
+   door that named one subject and got the whole appearance surface, and the
+   bars were the only way to move between them once inside. The move is in the
+   HEAD now: the panel's four doors open a subject, and the head names it and
+   lists the others.
+   One scroller for all four, because a subject with two rows must give a short
+   sheet rather than the full one standing half empty - which is what the old
+   `no-css` class said for one particular case, now true of every one. */
+const SUBJECT_ORDER=["screen","bg","presets","css"];
+let stylerSubjectChoice=null;
+const stylerPanes={
   screen:$("appearanceScreen"),
+  bg:$("appearanceBackground"),
+  presets:$("stylerPresetsPane"),
   css:$("stylerBody")
 };
-function appearanceGroupSet(id,open){
-  appearanceOpen[id]=open;
-  appearanceBars[id].setAttribute("aria-expanded",String(open));
-  appearanceBodies[id].hidden=!open;
-  // Folding the editor also lets the sheet be its OWN height rather than stand
-  // at full height with an empty lower half - the one place where a folded
-  // group changes the sheet and not only the sheet's contents.
-  $("styler").classList.toggle("no-css",!appearanceOpen.css);
+let stylerSubject="presets";
+function stylerSubjectSet(name){
+  if(!stylerPanes[name])name="presets";
+  stylerSubject=name;
+  for(const id in stylerPanes)stylerPanes[id].hidden=id!==name;
+  if(stylerSubjectChoice)stylerSubjectChoice.set(SUBJECT_ORDER.indexOf(name));
+  if(name==="presets")presetsPaneRender();
   appearanceSheetHeight();
 }
-for(const id in appearanceBars)appearanceBars[id].onclick=()=>{
-  // The reader's own answer outranks the automatic collapse below, and this
-  // is where that is said: cleared here, so leaving the editor cannot undo
-  // this tap.
-  if(id==="bg")appearanceBgAutoRestore=false;
-  appearanceGroupSet(id,!appearanceOpen[id]);
-};
-/* The editor's collapse, and the only automatic one: while the caret is in
-   the CSS box the window-background group stands down, and it returns when
-   the caret leaves. Both halves are EDGE-triggered - the caller polls the
-   caret three times a second - because a level-triggered version would
-   re-collapse the group a poll tick after the reader reopened it. */
-let stylerEditOn=false,appearanceBgAutoRestore=false;
+/* The caret in the CSS box. The note stands down while it works, and there is
+   nothing else to stand down now that the other subjects are never on screen
+   with the editor - the automatic collapse of the window-background group went
+   with the bars. */
+let stylerEditOn=false;
 function stylerEditing(on){
   if(on===stylerEditOn)return;
   stylerEditOn=on;
   $("styler").classList.toggle("editing",on);
-  if(on){
-    appearanceBgAutoRestore=appearanceOpen.bg;
-    if(appearanceBgAutoRestore)appearanceGroupSet("bg",false);
-    // After the collapse, not before: the group that just stood down shortened
-    // the sheet, and the box has to be brought into view in the layout the
-    // reader is about to type in.
-    stylerBoxIntoView();
-  }else if(appearanceBgAutoRestore){
-    appearanceBgAutoRestore=false;
-    appearanceGroupSet("bg",true);
-  }
+  if(on)stylerBoxIntoView();
 }
 /* The editor is one of the sheet's three sections now, inside the one scroller
    - so a caret that arrives, and a keyboard that shrinks the WebView while it
@@ -4728,7 +4702,7 @@ function stylerEditing(on){
    size under a caret already there (stylerFit): never on a tick that changed
    nothing, so a reader scrolling the sheet by hand is not fought. */
 function stylerBoxIntoView(){
-  const group=$("appearanceCssGroup"),box=$("stylerCSS"),scroller=$("appearanceGroups");
+  const group=$("stylerBody"),box=$("stylerCSS"),scroller=$("appearanceGroups");
   if(!group||group.hidden||!box||box.hidden||!box.offsetHeight||!scroller)return;
   const g=group.getBoundingClientRect(),b=box.getBoundingClientRect();
   const s=scroller.getBoundingClientRect(),off=g.top-s.top;
@@ -4847,6 +4821,13 @@ const screenEdge=screenChoice($("edgeChoice"),$("edgeMenu"),SCREEN_EDGE_OPTIONS,
   mode=>appearanceSet("edgeMode",mode));
 const screenBars=screenChoice($("barsChoice"),$("barsMenu"),SCREEN_BARS_OPTIONS,
   mask=>appearanceSet("bars",mask));
+/* The sheet's subject, in its head. Same component as the two above - a menu
+   the page draws, so it wears the app's background and wallpaper rather than
+   the platform's popup theme - and its rows are STYLER_SUBJECTS in
+   SUBJECT_ORDER, so a door's words and this menu's rows are the same words. */
+stylerSubjectChoice=screenChoice($("stylerSubject"),$("stylerSubjectMenu"),
+  SUBJECT_ORDER.map(id=>STYLER_SUBJECTS[id]),
+  i=>stylerSubjectSet(SUBJECT_ORDER[i]));
 /* One colour field's behaviour, wired twice (the window background and the
    margin colour). Both remember what they have been given - one list, the
    sheet's own, because a colour this reader likes is a colour this reader
@@ -4893,11 +4874,9 @@ function appearanceRequest(request){
 function appearanceRender(state){
   if(!state)return;
   appearanceState=state;
-  // The two shell groups exist only where a shell answers. Which of them is
-  // OPEN is appearanceOpen's business, not this function's - it re-runs on
-  // every round trip and must leave the bars as the reader set them.
-  $("appearanceBgGroup").hidden=false;
-  $("appearanceScreenGroup").hidden=false;
+  // The two shell subjects exist only where a shell answers. WHICH of them is
+  // on screen is stylerSubject's business, not this function's: it re-runs on
+  // every round trip and must leave the sheet showing what the reader chose.
   document.documentElement.setAttribute("data-native-appearance","");
   $("appearanceColorOn").checked=!!state.colorEnabled;
   $("appearanceColor").value=String(state.color||"").replace(/^#/,"").toUpperCase();
@@ -5073,22 +5052,13 @@ async function stylerOpen(subject){
       return;
     }
   }
-  // WHICH SUBJECT the reader came for. The panel now has one row per subject,
-  // so the sheet opens on the thing that was asked for instead of on all three
-  // groups at once - and since a folded sheet is its OWN height, a short
-  // subject gives a short sheet rather than the full one.
-  //
-  // The group BARS stay: they are how the reader moves between the subjects
-  // once inside, and appearanceGroupSet is also what makes the sheet measure
-  // itself. A click straight on the function - no argument - still opens on the
-  // presets, which is where this sheet has always started.
+  // WHICH SUBJECT the reader came for. The panel has one door per subject, so
+  // the sheet opens on the thing that was asked for; the head's menu is how
+  // they move to another without leaving, which is what the bars used to do.
   const want=typeof subject==="string"&&subject?subject:"presets";
-  const wantsCss=want==="css"||want==="presets";
-  for(const id in appearanceOpen)appearanceGroupSet(id,id==="css"?wantsCss:id===want);
-  $("stylerTitle").textContent=STYLER_SUBJECTS[want]||"Appearance";
   if(want==="presets")stylerShowPresets();
-  else if(want==="css")stylerShowTab(stylerTab);
-  else stylerSetView("css");
+  else if(want==="css"){stylerSubjectSet("css");stylerShowTab(stylerTab)}
+  else stylerSubjectSet(want);
   // Hand the app layer to the live element straight away, so a later Clear or
   // a deleted rule takes effect the moment it is typed rather than on reload.
   // Reopening also restores a preview that closing put back.
@@ -5376,7 +5346,6 @@ $("styler").addEventListener("keydown",e=>{
   // for a button costs the caret position.
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="s"){e.preventDefault();stylerSave()}
 });
-$("tabPresets").onclick=stylerShowPresets;
 
 // settings first: they decide the panel's order and the search set, and the
 // fetch is a local file read — a millisecond, not a stall worth splitting the
