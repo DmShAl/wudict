@@ -1471,7 +1471,16 @@ window.wudictPickerDictionarySelected=id=>{
   if(!det)return;
   det.open=true;openedIdx=-1;clearTimeout(barrier);barrier=null;
   if(markedAnswer)navAttach(det);
-  requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:lessMotion.matches?"auto":"smooth"}));
+  /* INSTANT, always — the one scroll in this app that neither animates nor asks
+     the system first. A dictionary picked off the list is a destination the
+     reader has already chosen, so there is nothing to orient them: the jump can
+     cross a document tens of thousands of pixels tall, and a glide over that is
+     not orientation, it is waiting. It is the same call navGo already makes for
+     a match more than two screens away, and the reason it is not conditional on
+     prefers-reduced-motion is that this is where the reader ASKED to be moved —
+     the other two scrolls (a section opened by hand, the walk through matches)
+     keep the system's answer, because there the path is part of the reading. */
+  requestAnimationFrame(()=>det.scrollIntoView({block:"start",behavior:"auto"}));
 };
 $("out").addEventListener("click",e=>{
   const sum=e.target.closest("details.dict:not(.noindex)>summary");

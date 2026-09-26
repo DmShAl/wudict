@@ -189,6 +189,39 @@ is the finding plus two guards that were proposed and not yet built.
   app surfaces as "server failed") is possible on this emulator and is not what
   happened here.
 
+## The picker's jump is instant now, always (2026-09-25, this session)
+
+The user's instruction after asking what the system lever was: instant ONLY
+when a dictionary is picked off the picker's list — the other two scrolls keep
+the system's answer. So `window.wudictPickerDictionarySelected` (one call site)
+now scrolls with a bare `behavior:"auto"`, and the comment above it says why:
+the destination was chosen by the reader, the jump can cross a document tens of
+thousands of pixels tall, and this is the same call `navGo` already makes for a
+match more than two screens away. Untouched and still conditional on
+`prefers-reduced-motion`: the section opened by hand (the summary click) and
+`revealAt` (the walk through matches), because there the path is part of the
+reading. No CSS interferes — `scroll-behavior` is `auto` everywhere in this
+app, which is what makes `"auto"` mean "no animation".
+
+**What made the user say it did not work, measured on the emulator:** on Android
+`prefers-reduced-motion: reduce` IS "animator duration scale == 0", and **the
+WebView reads that value ONCE, when the app's browser process starts**. With
+`animator_duration_scale = 0`, the page still reported `reduce: false` live and
+still false after a `Page.reload`; after `am force-stop` + start it reported
+`true`, and the jump measured instant (scrollY 0 → 733, unchanged at 80 ms and
+at 780 ms). So the lever needs an app RESTART, not a page reload — and on the
+emulator the setting was unset (`null`, i.e. default 1.0) the whole time, which
+is the plain reason nothing felt instant. Both of those are now moot for the
+picker, which no longer asks.
+
+**Verified as an A/B on the device's own WebView** (adb reverse of this
+machine's test server + CDP on the app's WebView; `prefers-reduced-motion` false
+in BOTH runs): the APK's page (old code) animated — scrollY 9 at 80 ms, 277 at
+300 ms, 456 at 900 ms; the current tree's page (new code) was already at 456 at
+80 ms and did not move after. Also `go build ./...` and `git diff --check`
+clean. The app was left on its own page and the emulator's settings untouched
+(`animator_duration_scale` back to unset).
+
 ## Emulator builds: `build-android.cmd debug intel` (2026-09-24, this session)
 
 The user's Android Studio AVD is x86_64 (`sdk_gphone16k_x86_64`, Android
