@@ -244,18 +244,27 @@ tables are documented in [The text.db format](text-db.md).
 ## ingest
 
 ``` sh title="prepare dictionaries from CLI"
-wudict ingest [-full] [-headwords] [-contains] <dictfile|folder> …
+wudict ingest [-full] [-headwords] [-contains] [<dictfile|folder> …]
 ```
 
 Creates `<db-dir>/<dictionary name>/text.db` and `info.txt`. Given a folder, it
-prepares everything inside and skips what is already indexed.
+prepares everything inside and skips what is already indexed. Given no path, it
+does the same for your dictionary folders (`DICT_DIR`, from the command line,
+the environment or `wudict.toml`) and says which folders it used.
 
 | Flag | Effect |
 | --- | --- |
-| none | headword and full-text indexes |
+| none | a new dictionary gets headword and full-text indexes; a prepared one keeps what it has |
 | `-headwords` | headword index only, much smaller |
+| `-headwords=false` | add full text to a headwords-only dictionary |
 | `-contains` | add the substring index, roughly doubling a headwords-only database |
+| `-contains=false` | remove the substring index |
 | `-full` | also pack media into `media.db` |
+| `-o <file>` | write one dictionary file's database to this path instead of the library |
+| `-config <file>` | read `DICT_DIR` from this `wudict.toml` |
+
+A flag you leave out changes nothing about a dictionary already prepared, so
+`wudict ingest` over the whole library never removes an index you switched on.
 
 ## lemmas
 

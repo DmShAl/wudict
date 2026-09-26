@@ -20,6 +20,11 @@ import (
 	"github.com/wuweidict/wudict/internal/store"
 )
 
+// ReaderVersion is the behaviour version of this format's Reader (see
+// dict.RegisterReaderVersion). Bump it in the same commit as any change to
+// what the Reader yields, and update the golden in reader_golden_test.go.
+const ReaderVersion = 1
+
 func init() {
 	openFn := func(path string) (dict.Dictionary, error) { return Open(path) }
 	readFn := func(path string) (dict.Reader, error) { return NewReader(path) }
@@ -30,6 +35,7 @@ func init() {
 	// handle the gunzip. matchKey prefers this longest suffix.
 	dict.RegisterFormat(".dsl.dz", openFn)
 	dict.RegisterReader(".dsl.dz", readFn)
+	dict.RegisterReaderVersion("dsl", ReaderVersion)
 	// O8: a prepared DSL reaches its media through the path alone. No Fetcher -
 	// DSL keeps nothing inside the .dsl itself, so there is no location to
 	// record and the Sources below are the complete answer.
@@ -76,8 +82,10 @@ func Open(path string) (*Dict, error) {
 		// Headwords only, like every other format's automatic index (D24):
 		// dsl has no native index, so it must store its article text to be
 		// readable at all - but indexing that text for full-text search is
-		// the user's choice, not a toll for opening the file.
-		rep, ierr := store.IngestPlan(r, dbPath, store.Plan{}, func(done, total int) {
+		// the user's choice, not a toll for opening the file. A REbuild (the
+		// source changed, or the text.db is one this build cannot open)
+		// keeps whatever the user chose for it (store.KeptPlan).
+		rep, ierr := store.IngestPlan(r, dbPath, store.KeptPlan(dbPath), func(done, total int) {
 			logx.Progress("  %d entries", done)
 		})
 		r.Close()

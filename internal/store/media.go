@@ -18,6 +18,7 @@ import (
 
 	"github.com/wuweidict/wudict/internal/dict"
 	"github.com/wuweidict/wudict/internal/htmlref"
+	"github.com/wuweidict/wudict/internal/resource"
 )
 
 // Media is one opened `media.db` (SPEC §3): binary resources
@@ -179,6 +180,34 @@ func isRelativeAsset(s string) bool {
 // schemeRef matches a real URI scheme at the start of a reference.
 var schemeRef = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*:`)
 
+// MediaNames is what a media pack of src takes: every resource the format
+// lists (resource.Filter), plus the files beside the source that textDB's
+// articles reference and the format does not list (a repack's stylesheet and
+// scripts live next to the .mdx, not in the .mdd). Referenced-only, never the
+// whole folder: dictionary folders commonly hold several dictionaries, and
+// sweeping would pack a neighbour's assets. extra counts the referenced ones.
+// IngestMedia skips whatever of these cannot be read.
+func MediaNames(src dict.Dictionary, textDB string) (names []string, extra int) {
+	if lister, ok := src.(dict.ResourceLister); ok {
+		names = resource.Filter(lister.Resources())
+	}
+	refs, err := ReferencedAssets(textDB)
+	if err != nil || len(refs) == 0 {
+		return names, 0
+	}
+	have := make(map[string]bool, len(names))
+	for _, n := range names {
+		have[strings.ToLower(n)] = true
+	}
+	for _, n := range refs {
+		if !have[strings.ToLower(n)] {
+			names = append(names, n)
+			extra++
+		}
+	}
+	return names, extra
+}
+
 // IngestMedia packs every resource of d into a media.db at dbPath,
 // stamped with dictUUID (must be the paired text.db's dict_uuid).
 func IngestMedia(d dict.Dictionary, names []string, dbPath, dictUUID string, progress Progress) (err error) {
@@ -214,9 +243,10 @@ func IngestMedia(d dict.Dictionary, names []string, dbPath, dictUUID string, pro
 	}()
 	m := d.Meta()
 	for k, v := range map[string]string{
-		"dict_uuid": dictUUID,
-		"name":      m.Name,
-		"format":    m.Format,
+		"dict_uuid":     dictUUID,
+		"name":          m.Name,
+		"format":        m.Format,
+		"media_version": fmt.Sprint(MediaVersion), // which IngestMedia packed this (stale.go)
 	} {
 		if _, err = tx.Exec("INSERT INTO meta(key, value) VALUES(?, ?)", k, v); err != nil {
 			return err

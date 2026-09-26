@@ -27,9 +27,15 @@ import (
 	"github.com/wuweidict/wudict/internal/resource"
 )
 
+// ReaderVersion is the behaviour version of this format's Reader (see
+// dict.RegisterReaderVersion). Bump it in the same commit as any change to
+// what the Reader yields, and update the golden in reader_golden_test.go.
+const ReaderVersion = 1
+
 func init() {
 	dict.RegisterFormat(".ifo", func(path string) (dict.Dictionary, error) { return Open(path) })
 	dict.RegisterReader(".ifo", func(path string) (dict.Reader, error) { return NewReader(path) })
+	dict.RegisterReaderVersion("stardict", ReaderVersion)
 	dict.RegisterProber(".ifo", probe)
 	// O8: `res/` and res.zip are found from the path; nothing lives inside the
 	// .dict that a resource needs, so no Fetcher is registered.

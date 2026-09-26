@@ -21,9 +21,15 @@ import (
 	"github.com/wuweidict/wudict/internal/store"
 )
 
+// ReaderVersion is the behaviour version of this format's Reader (see
+// dict.RegisterReaderVersion). Bump it in the same commit as any change to
+// what the Reader yields, and update the golden in reader_golden_test.go.
+const ReaderVersion = 1
+
 func init() {
 	dict.RegisterFormat(".bgl", func(path string) (dict.Dictionary, error) { return Open(path) })
 	dict.RegisterReader(".bgl", func(path string) (dict.Reader, error) { return NewReader(path) })
+	dict.RegisterReaderVersion("bgl", ReaderVersion)
 }
 
 // Dict is the BGL "direct" backend. BGL has no native index, so Open ingests
@@ -66,8 +72,10 @@ func Open(path string) (*Dict, error) {
 		// Headwords only, like every other format's automatic index (D24):
 		// bgl has no native index, so it must store its article text to be
 		// readable at all - but indexing that text for full-text search is
-		// the user's choice, not a toll for opening the file.
-		rep, ierr := store.IngestPlan(r, dbPath, store.Plan{}, func(done, _ int) {
+		// the user's choice, not a toll for opening the file. A REbuild (the
+		// source changed, or the text.db is one this build cannot open)
+		// keeps whatever the user chose for it (store.KeptPlan).
+		rep, ierr := store.IngestPlan(r, dbPath, store.KeptPlan(dbPath), func(done, _ int) {
 			logx.Progress("  %d entries", done)
 		})
 		if ierr != nil {

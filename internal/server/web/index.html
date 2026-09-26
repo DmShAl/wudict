@@ -1193,6 +1193,7 @@ html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
        · <a href="https://github.com/wuweidict/wudict" target="_blank" rel="noopener">Source</a></p>
   </div>
 </details>
+<div id="reindexLine" class="bulkbox" hidden aria-live="polite"></div>
 <div class="allrow"><label for="enAll" id="enAllLabel">Enable all</label>
 <input type="checkbox" class="en" id="enAll" aria-label="Enable all dictionaries"></div>
 <div id="panelList"></div>
@@ -2046,7 +2047,67 @@ function syncPanelHeader(){
       (phase==="boot"?"Still loading…":phase==="failed"?"Could not load":"No dictionaries"):
     on===total?"All enabled":on===0?"None enabled":`${on} of ${total} enabled`;
   box.title=label;
+  renderReindex();
 }
+/* The Rebuild line (server/reindex.go): one line, shown only while some
+   dictionary is outdated or a rebuild is running. Nothing here starts on its
+   own - an upgrade that changes indexing only makes the line appear. The job
+   lives on the server, so the page just follows it: a reload or an Android
+   rotation mid-rebuild picks it up again from the poll. */
+let reindexSt=null,reindexTimer=0,reindexStopping=false;
+function renderReindex(){
+  const box=$("reindexLine"),st=reindexSt;
+  if(st&&st.running){
+    const at=Math.min(st.done+1,st.total),
+      pct=st.currentTotal?` ${Math.min(100,Math.floor(st.currentDone/st.currentTotal*100))}%`:"";
+    box.innerHTML=`<p><span class="spin"></span>Rebuilding ${at} of ${st.total}`+
+      (st.current?` · ${esc(st.current)}${pct}`:"")+"</p>"+
+      (reindexStopping?"<p class=\"cost\">Stopping after this dictionary…</p>":
+        '<p><button type="button" class="btn" id="reindexStop">Stop</button></p>');
+    box.hidden=false;return;
+  }
+  const n=dicts.filter(d=>d.outdated).length,failed=st&&st.failed||[];
+  if(!n&&!failed.length){box.hidden=true;box.innerHTML="";return}
+  box.innerHTML=(n?`<p>${n} ${n===1?"dictionary was":"dictionaries were"} prepared by an older version `+
+      '<button type="button" class="btn" id="reindexGo">Rebuild</button></p>':"")+
+    (failed.length?'<p class="cost">Could not rebuild: '+failed.map(esc).join("; ")+"</p>":"");
+  box.hidden=false;
+}
+function pollReindex(){
+  clearTimeout(reindexTimer);
+  reindexTimer=setTimeout(async()=>{
+    let st=null;
+    try{const r=await fetch("/api/reindex");if(r.ok)st=await r.json()}catch(_){}
+    if(!st){pollReindex();return} // a missed poll is not the end of the job
+    reindexSt=st;
+    if(st.running){renderReindex();pollReindex();return}
+    reindexStopping=false;
+    const ok=st.done-(st.failed||[]).length;
+    setStatus((st.failed&&st.failed.length?"":"✓ ")+`rebuilt ${ok} of ${st.total} `+
+      (st.total===1?"dictionary":"dictionaries")+(st.canceled?" — stopped":""));
+    await loadDicts();
+    renderReindex();
+  },1000);
+}
+$("reindexLine").addEventListener("click",async e=>{
+  if(e.target.id==="reindexStop"){
+    reindexStopping=true;renderReindex();
+    fetch("/api/reindex",{method:"DELETE"}).catch(()=>{});
+    return;
+  }
+  if(e.target.id!=="reindexGo")return;
+  e.target.disabled=true;
+  try{
+    const r=await fetch("/api/reindex",{method:"POST"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    reindexSt=await r.json();reindexStopping=false;
+  }catch(err){e.target.disabled=false;setStatus("Could not start the rebuild — "+esc(err.message));return}
+  if(reindexSt.running){renderReindex();pollReindex()}
+  else loadDicts(); // nothing was outdated any more: the list was behind
+});
+fetch("/api/reindex").then(r=>r.ok?r.json():null).then(st=>{
+  if(st&&st.running){reindexSt=st;renderReindex();pollReindex()}
+}).catch(()=>{});
 // clicking an indeterminate checkbox sets checked=true, so "mixed → all"
 // needs no special case.
 $("enAll").addEventListener("change",e=>setAllEnabled(e.target.checked));
