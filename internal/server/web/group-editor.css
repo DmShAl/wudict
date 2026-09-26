@@ -33,6 +33,10 @@ dialog.group-dialog.panel-card{position:fixed;inset:0;margin:auto;width:min(560p
      card-wide column, rather than stretching to the full card the way a list
      window does (there is nothing to scroll in it). */
   #colorDialog{height:fit-content;margin:auto}
+  /* And so are the three preset windows: one name, one question, one
+     confirmation - nothing to scroll, so they centre in the same column
+     instead of stretching to the card. */
+  #lookSaveDialog,#lookAskDialog,#lookDeleteDialog{height:fit-content;margin:auto}
 }
 /* The window's own actions, above the cards they act on: outside the scroller,
    so they stay reachable however far down the list the reader has gone. */
@@ -61,6 +65,15 @@ dialog.group-dialog[open]{display:flex;flex-direction:column;gap:.8em}
    wudictShellBackground — the recipe #styler and .color-history already use).
    Stretched, not tiled: the host stretches the image across the window. With no
    host background at all, var(--bg) is what the pages sit on. */
+/* ...except the three preset windows. The backdrop above exists so a window
+   looks like it lies ON the page's paper - and it does that by painting the
+   paper over the page, app and all. For a list you came to edit that is fine.
+   For these three it is not: what they are ABOUT is the page - the reader is
+   looking at the look they are saving, questioning or deleting - so their
+   backdrop stays clear and the window floats over what it speaks for, the way
+   every menu in this app does. */
+#lookSaveDialog::backdrop,#lookAskDialog::backdrop,#lookDeleteDialog::backdrop{
+  background:transparent}
 .group-dialog::backdrop{background:var(--paper-bg,var(--bg))}
 html[data-shell-image] .group-dialog::backdrop{
   background-color:var(--paper-bg,var(--bg));
@@ -90,3 +103,7 @@ html[data-shell-image] .group-dialog::backdrop{
 .group-error{color:var(--danger);margin:0;overflow-wrap:anywhere}
 #groupHint{color:var(--fg-soft);margin:0}
 #newGroupForm{display:flex;flex-direction:column;gap:.8em}
+/* The preset windows are the same shape: a label over its field, and the
+   buttons under it. Without this the label and the input share a line and the
+   field stretches - which is what the reader saw. */
+#lookSaveForm{display:flex;flex-direction:column;gap:.8em}

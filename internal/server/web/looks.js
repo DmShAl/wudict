@@ -22,6 +22,12 @@ let LOOKS = null; // the payload of GET /api/looks
 // reading the old list for ever.
 const LOOK_LABELS = [];
 let looksChoice = null;
+// Where the two ACTION rows sit in the menu, which is not "the last one":
+// the delete row exists only for a look the reader owns, so the labels are
+// built and their places remembered rather than guessed.
+let looksSaveAt = -1;
+let looksDeleteAt = -1;
+let looksDeleteTarget = null;
 // The look the reader asked for, held while a question is on screen: the
 // buttons in that window all end in "and then go there".
 let looksPending = null;
@@ -134,7 +140,13 @@ function looksRender() {
     return;
   }
   for (const l of LOOKS.looks) LOOK_LABELS.push(l.name);
-  LOOK_LABELS.push(LOOK_SAVE_LABEL);
+  looksSaveAt = LOOK_LABELS.push(LOOK_SAVE_LABEL) - 1;
+  const cur = LOOKS.looks.find((l) => l.id === LOOKS.current);
+  // Delete only for a look the reader owns: the built-ins are the app's.
+  looksDeleteAt = -1;
+  if (cur && !cur.builtin) {
+    looksDeleteAt = LOOK_LABELS.push("Delete \u201C" + cur.name + "\u201D\u2026") - 1;
+  }
   looksRowRender();
 }
 
@@ -261,6 +273,17 @@ function looksCurrentID() {
 
 // ── saving ───────────────────────────────────────────────────────────────
 
+/* Naming what is about to go, and saying what that means - the reader's own
+   look, and nothing else: the built-ins have no delete row at all. */
+function looksOpenDelete(look) {
+  looksDeleteTarget = look.id;
+  looksEl("lookDeleteBody").textContent =
+    "Delete \u201C" + look.name + "\u201D? What is on screen stays as it is; only the saved" +
+    " preset goes.";
+  looksEl("lookDeleteError").textContent = "";
+  looksEl("lookDeleteDialog").showModal();
+}
+
 function looksOpenSave(name) {
   looksEl("lookName").value = name || "";
   looksEl("lookSaveError").textContent = "";
@@ -342,11 +365,16 @@ async function looksUpdateCurrent() {
 
 looksChoice = screenChoice(looksEl("looksChoice"), looksEl("looksMenu"), LOOK_LABELS, (i) => {
   if (!LOOKS || !LOOKS.writable) return;
-  if (i === LOOK_LABELS.length - 1) {
-    // The last row is the group window's "New Group": it makes a name rather
-    // than choosing one, and it is NOT a switch, so nothing is applied after.
+  if (i === looksSaveAt) {
+    // The group window's "New Group": it makes a name rather than choosing
+    // one, and it is NOT a switch, so nothing is applied after it.
     looksPending = null;
     looksOpenSave("");
+    return;
+  }
+  if (i === looksDeleteAt && i >= 0) {
+    const cur = LOOKS.looks.find((l) => l.id === LOOKS.current);
+    if (cur) looksOpenDelete(cur);
     return;
   }
   const look = LOOKS.looks[i];
@@ -370,6 +398,26 @@ looksEl("looksUpdateBtn").onclick = async () => {
   await looksUpdateCurrent();
 };
 looksEl("lookAskUpdate").onclick = looksAskUpdate;
+looksEl("lookDeleteCancel").onclick = () => looksEl("lookDeleteDialog").close();
+looksEl("lookDeleteGo").onclick = async () => {
+  const err = looksEl("lookDeleteError");
+  err.textContent = "";
+  const go = looksEl("lookDeleteGo");
+  go.disabled = true;
+  try {
+    LOOKS = await looksFetch("/api/looks", "DELETE", { id: looksDeleteTarget });
+  } catch (e) {
+    err.textContent = e.message;
+    return;
+  } finally {
+    go.disabled = false;
+  }
+  looksEl("lookDeleteDialog").close();
+  // The look is gone, so nothing is in force: the row says Custom, and what is
+  // on screen is what the look had left behind.
+  looksRender();
+  await looksCheckDrift();
+};
 looksEl("lookAskSaveAs").onclick = () => {
   looksEl("lookAskDialog").close();
   looksOpenSave("");

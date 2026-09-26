@@ -148,7 +148,7 @@ func TestLookApplyWritesTheWholeState(t *testing.T) {
 	// Nothing is in force and the screen HAS been customised, so the first
 	// apply of all asks - that is the state of every install on the day this
 	// feature arrives - and the pass that asks writes nothing.
-	body := lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookSepia}, 200)
+	body := lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookWarm}, 200)
 	var asked applyAnswer
 	if err := json.Unmarshal(body, &asked); err != nil {
 		t.Fatal(err)
@@ -159,12 +159,12 @@ func TestLookApplyWritesTheWholeState(t *testing.T) {
 	if got := string(s.styleRead(appCSSName)); got != "body{color:red}" {
 		t.Fatalf("the asking pass wrote something: %q", got)
 	}
-	first := lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookSepia, "confirm": true}, 200)
+	first := lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookWarm, "confirm": true}, 200)
 	if err := json.Unmarshal(first, &asked); err != nil {
 		t.Fatal(err)
 	}
-	if asked.Applied != lookSepia {
-		t.Fatalf("want %q applied, got %q", lookSepia, asked.Applied)
+	if asked.Applied != lookWarm {
+		t.Fatalf("want %q applied, got %q", lookWarm, asked.Applied)
 	}
 	// The font goes back to the DEFAULT, which is a zero in the record: an
 	// apply that only ever raised values could never undo one.
@@ -185,16 +185,19 @@ func TestLookApplyWritesTheWholeState(t *testing.T) {
 	}
 	// The shell's half comes back for the page to push: Sepia's light colour,
 	// and nothing at night.
-	if !asked.Shell.Light.ColorEnabled || asked.Shell.Light.Color != "#F4ECD8" {
-		t.Fatalf("Sepia's light half is wrong: %+v", asked.Shell.Light)
+	// Warm carries NO window colour: its palette is the layer, and the look
+	// that also switched the warm window colour on appeared to do nothing when
+	// that colour was off.
+	if asked.Shell.Light.ColorEnabled || asked.Shell.Light.Color != "" {
+		t.Fatalf("Warm must not touch the window colour: %+v", asked.Shell.Light)
 	}
 	if asked.Shell.Dark.ColorEnabled || asked.Shell.Dark.Image != "" {
-		t.Fatalf("Sepia's night half must be empty: %+v", asked.Shell.Dark)
+		t.Fatalf("Warm's night half must be empty: %+v", asked.Shell.Dark)
 	}
 	if _, err := os.ReadFile(filepath.Join(dir, "looks.json")); err != nil {
 		t.Fatalf("the look was not remembered: %v", err)
 	}
-	if got := listLooks(t, s); got.Current != lookSepia {
+	if got := listLooks(t, s); got.Current != lookWarm {
 		t.Fatalf("the applied look is not the one in force: %q", got.Current)
 	}
 }
@@ -203,17 +206,19 @@ func TestLookApplyWritesTheWholeState(t *testing.T) {
 // and the next apply asks first, because that change exists nowhere else.
 func TestLookApplyAsksBeforeLosingUnsavedChanges(t *testing.T) {
 	s, _ := newStyleServer(t)
-	lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookSepia, "confirm": true}, 200)
+	lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookWarm, "confirm": true}, 200)
 
 	// Nothing changed since, so no question. The shell's half is part of the
 	// comparison, which is why the caller has to send it: the page reports
-	// what the window is wearing, and Sepia left it wearing this.
-	sepiaShell := map[string]any{
-		"light": map[string]any{"colorEnabled": true, "color": "#F4ECD8"},
+	// what the window is wearing, and Warm left it wearing this - no colour of
+	// its own, and the colour FIELD keeping whatever was in it, because
+	// nothing paints it.
+	warmShell := map[string]any{
+		"light": map[string]any{"colorEnabled": false, "color": "#EDD1A6"},
 		"dark":  map[string]any{"colorEnabled": false},
 	}
 	body := lookCall(t, s, "POST", "/api/looks/apply",
-		map[string]any{"id": lookOldPaper, "shell": sepiaShell}, 200)
+		map[string]any{"id": lookOldPaper, "shell": warmShell}, 200)
 	var asked applyAnswer
 	if err := json.Unmarshal(body, &asked); err != nil {
 		t.Fatal(err)
@@ -232,7 +237,7 @@ func TestLookApplyAsksBeforeLosingUnsavedChanges(t *testing.T) {
 	// and must say which look they are about to leave.
 	lookCall(t, s, "PUT", "/api/style", map[string]string{"app": "body{color:blue}"}, 200)
 	body = lookCall(t, s, "POST", "/api/looks/apply",
-		map[string]any{"id": lookClean, "shell": sepiaShell}, 200)
+		map[string]any{"id": lookClean, "shell": warmShell}, 200)
 	asked = applyAnswer{}
 	if err := json.Unmarshal(body, &asked); err != nil {
 		t.Fatal(err)
@@ -254,7 +259,7 @@ func TestLookApplyAsksBeforeLosingUnsavedChanges(t *testing.T) {
 	// The same look that is already in force is never a question: that is the
 	// "put it back" gesture, and it has no doubt in it.
 	body = lookCall(t, s, "POST", "/api/looks/apply",
-		map[string]any{"id": lookOldPaper, "shell": sepiaShell}, 200)
+		map[string]any{"id": lookOldPaper, "shell": warmShell}, 200)
 	asked = applyAnswer{}
 	if err := json.Unmarshal(body, &asked); err != nil {
 		t.Fatal(err)
@@ -364,7 +369,7 @@ func TestLooksWithoutAStyleDir(t *testing.T) {
 		t.Fatalf("the built-ins are the app's, so they are listed anyway: %d", len(got.Looks))
 	}
 	lookCall(t, s, "POST", "/api/looks", map[string]any{"name": "Mine"}, 409)
-	lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookSepia, "confirm": true}, 409)
+	lookCall(t, s, "POST", "/api/looks/apply", map[string]any{"id": lookWarm, "confirm": true}, 409)
 }
 
 // The caller's own numbers decide the COMPARISON, and only that: what a look
@@ -433,11 +438,9 @@ func TestLookSwitchBetweenBuiltinsNeverAsks(t *testing.T) {
 	// After Clean: the same, because a look with no colour of its own leaves
 	// the field alone.
 	afterClean := fresh
-	// After Sepia: its own light colour, and nothing at night.
-	afterSepia := map[string]any{
-		"light": map[string]any{"colorEnabled": true, "color": "#F4ECD8", "image": ""},
-		"dark":  map[string]any{"colorEnabled": false, "color": "#332111", "image": ""},
-	}
+	// After Warm: the same as well, and that is the change: the look is its
+	// layer, not the window colour. The colour FIELD keeps whatever was there.
+	afterWarm := fresh
 	// After Old paper: a paper for each theme.
 	afterOldPaper := map[string]any{
 		"light": map[string]any{"colorEnabled": true, "color": "#EDD1A6", "image": "paper_02.jpg"},
@@ -449,11 +452,11 @@ func TestLookSwitchBetweenBuiltinsNeverAsks(t *testing.T) {
 		to    string
 	}{
 		{fresh, lookClean},
-		{afterClean, lookSepia},
-		{afterSepia, lookOldPaper},
+		{afterClean, lookWarm},
+		{afterWarm, lookOldPaper},
 		{afterOldPaper, lookClean},
-		{afterClean, lookSepia},
-		{afterSepia, lookOldPaper},
+		{afterClean, lookWarm},
+		{afterWarm, lookOldPaper},
 	}
 	for i, step := range steps {
 		body := lookCall(t, s, "POST", "/api/looks/apply", map[string]any{

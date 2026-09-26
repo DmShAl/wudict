@@ -312,8 +312,6 @@ window.wudictShellBackground = function (color, image, imageName) {
        makes a new group. -->
   <div class="facts">
     <span class="rowlabel" id="looksLabel">Presets</span>
-    <button type="button" class="choice-btn" id="looksChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="looksLabel"></button>
-    <div class="choice-menu menu-card" id="looksMenu" role="listbox" aria-labelledby="looksLabel" data-w="anchor" hidden></div>
     <!-- The row's two actions, to the LEFT of the answer they act on: they
          save what is on screen, and the answer beside them says what that
          would become. Disabled and never hidden - the row keeps its shape, and
@@ -323,6 +321,8 @@ window.wudictShellBackground = function (color, image, imageName) {
          no Clean at all. -->
     <button type="button" class="btn" id="looksSaveAsBtn" disabled>Save as…</button>
     <button type="button" class="btn" id="looksUpdateBtn" hidden disabled>Update</button>
+    <button type="button" class="choice-btn" id="looksChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="looksLabel"></button>
+    <div class="choice-menu menu-card" id="looksMenu" role="listbox" aria-labelledby="looksLabel" data-w="anchor" hidden></div>
   </div>
   <!-- The size stepper is adjusted WHILE reading, so it stays on the panel
        rather than behind the Appearance door — the promise the old layout made
@@ -5730,6 +5730,15 @@ $("styler").addEventListener("keydown",e=>{
     <p id="lookSaveError" class="group-error" role="alert"></p>
     <div class="group-toolbar"><button type="submit" class="btn" id="lookSaveGo">Save</button><button type="button" class="btn" id="lookCancel">Cancel</button></div>
   </form>
+</dialog>
+<!-- Deleting one. A window rather than a second thought: the built-ins
+     cannot be deleted, and a look the reader made is theirs to lose, so the
+     question names it and says what it costs. -->
+<dialog id="lookDeleteDialog" class="group-dialog panel-card" aria-labelledby="lookDeleteTitle">
+  <h2 id="lookDeleteTitle">Delete preset</h2>
+  <p id="lookDeleteBody"></p>
+  <p id="lookDeleteError" class="group-error" role="alert"></p>
+  <div class="group-toolbar"><button type="button" class="btn" id="lookDeleteGo">Delete</button><button type="button" class="btn" id="lookDeleteCancel">Cancel</button></div>
 </dialog>
 <dialog id="lookAskDialog" class="group-dialog panel-card" aria-labelledby="lookAskTitle">
   <h2 id="lookAskTitle">Unsaved changes</h2>

@@ -93,7 +93,7 @@ type look struct {
 // modified the moment it was applied.
 const (
 	lookClean    = "clean"
-	lookSepia    = "sepia"
+	lookWarm     = "sepia"
 	lookOldPaper = "oldpaper"
 )
 
@@ -105,13 +105,21 @@ func builtinLooks() []look {
 			State: lookState{Layers: []string{}},
 		},
 		{
-			ID: lookSepia, Name: "Sepia", Builtin: true,
-			// The light theme's paper. The night half stays empty: the sepia
-			// layer is a light-mode preset, and its CSS says so itself, so a
-			// night colour here would be a second opinion on a dark page.
+			// WARM, not Sepia, and the id is the old one on purpose: an
+			// install that has this look in force keeps it across the rename,
+			// and the id is never shown to anyone. "Sepia" is what the shell's
+			// window colour is called in its own code and what the style layer
+			// is called in the pane; a third thing by that name was one too
+			// many, and the reader asked for this one to move.
+			//
+			// No window colour: the palette in the layer is the whole look.
+			// It used to enable the warm window colour as well, which meant
+			// the look appeared to do nothing when that colour was switched
+			// off - and the two are different things: the layer paints the
+			// page, the colour paints the window behind it.
+			ID: lookWarm, Name: "Warm", Builtin: true,
 			State: lookState{
 				Layers: []string{"sepia"},
-				Light:  lookHalf{ColorEnabled: true, Color: "#F4ECD8"},
 			},
 		},
 		{

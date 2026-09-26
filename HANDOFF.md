@@ -2215,3 +2215,90 @@ SAME file in both slots, so "works in both themes" is written down.
   menu → both disabled; a tap on the stepper → "Custom" with Save as… enabled
   and no Update; saved as a look → the name with both disabled; a tap → both
   enabled; Update → both disabled again.
+
+## Sepia applied nothing at all (2026-09-25, from the reader)
+
+"Sepia seems broken, and with the Window background Colour turned off it does
+not work at all." Both true, and the cause was in my own split of the files.
+
+- Their guards were `html:not([data-dark])` - a type selector plus an attribute,
+  specificity (0,1,1). Stripping the guard left a bare `html`, (0,0,1), which
+  LOSES to the `:root` (0,1,0) that app.css declares its palette on. Every token
+  in the sheet was overruled, and the only sepia left on screen was the window
+  colour - so switching that off made the preset do nothing at all.
+- Fixed with `:root`: the same weight as the app's palette, so ORDER decides -
+  which is exactly the layering the whole surface is built on (app.css, then
+  the presets, then the reader's own sheet). `html:root` would have outranked
+  the reader's sheet instead, the opposite of the promise.
+- Four files: sepia_app, high_contrast_app, true_black_app_night,
+  warm_dark_app_night. The background pair never had it - their selectors kept
+  `html[data-shell-image]`, (0,1,1).
+- Verified on the device: with Sepia on, `--bg`, `--bg-bar`, `--bg-card` and
+  `--fg` are the preset's values, and they stay the preset's with the window
+  colour switched off; the sheet parses (one rule), so it was specificity and
+  not a broken file.
+- **The lesson for whoever splits the next preset file**: what a guard is
+  stripped off may be carrying specificity as well as meaning.
+
+## The built-in is called Warm, and carries no window colour (2026-09-25)
+
+Both asks came from one confusion: three things were called "sepia" - the
+shell's window colour (`ShellPrefs.sepia`), the style layer in the pane, and
+the saved look. The look is the one the reader wanted moved.
+
+- **The look is "Warm"**; its ID stays `sepia` on purpose, so an install that
+  has it in force keeps it across the rename (the id is never shown to anyone).
+  The layer in the Style layers pane is still "Sepia" - that is upstream's name
+  for the palette, and a CSS layer by that name confuses nobody; a THIRD thing
+  wearing it was the problem.
+- **The look no longer enables the window colour.** The palette IS the look:
+  with the layer applied the page is warm on its own, and the window colour
+  paints the window BEHIND the page - two different things that were doubling
+  each other. It is also why the look appeared to do nothing with that colour
+  switched off, which is what the reader reported a message earlier.
+  `lookWarm`'s state is now `{Layers: ["sepia"]}` and nothing else.
+- Verified: the tests assert Warm's light half carries no colour at all, and on
+  the device the in-force look reads "Warm" with both buttons disabled - its ID
+  unchanged, so the reader's state was not reset by the rename.
+
+## The preset windows look like the app's other windows, and a look can go (2026-09-25)
+
+- **The save window was not laid out as a form.** `#newGroupForm` carries
+  `display:flex;flex-direction:column;gap:.8em`; mine had no rule at all, so the
+  label and the field shared a line and the field stretched across the card -
+  which is exactly what the reader's screenshot showed. My form carries it now,
+  and the three short windows (save, ask, delete) join the colour window in the
+  phone breakpoint: `height:fit-content;margin:auto`. There is nothing in them
+  to scroll, and stretching them to the full card is what made them look empty.
+- **A look can be deleted.** The menu's last row is `Delete “Name”…`, and it
+  exists ONLY while a look the reader owns is in force - the built-ins are the
+  app's. It opens a window that names the look and says what it costs ("what is
+  on screen stays as it is; only the saved preset goes"), then DELETEs it.
+  Because that row is conditional, the two action rows' places are REMEMBERED
+  when the labels are built (`looksSaveAt`/`looksDeleteAt`) rather than assumed
+  to be last - the old `i === LOOK_LABELS.length - 1` would have opened the
+  save dialog for a deleted look's slot.
+- Verified on the device: the save window reads Name → field → Save/Cancel,
+  compact and centred; the menu showed `… Save Current…, Delete “deltest”…` and
+  the delete removed it, leaving the reader's own two looks (Rty, Clean+fw)
+  untouched and the screen exactly as it was.
+
+## The preset windows float over the page, and the row's buttons moved left (2026-09-25)
+
+- **The three preset windows no longer paint the paper over the page.** The
+  group dialogs' backdrop exists so a window LOOKS like it lies on the page's
+  own background, and it does that by painting `--paper-bg` and the wallpaper
+  across the app. Right for a list you came to edit; wrong for these, because
+  what they are about IS the page - the reader is looking at the look they are
+  saving, questioning or deleting. One rule, by id, so it beats both the plain
+  and the shell-image backdrop rules:
+  `#lookSaveDialog::backdrop,#lookAskDialog::backdrop,#lookDeleteDialog::backdrop{background:transparent}`.
+- **The row's two buttons sit to the LEFT of the answer**, which is where the
+  reader asked for them - my first version had them after it, and Update
+  wrapped onto a second line. The answer's floor is 6.5em now instead of 9em,
+  which is what lets the whole row fit one line on the phone: label 96,
+  Save as… 80, Update 66, the look 85 - 32px high, one line, ending at 496 of
+  the panel's 514.
+- Verified on the device, both: the save window floats over a visible panel,
+  and the row reads `Presets [Save as…] [Update] [Rty ▾]` with both buttons
+  dimmed while the screen matches the look in force.
