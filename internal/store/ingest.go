@@ -89,6 +89,14 @@ func IngestPlan(r dict.Reader, dbPath string, plan Plan, progress Progress) (rep
 		level = LevelText
 	}
 	srcMeta := r.Meta()
+	// Decided before anything is written, while the database being replaced
+	// is still the one at dbPath (keptUUID, stale.go).
+	uuid := keptUUID(dbPath, srcMeta.Path)
+	if uuid == "" {
+		b := make([]byte, 16)
+		_, _ = rand.Read(b)
+		uuid = hex.EncodeToString(b)
+	}
 	tmp := tempDBName(dbPath)
 	_ = os.Remove(tmp)
 	defer func() {
@@ -283,10 +291,8 @@ func IngestPlan(r dict.Reader, dbPath string, plan Plan, progress Progress) (rep
 		}
 	}
 
-	uuid := make([]byte, 16)
-	_, _ = rand.Read(uuid)
 	metaKV := map[string]string{
-		"dict_uuid":        hex.EncodeToString(uuid),
+		"dict_uuid":        uuid,
 		"name":             srcMeta.Name,
 		"format":           srcMeta.Format,
 		"source_path":      srcMeta.Path,
@@ -297,6 +303,7 @@ func IngestPlan(r dict.Reader, dbPath string, plan Plan, progress Progress) (rep
 		"has_trigram":      boolMeta(plan.Contains),      // cheap-list flag; Open feature-detects the table
 		"fold_version":     fmt.Sprint(dict.FoldVersion), // which text folding built the trigram index
 		"markup_version":   fmt.Sprint(artmark.Version),  // which role markup the articles were written with
+		"ingest_version":   fmt.Sprint(IngestVersion),    // which IngestPlan wrote this (stale.go)
 		"body_encoding":    bodyEncoding(),
 		"created":          time.Now().UTC().Format(time.RFC3339),
 		"source_sha256_1M": sourceHash(srcMeta.Path),
@@ -306,6 +313,11 @@ func IngestPlan(r dict.Reader, dbPath string, plan Plan, progress Progress) (rep
 	// recomputed at every open, so renaming a folder to add a hint takes effect
 	// immediately instead of being frozen here by an ingest that may have run
 	// before the source file was moved - or before it stopped existing at all.
+	// which Reader produced the entries; a format that registered no version
+	// records none, and Outdated has no opinion about it
+	if rv := dict.ReaderVersion(srcMeta.Format); rv > 0 {
+		metaKV["reader_version"] = fmt.Sprint(rv)
+	}
 	if srcMeta.IndexLang != "" {
 		metaKV["index_lang"] = srcMeta.IndexLang
 	}

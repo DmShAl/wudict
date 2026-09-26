@@ -16,9 +16,15 @@ import (
 	"github.com/wuweidict/wudict/internal/dict"
 )
 
+// ReaderVersion is the behaviour version of this format's Reader (see
+// dict.RegisterReaderVersion). Bump it in the same commit as any change to
+// what the Reader yields, and update the golden in reader_golden_test.go.
+const ReaderVersion = 1
+
 func init() {
 	dict.RegisterFormat(".slob", func(path string) (dict.Dictionary, error) { return Open(path) })
 	dict.RegisterReader(".slob", func(path string) (dict.Reader, error) { return NewReader(path) })
+	dict.RegisterReaderVersion("slob", ReaderVersion)
 }
 
 // Dict is one opened .slob dictionary (direct backend). Lookup runs over

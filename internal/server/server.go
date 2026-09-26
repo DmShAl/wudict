@@ -244,6 +244,10 @@ type Server struct {
 	intake     intake.Manager
 	intakeOnce sync.Once
 
+	// reindex is the panel's Rebuild of outdated dictionaries (reindex.go).
+	// The zero value is usable.
+	reindex reindexJob
+
 	// lemmas holds the installer's state: the running jobs, the cached
 	// catalogue and the cached file digests. Built on first use so a Server
 	// made directly in a test needs no constructor.
@@ -680,7 +684,7 @@ func (s *Server) currentFeatures(e *entry) features {
 		f.FullText = m["ingest_level"] != string(store.LevelHeadwords)
 		f.Contains = m["has_trigram"] == "1"
 	}
-	f.Media = fileExists(store.MediaSibling(textDB))
+	f.Media = store.MediaPaired(textDB) // an unpaired media.db serves nothing
 	return f
 }
 
@@ -699,6 +703,13 @@ type dictInfo struct {
 	// substring search may miss words whose folding changed. Reported, not
 	// acted on - the mode keeps working, and the panel offers a rebuild.
 	ContainsStale bool `json:"containsStale,omitempty"`
+
+	// Outdated: the prepared data no longer matches what this build would
+	// prepare from the source (store.Stale) - an older build wrote it, the
+	// source changed, or it cannot be read. Reported, never acted on: the
+	// panel sums these into one Rebuild the user starts (reindex.go). Never
+	// set for a dictionary whose source is gone, which nothing can rebuild.
+	Outdated bool `json:"outdated,omitempty"`
 
 	// Groups: the derived memberships the dictionary picker offers as single
 	// choices ("English", "Encyclopedias") instead of a hundred names. Derived
@@ -798,6 +809,14 @@ func (s *Server) handleDicts(w http.ResponseWriter, r *http.Request) {
 // (exact+prefix); everything else falls back to a full open for real caps.
 func (s *Server) dictInfoFor(e *entry) dictInfo {
 	info := s.baseDictInfo(e)
+	// a library folder that exists but is not prepared-for-this-source (an
+	// unreadable or other-schema text.db, or a source edited since) is
+	// outdated too - the prepared branch above never sees it
+	if info.DBPath == "" && rebuildable(e.Path) {
+		if _, ok := store.LookupDir(e.Path); ok {
+			info.Outdated = true
+		}
+	}
 	addProvenance(&info, e.Path)
 	if e.noPackableMedia() {
 		info.HasMedia = false // a prior pack found nothing - stop offering it
@@ -818,6 +837,7 @@ func (s *Server) baseDictInfo(e *entry) dictInfo {
 				Caps:          dict.Caps{Exact: true, Prefix: true, Contains: meta["has_trigram"] == "1", FTS: meta["ingest_level"] != string(store.LevelHeadwords)},
 				DBPath:        textDB,
 				ContainsStale: store.FoldStale(meta),
+				Outdated:      rebuildable(e.Path) && len(store.StaleMeta(meta, textDB, e.Path)) > 0,
 			}
 			s.langFacts(&info, meta["name"], meta["index_lang"], meta["contents_lang"])
 			return info
@@ -871,6 +891,12 @@ func (s *Server) langFacts(info *dictInfo, name, declared, contents string) {
 	}
 	info.Groups = facet.Derive(in)
 	info.ArticleLang = facet.ArticleLang(in)
+}
+
+// rebuildable reports that an entry has a source to prepare from: not a
+// standalone text.db, and the file still on disk.
+func rebuildable(path string) bool {
+	return !store.IsTextDB(path) && fileExists(path)
 }
 
 // dbPathOf is the prepared database path for an entry, or "" when it has none.

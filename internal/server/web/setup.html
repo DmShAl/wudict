@@ -184,10 +184,10 @@ label.keep em{font-style:normal;color:var(--faint);font-size:12.5px}
 <div id="addSection" class="hidden">
   <hr class="sep">
   <h2>Add dictionaries</h2>
-  <p>Dictionaries arrive as a <code>.zip</code> or <code>.7z</code> bundle, or as the plain files
-     themselves (<code>.mdx</code>, <code>.ifo</code>, <code>.dsl</code>, <code>.slob</code>,
-     <code>.bgl</code>). Drop one here, or paste a link, and what it holds is installed into
-     <code id="addDir"></code> — no unpacking, no file manager.</p>
+  <p>Drag-n-drop a link to a packed dictionary (<code>.zip</code>/ <code>.7z</code>) or unpacked (<code>.mdx</code>,
+    <code>.ifo</code>, <code>.dsl/.dsl.dz</code>, <code>.slob</code>,
+     <code>.bgl</code> or <code>.zim</code>). Or paste a link, and the dictionaries will be installed into
+     <code id="addDir"></code> — .mdd assets are auto-discovered.</p>
   <div id="drop">
     <input type="file" id="file" accept=".zip,.7z,.mdx,.mdd,.ifo,.idx,.dict,.dz,.syn,.dsl,.slob,.bgl,.zim" hidden>
     <button type="button" id="choose" class="link">Choose a file…</button>

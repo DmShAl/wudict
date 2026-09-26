@@ -263,7 +263,7 @@ window.wudictShellBackground = function (color, image, imageName) {
        system voice (D148). Here because it costs nothing until a reader
        selects something, and a reader who never wants it should be able to
        make the offer stop appearing. Hidden where the browser cannot speak. -->
-  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.8a3 3 0 0 1 0 4.4"/><path d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
+  <button type="button" class="act" id="speakBtn" aria-pressed="true" title="Offer to read selected article text aloud"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path class="wave" d="M11 5.8a3 3 0 0 1 0 4.4"/><path class="wave" d="M12.9 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>Read aloud</button>
   <!-- Which section unfolds itself once the answers start arriving (D142).
        A pair rather than one toggle, because neither choice is an "off":
        both are strategies, and an unpressed pen cannot say which of the two
@@ -293,7 +293,7 @@ window.wudictShellBackground = function (color, image, imageName) {
   <!-- Reading the library instead of asking it something. It is a destination,
        not a mode of the search: the search box answers a question, and this
        opens a dictionary at a page. No dictionary in the href on purpose;
-       /browse with none asks which, and only the indexed ones can answer. -->
+       /browse with none asks which. -->
   <div class="facts">
     <a class="mrow door" id="browseLink" href="/browse" title="Read a dictionary A–Z, page by page">Browse A–Z…</a>
   </div>
@@ -448,6 +448,7 @@ window.wudictShellBackground = function (color, image, imageName) {
       title="Optional. Every dictionary can already be searched by headword; full-text search also looks inside article text, and uses noticeably more disk space.">Full-text for every dictionary…</button>
   </div>
   <div id="ftsAllBox" class="bulkbox" hidden></div>
+  <div id="reindexLine" class="bulkbox" hidden aria-live="polite"></div>
   <div class="panel-scroll" id="dictSettingsScroll">
     <div id="panelList"></div>
   </div>
@@ -1807,6 +1808,66 @@ function provenance(d){
 function rmTrigger(){
   return `<span class="rm" title="Delete this dictionary and its files — permanently, with no undo">🗑 Remove…</span>`;
 }
+/* The Rebuild line (server/reindex.go): one line, shown only while some
+   dictionary is outdated or a rebuild is running. Nothing here starts on its
+   own - an upgrade that changes indexing only makes the line appear. The job
+   lives on the server, so the page just follows it: a reload or an Android
+   rotation mid-rebuild picks it up again from the poll. */
+let reindexSt=null,reindexTimer=0,reindexStopping=false;
+function renderReindex(){
+  const box=$("reindexLine"),st=reindexSt;
+  if(st&&st.running){
+    const at=Math.min(st.done+1,st.total),
+      pct=st.currentTotal?` ${Math.min(100,Math.floor(st.currentDone/st.currentTotal*100))}%`:"";
+    box.innerHTML=`<p><span class="spin"></span>Rebuilding ${at} of ${st.total}`+
+      (st.current?` · ${esc(st.current)}${pct}`:"")+"</p>"+
+      (reindexStopping?"<p class=\"cost\">Stopping after this dictionary…</p>":
+        '<p><button type="button" class="btn" id="reindexStop">Stop</button></p>');
+    box.hidden=false;return;
+  }
+  const n=dicts.filter(d=>d.outdated).length,failed=st&&st.failed||[];
+  if(!n&&!failed.length){box.hidden=true;box.innerHTML="";return}
+  box.innerHTML=(n?`<p>${n} ${n===1?"dictionary was":"dictionaries were"} prepared by an older version `+
+      '<button type="button" class="btn" id="reindexGo">Rebuild</button></p>':"")+
+    (failed.length?'<p class="cost">Could not rebuild: '+failed.map(esc).join("; ")+"</p>":"");
+  box.hidden=false;
+}
+function pollReindex(){
+  clearTimeout(reindexTimer);
+  reindexTimer=setTimeout(async()=>{
+    let st=null;
+    try{const r=await fetch("/api/reindex");if(r.ok)st=await r.json()}catch(_){}
+    if(!st){pollReindex();return} // a missed poll is not the end of the job
+    reindexSt=st;
+    if(st.running){renderReindex();pollReindex();return}
+    reindexStopping=false;
+    const ok=st.done-(st.failed||[]).length;
+    setStatus((st.failed&&st.failed.length?"":"✓ ")+`rebuilt ${ok} of ${st.total} `+
+      (st.total===1?"dictionary":"dictionaries")+(st.canceled?" — stopped":""));
+    await loadDicts();
+    renderReindex();
+  },1000);
+}
+$("reindexLine").addEventListener("click",async e=>{
+  if(e.target.id==="reindexStop"){
+    reindexStopping=true;renderReindex();
+    fetch("/api/reindex",{method:"DELETE"}).catch(()=>{});
+    return;
+  }
+  if(e.target.id!=="reindexGo")return;
+  e.target.disabled=true;
+  try{
+    const r=await fetch("/api/reindex",{method:"POST"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    reindexSt=await r.json();reindexStopping=false;
+  }catch(err){e.target.disabled=false;setStatus("Could not start the rebuild — "+esc(err.message));return}
+  if(reindexSt.running){renderReindex();pollReindex()}
+  else loadDicts(); // nothing was outdated any more: the list was behind
+});
+fetch("/api/reindex").then(r=>r.ok?r.json():null).then(st=>{
+  if(st&&st.running){reindexSt=st;renderReindex();pollReindex()}
+}).catch(()=>{});
+
 function renderPanel(){
   const el=$("panelList");
   /* Every card is replaced, so the scroll offset has to be carried over by
@@ -1882,10 +1943,12 @@ function renderPanel(){
     // media, a source to pack it from, and it isn't already packed.
     let acts="";
     if(d.error)acts=`<span class="err">${esc(d.error)}</span>`;
-    /* Gated on the index, because browsing IS the index: the same 409 the
-       page would show is better not linked to at all. This is the card for
-       one dictionary, so unlike the row above it carries the id. */
-    else if(indexed)acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
+    /* Offered whether or not the index exists yet: browsing IS the index, so
+       following this link on an unprepared dictionary is the request to build
+       it, and the browse page asks for it and opens the list when it is ready.
+       This is the card for one dictionary, so unlike the row above it carries
+       the id. */
+    else acts=`<a class="browse" href="/browse?dict=${encodeURIComponent(d.id)}" title="Read this dictionary A–Z, page by page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.4 3.4a1.2 1.2 0 0 1 1.2-1.2h6.2a1.2 1.2 0 0 1 1.2 1.2v9.2a1.2 1.2 0 0 1-1.2 1.2H3.6a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M11 5h2.6"/><path d="M11 8h2.6"/><path d="M11 11h2.6"/></svg>Browse</a>`;
     div.innerHTML=`<div class="hd">
         <span class="grip" draggable="true" title="Drag to reorder">⠿</span>
         <b tabindex="0" role="button" title="Search only this dictionary">${esc(dictLabel(d))}</b>
@@ -1903,6 +1966,7 @@ function renderPanel(){
     el.appendChild(div);
   }
   if(scroller)scroller.scrollTop=top;
+  renderReindex();
 }
 
 /* drag-to-reorder via the gripper (chevrons cover keyboard/precise moves) */
@@ -1960,7 +2024,10 @@ function reissueIfCorpusMoved(){
   if(!(sc==="all"||sc.startsWith("g:")))return;
   if(was!==panelSnap)doSearch();
 }
-function showPanel(){panelSnap=panelState();$("speakBtn").hidden=!speakCan();$("panel").classList.add("show");loadFolders();
+function showPanel(){panelSnap=panelState();  /* before the lock: once the root stops scrolling the bar is gone to measure */
+  document.documentElement.style.setProperty("--wd-sbw",
+    Math.max(0,innerWidth-document.documentElement.clientWidth)+"px");
+$("speakBtn").hidden=!speakCan();$("panel").classList.add("show");loadFolders();
   // The Presets row's button says whether the screen still matches the look in
   // force, and that answer is only ever as fresh as the last time it was
   // asked: opening the panel is one of the three moments worth asking at.

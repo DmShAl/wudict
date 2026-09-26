@@ -52,20 +52,7 @@ type runningInstance struct {
 // timeout - leaves the caller to report the port as simply occupied.
 func probeRunning(addr string) (*runningInstance, bool) {
 	client := &http.Client{Timeout: 700 * time.Millisecond}
-	host := addr
-	// A wildcard bind answers on loopback too, and loopback is the one
-	// interface guaranteed to be up - so ask there. Both spellings of
-	// "wildcard" have to be recognised: the string test this replaces knew
-	// "0.0.0.0" and missed "::" and "[::]", and on those a second launch got
-	// a bind error it could not explain instead of the running instance. A
-	// CONCRETE non-loopback bind is left alone on purpose: nothing is
-	// listening on loopback then.
-	if h, port, err := net.SplitHostPort(addr); err == nil {
-		if ip := net.ParseIP(h); ip != nil && ip.IsUnspecified() {
-			host = net.JoinHostPort("127.0.0.1", port)
-		}
-	}
-	resp, err := client.Get("http://" + host + "/api/config")
+	resp, err := client.Get("http://" + probeHost(addr) + "/api/config")
 	if err != nil {
 		return nil, false
 	}
@@ -84,6 +71,24 @@ func probeRunning(addr string) (*runningInstance, bool) {
 		_ = json.Unmarshal(body, inst) // details are a bonus; identity already established
 	}
 	return inst, true
+}
+
+// probeHost is the host:port on which a wudict bound to addr can be asked.
+func probeHost(addr string) string {
+	host := addr
+	// A wildcard bind answers on loopback too, and loopback is the one
+	// interface guaranteed to be up - so ask there. Both spellings of
+	// "wildcard" have to be recognised: the string test this replaces knew
+	// "0.0.0.0" and missed "::" and "[::]", and on those a second launch got
+	// a bind error it could not explain instead of the running instance. A
+	// CONCRETE non-loopback bind is left alone on purpose: nothing is
+	// listening on loopback then.
+	if h, port, err := net.SplitHostPort(addr); err == nil {
+		if ip := net.ParseIP(h); ip != nil && ip.IsUnspecified() {
+			host = net.JoinHostPort("127.0.0.1", port)
+		}
+	}
+	return host
 }
 
 // sameFolders reports whether the running instance is serving exactly the

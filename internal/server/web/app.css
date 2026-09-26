@@ -192,7 +192,11 @@ select{font-size:13px;color:var(--fg-soft);background:var(--bg-card);
    treatment lives in the one media query at the end of this stylesheet — there
    is no second layout to keep in step, only a second set of rules for the same
    markup. */
-.pill,.seg{display:contents}
+/* .seg is scoped to the bar here and below: the facts rows use the same class
+   for their labelled button groups, and the bar's phone rules (flex:none above
+   all) made those groups refuse to shrink - one long row with a sideways
+   scroll on narrow screens, a tidy wrap on wide ones. */
+.pill,.bar .seg{display:contents}
 .chip{display:none}
 .btn{font-size:15px;background:var(--bg-card);color:var(--fg-soft);
   border:1px solid var(--line);border-radius:8px;padding:.3em .55em;cursor:pointer;line-height:1.2}
@@ -779,6 +783,26 @@ html[data-native-appearance]{--styler-h:min(65vh,560px)}
 /* ── dictionaries panel ────────────────────────────────────────────── */
 #panel{position:fixed;inset:0;z-index:200;display:none;background:color-mix(in srgb,var(--fg) 24%,transparent)}
 #panel.show{display:block}
+/* A modal owns the wheel. Open, the page behind it is inert - its links are
+   under a scrim, a click there closes the panel - yet it kept its scrollbar,
+   so the screen showed two parallel bars and a wheel over the scrim moved a
+   page nobody could read. One visible thing to scroll, one scrollbar. Locked
+   on the root, not body: the root is the viewport's scroller. The scroll
+   offset survives untouched - overflow:hidden keeps scrollTop, it only refuses
+   input.
+   Removing a classic scrollbar widens the viewport, and everything laid out
+   against it would slide sideways by the bar's width. So the width the bar
+   took (--wd-sbw, measured by showPanel just before the lock) is handed back
+   as padding to the two boxes sized by the viewport: body for the flow, .bar
+   for the fixed toolbar. Not scrollbar-gutter:stable - that holds the strip
+   open as dead space beside the drawer, and on every page too short to scroll.
+   The scrim, being inset:0, now covers the strip the bar used to occupy. With
+   overlay scrollbars (macOS default, Android, iOS) the measure is 0 and
+   nothing moves. The styler is deliberately not here: it is a docked sheet
+   whose purpose is scrolling the article it restyles. */
+html:has(#panel.show){overflow:hidden}
+html:has(#panel.show) body,
+html:has(#panel.show) .bar{padding-right:var(--wd-sbw,0px)}
 .panel-card{position:absolute;top:0;right:0;bottom:0;width:min(420px,92vw);
   background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow);
   padding:0 var(--sp-3);
@@ -807,7 +831,9 @@ dialog.panel-card:not([open]){display:none}
    inside it the same way. min-height:0 is not optional: a flex child's default
    min-height:auto refuses to shrink below its content, and the card would grow
    instead of scrolling. */
-.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;
+/* contain: reaching either end of the list stops there - no rubber-band
+   handoff to the (locked) page, no pull-to-refresh on touch. */
+.panel-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
   padding-bottom:calc(var(--sp-3) + var(--wd-inset-bottom,0px));
   -webkit-overflow-scrolling:touch}
 .panel-card h2{margin:0 0 var(--sp-2);font-size:16px;color:var(--fg);
@@ -1143,6 +1169,10 @@ dialog.panel-card:not([open]){display:none}
    follow the theme, which is exactly what emoji could not do. */
 .facts .act svg{width:14px;height:14px;flex:none;color:var(--fg-faint)}
 .facts .act:hover svg{color:var(--fg-soft)}
+/* Read aloud off: the same speaker, silent. Only the waves go; the svg keeps
+   its fixed 14px box (flex:none above), and the cone stays where it was
+   inside it, so neither the glyph nor the label shifts on toggle. */
+#speakBtn[aria-pressed="false"] .wave{display:none}
 /* It belongs with the other things you came to this drawer to DO, so it wears
    the row's chrome — but it still reveals a choice rather than performing one,
    and it keeps the ▸/▾ every other disclosure in this app uses (.prov,
@@ -1309,13 +1339,13 @@ dialog.panel-card:not([open]){display:none}
   /* align-self:stretch and a min-width so the transparent select covers a
      whole 44px-tall target rather than just the 22px the chip's own text
      occupies — the chip is what you see, the seg is what you hit. */
-  .seg{display:flex;position:relative;flex:none;align-self:stretch;
+  .bar .seg{display:flex;position:relative;flex:none;align-self:stretch;
     align-items:center;justify-content:center;min-width:40px}
-  .seg select{position:absolute;inset:0;width:100%;height:100%;margin:0;
+  .bar .seg select{position:absolute;inset:0;width:100%;height:100%;margin:0;
     padding:0;border:0;max-width:none;opacity:0;-webkit-appearance:none;
     appearance:none}
-  .seg:has(select:focus-visible) .chip{outline:2px solid var(--focus);outline-offset:1px}
-  .seg:has(select:disabled){opacity:.55}
+  .bar .seg:has(select:focus-visible) .chip{outline:2px solid var(--focus);outline-offset:1px}
+  .bar .seg:has(select:disabled){opacity:.55}
   .chip{display:flex;align-items:center;gap:.3em;max-width:11ch;
     white-space:nowrap;font-size:11.5px;line-height:1;color:var(--fg);
     background:var(--accent-soft);border-radius:7px;padding:.45em .3em .45em .45em}

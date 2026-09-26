@@ -245,7 +245,7 @@ function unesc(s){
 try{const t=localStorage.getItem("wudict_theme");
   if(t&&t!=="auto")document.documentElement.setAttribute("data-theme",t)}catch(e){}
 
-let dictId="",state=null,last={p:1},poll=0,stripFor="";
+let dictId="",state=null,last={p:1},poll=0,stripFor="",demanded=false;
 
 function card(html){$("msg").innerHTML=html;$("msg").hidden=false;
   $("top").hidden=true;$("foot").hidden=true;$("list").innerHTML=""}
@@ -330,23 +330,34 @@ function turn(where){
   if(p>=1&&p<=state.pages&&p!==state.page)show({p},"push");
 }
 
-/* The one state with no list to draw. "Wait" and "act" are different answers
-   and are told apart by the server, not guessed here. */
-function unprepared(j){
+/* The one state with no list to draw. Asking to browse IS asking for the
+   index - there is no other way to serve it - so the page asks for it itself
+   (explicit: even with AUTO_INDEX off, this is the user's own trigger) and
+   waits. Once per page: a dictionary that stops indexing without becoming
+   browsable failed, and asking again would only meet the server's cooldown. */
+const building="<p>Building the index…⌛️</p>";
+async function unprepared(j){
+  if(!j.indexing&&!demanded){
+    demanded=true;
+    card(building);
+    try{
+      const r=await fetch("/api/demand?explicit=1&dict="+encodeURIComponent(dictId),{method:"POST"});
+      j=r.ok?await r.json():{};
+    }catch(e){j={}}
+  }
   if(j.indexing){
-    card("<b>Building the index…</b><p>This dictionary is being indexed right now. "+
-      "The list opens by itself the moment it is ready.</p>");
+    card(building);
     poll=setTimeout(()=>show(last,"none"),2500);
   }else{
-    card("<b>Not indexed yet</b><p>Browsing needs this dictionary's index. "+
-      'Open <a href="/">the app</a>, find it in the dictionary panel and switch its index on — '+
-      "then come back to this page.</p>");
+    card("<b>Could not build the index</b><p>Preparing this dictionary for browsing failed. "+
+      'Reload this page to try again, or <a href="/browse">choose another…</a></p>');
   }
 }
 
 /* No ?dict= is not an error: it is the question "which one?", and a page that
-   can be reached from a bookmark bar has to be able to answer it. Only
-   indexed dictionaries are offered, because only they can be browsed. */
+   can be reached from a bookmark bar has to be able to answer it. Every
+   dictionary that opens is offered: choosing one that has no index yet
+   builds it (unprepared). */
 async function chooser(){
   card("<b>Browse a dictionary</b><p>Reading it word by word, A to Z.</p>");
   let text="";
@@ -355,11 +366,11 @@ async function chooser(){
   for(const line of text.split("\n")){
     if(!line)continue;
     let m;try{m=JSON.parse(line)}catch(e){continue}
-    if(m.t==="dict"&&m.dict&&(m.dict.dbSize||0)>0)ds.push(m.dict);
+    if(m.t==="dict"&&m.dict&&!m.dict.error)ds.push(m.dict);
   }
   ds.sort((x,y)=>(x.name||"").localeCompare(y.name||""));
-  if(!ds.length)return card("<b>Nothing to browse yet</b><p>Browsing needs a dictionary's index. "+
-    'Open <a href="/">the app</a> and switch one on in the dictionary panel.</p>');
+  if(!ds.length)return card("<b>Nothing to browse yet</b><p>No dictionaries are loaded. "+
+    'Open <a href="/">the app</a> to add some.</p>');
   card("<b>Browse a dictionary</b><p>Reading it word by word, A to Z.</p><div class='picks'>"+
     ds.map(d=>'<a href="?dict='+encodeURIComponent(d.id)+'">'+esc(d.name||d.id)+
       (d.entries?"<span>"+num(d.entries)+" entries</span>":"")+"</a>").join("")+"</div>");

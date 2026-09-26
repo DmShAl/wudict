@@ -33,7 +33,6 @@ import (
 	"github.com/wuweidict/wudict/internal/intake"
 	"github.com/wuweidict/wudict/internal/logx"
 	"github.com/wuweidict/wudict/internal/morph"
-	"github.com/wuweidict/wudict/internal/resource"
 	"github.com/wuweidict/wudict/internal/search"
 	"github.com/wuweidict/wudict/internal/server"
 	"github.com/wuweidict/wudict/internal/speex"
@@ -118,15 +117,19 @@ COMMANDS
                                           from here. Resources are unpacked beside
                                           it into <name>.csv_res. -output is the
                                           long form of -o.
-  ingest [-full] [-headwords] [-contains] <dictfile|folder…>
-                                          Prepare a dictionary into the library:
+  ingest [-full] [-headwords] [-contains] [<dictfile|folder…>]
+                                          Prepare dictionaries into the library:
                                           <db-dir>/<dictionary name>/text.db (+ info.txt).
-                                          A folder prepares everything in it, skipping what
-                                          is already done. By default this builds headword
-                                          and full-text indexes; -headwords skips full text
-                                          (much smaller), -contains adds the substring index
-                                          (roughly doubles a headwords-only db), and -full
-                                          also packs media.db into the same folder.
+                                          With no path, prepares the configured dictionary
+                                          folders (DICT_DIR); a folder prepares everything
+                                          in it, skipping what is already done. A new
+                                          dictionary gets headword and full-text indexes;
+                                          -headwords skips full text (much smaller),
+                                          -contains adds the substring index (roughly
+                                          doubles a headwords-only db), and -full also packs
+                                          media.db into the same folder. A flag left out
+                                          keeps what a prepared dictionary has;
+                                          -headwords=false and -contains=false take away.
   searchall [-mode m] [-n perDict] [-format f] [<dir>] <term>
                                           Concurrent search across every dictionary, printed as
                                           each one answers. Without <dir> it searches the
@@ -162,6 +165,14 @@ COMMANDS
                                           scanned folder); -keep-index deletes only the
                                           originals, and refuses while media is unpacked.
                                           Lists what it would delete; -f deletes it.
+  reindex [-all] [<name|path>…]           Rebuild prepared dictionaries that are outdated:
+                                          prepared by an older version of wudict, from an
+                                          original that has since changed, or unreadable.
+                                          Each keeps its indexes and packed media. Names limit
+                                          it to those dictionaries; -all rebuilds current ones
+                                          too. One whose original is gone is named and kept.
+                                          While a server is using the library, the plain form
+                                          asks it to do the rebuild and follows its progress.
   licenses                                This program's licence, and the notices for the
                                           third-party code built into it.
 
@@ -548,6 +559,8 @@ func Main() {
 		err = cmdClean(args)
 	case "rm", "remove":
 		err = cmdRemove(args)
+	case "reindex":
+		err = cmdReindex(args)
 	case "-h", "--help", "help":
 		fmt.Print(usage())
 	case "-v", "--version", "version":
@@ -907,51 +920,137 @@ func cmdKeys(args []string) error {
 func cmdIngest(args []string) error {
 	applyLibrarySettings()
 	fs := flag.NewFlagSet("ingest", flag.ExitOnError)
-	out := fs.String("o", "", "output .db path (default: <db-dir>/<dictionary name>/text.db)")
+	out := fs.String("o", "", "output .db path for a single dictionary file (default: <db-dir>/<dictionary name>/text.db)")
 	full := fs.Bool("full", false, "also pack binary resources into a companion .media.db")
-	headwords := fs.Bool("headwords", false, "index headwords only: smaller db, no full-text search")
+	headwords := fs.Bool("headwords", false, "index headwords only: smaller db, no full-text search (-headwords=false adds full text)")
 	fuzzyOnly := fs.Bool("fuzzy-only", false, "deprecated spelling of -headwords")
-	contains := fs.Bool("contains", false, "also build the substring (contains) index - roughly doubles a headword-only index")
+	contains := fs.Bool("contains", false, "also build the substring (contains) index - roughly doubles a headword-only index (-contains=false drops it)")
+	configPath := fs.String("config", "", "path to wudict.toml (env: CONFIG_PATH)")
 	fs.Parse(args)
-	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: wudict ingest [-o out.db] [-full] [-headwords] [-contains] <dictfile|folder…>")
-	}
-	level := store.LevelText
-	if *headwords || *fuzzyOnly {
-		level = store.LevelHeadwords
-	}
-	plan := store.Plan{FullText: level == store.LevelText, Contains: *contains}
-	srcPath := fs.Arg(0)
 
-	// folder: ingest every dictionary found under it
-	if st, err := os.Stat(folderArgs([]string{srcPath})[0]); err == nil && st.IsDir() {
-		if *out != "" {
-			return fmt.Errorf("-o cannot be used with a folder")
+	// A flag left out changes nothing about a dictionary already prepared, as
+	// a parameter left out of /api/ingest changes nothing: without this, a run
+	// over the library with no flags would strip every contains index and add
+	// full text to every headwords-only dictionary (D152).
+	var pf planFlags
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "headwords", "fuzzy-only":
+			ft := !(*headwords || *fuzzyOnly)
+			pf.fullText = &ft
+		case "contains":
+			pf.contains = contains
 		}
-		paths, _, err := dict.DiscoverAll(folderArgs(fs.Args()))
+	})
+
+	// Where to look, resolved as searchall does: the arguments, else DICT_DIR
+	// from --config/CONFIG_PATH, the environment or wudict.toml, else the
+	// default folder. The library is already configured; making every
+	// `ingest` spell it out again was the one command that could not find it.
+	srcs, origin := fs.Args(), "argument"
+	if len(srcs) == 0 {
+		if *out != "" {
+			return fmt.Errorf("-o needs the one dictionary file to prepare")
+		}
+		if *configPath == "" {
+			*configPath = os.Getenv("CONFIG_PATH")
+		}
+		cfg, err := config.Load(*configPath, nil)
 		if err != nil {
 			return err
 		}
-		if len(paths) == 0 {
-			return fmt.Errorf("no dictionaries found under %s", srcPath)
-		}
-		var failed int
-		for i, p := range paths {
-			fmt.Fprintf(os.Stderr, "[%d/%d] %s\n", i+1, len(paths), filepath.Base(p))
-			if err := ingestOne(p, "", *full, plan); err != nil {
-				fmt.Fprintf(os.Stderr, "  failed: %v\n", err)
-				failed++
-			}
-		}
-		if failed > 0 {
-			return fmt.Errorf("%d of %d dictionaries failed", failed, len(paths))
-		}
-		return nil
+		srcs, origin = cfg.DictDirs, cfg.Origin("DICT_DIR")
 	}
-	return ingestOne(srcPath, *out, *full, plan)
+	// a folder argument may be a DICT_DIR-style list (folderArgs); a file is
+	// taken whole, so a name with the list separator in it still works
+	var split []string
+	for _, s := range srcs {
+		if st, err := os.Stat(s); err == nil && !st.IsDir() {
+			split = append(split, s)
+		} else {
+			split = append(split, folderArgs([]string{s})...)
+		}
+	}
+	srcs = split
+	if len(srcs) == 0 {
+		return fmt.Errorf("no dictionary folder is configured (%s) - name one: wudict ingest <dictfile|folder…>", origin)
+	}
+
+	if *out != "" {
+		if len(srcs) != 1 || isDir(srcs[0]) {
+			return fmt.Errorf("-o names the output of one dictionary file, not of %s", strings.Join(srcs, ", "))
+		}
+		return ingestOne(srcs[0], *out, *full, pf)
+	}
+	// a single file keeps its own errors, unprefixed by a [1/1] count
+	if len(srcs) == 1 && !isDir(srcs[0]) {
+		return ingestOne(srcs[0], "", *full, pf)
+	}
+
+	var paths, dirs []string
+	for _, s := range srcs {
+		if isDir(s) {
+			dirs = append(dirs, s)
+		} else {
+			paths = append(paths, s)
+		}
+	}
+	found, _, err := dict.DiscoverAll(dirs)
+	if err != nil {
+		return err
+	}
+	paths = append(paths, found...)
+	if len(dirs) > 0 {
+		// stderr, as searchall does: once the folders come from a config file
+		// they are not on the command line to be seen
+		fmt.Fprintf(os.Stderr, "preparing %s from %s (%s)\n",
+			plural(len(found), "dictionary", "dictionaries"), strings.Join(dirs, ", "), origin)
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("no dictionaries found under %s (%s)", strings.Join(srcs, ", "), origin)
+	}
+	var failed int
+	for i, p := range paths {
+		fmt.Fprintf(os.Stderr, "[%d/%d] %s\n", i+1, len(paths), filepath.Base(p))
+		if err := ingestOne(p, "", *full, pf); err != nil {
+			fmt.Fprintf(os.Stderr, "  failed: %v\n", err)
+			failed++
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d of %d dictionaries failed", failed, len(paths))
+	}
+	return nil
 }
 
-func ingestOne(srcPath, out string, full bool, plan store.Plan) error {
+// planFlags is ingest's -headwords and -contains as given: nil where the flag
+// was left out, which keeps what a prepared dictionary already has.
+type planFlags struct{ fullText, contains *bool }
+
+// plan is the Plan to prepare with over have, the plan of the database
+// already there (nil: none, or one that cannot be read). A dictionary never
+// prepared gets the command's default: headwords and full text.
+func (p planFlags) plan(have *store.Plan) store.Plan {
+	out := store.Plan{FullText: true}
+	if have != nil {
+		out = *have
+	}
+	if p.fullText != nil {
+		out.FullText = *p.fullText
+	}
+	if p.contains != nil {
+		out.Contains = *p.contains
+	}
+	return out
+}
+
+// isDir reports that path names an existing directory.
+func isDir(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.IsDir()
+}
+
+func ingestOne(srcPath, out string, full bool, pf planFlags) error {
 	r, err := dict.OpenReader(srcPath)
 	if err != nil {
 		return err
@@ -970,29 +1069,25 @@ func ingestOne(srcPath, out string, full bool, plan store.Plan) error {
 			return err
 		}
 	}
-	if _, err := os.Stat(dbPath); err == nil && out == "" {
-		m, _ := store.ReadMeta(dbPath)
-		have := store.Plan{
-			FullText: m["ingest_level"] != string(store.LevelHeadwords),
-			Contains: m["has_trigram"] == "1",
+	// -o writes a new database for its caller: nothing there is the user's
+	// library plan to keep, and it is always written
+	plan := pf.plan(nil)
+	if out == "" {
+		if m, _, err := store.ReadMetaSchema(dbPath); err == nil { // stats first: never creates the file
+			have := store.PlanFromMeta(m)
+			plan = pf.plan(&have)
+			// current = built from this source, unedited, by this build's code
+			// (store.Stale): an outdated database is rebuilt even on the same plan
+			if len(store.TextStale(dbPath, srcPath)) == 0 && have == plan {
+				fmt.Printf("%salready prepared in %s - skipped\n", logx.Dict(name), filepath.Dir(dbPath))
+				return maybePackMedia(srcPath, dbPath, name, full)
+			}
 		}
-		fresh := !store.SourceChanged(dbPath, srcPath)
-		if fresh && have == plan {
-			fmt.Printf("%salready prepared in %s - skipped\n", logx.Dict(name), filepath.Dir(dbPath))
-			return maybePackMedia(srcPath, dbPath, name, full)
-		}
-		// a different plan or a changed source: IngestPlan overwrites the
-		// existing database atomically, so nothing is deleted up front.
-	}
-	progress := func(done, total int) {
-		if total > 0 {
-			logx.Progress("  %d/%d entries", done, total)
-		} else {
-			logx.Progress("  %d entries", done)
-		}
+		// a different plan, a changed source or an unreadable database:
+		// IngestPlan overwrites it atomically, so nothing is deleted up front.
 	}
 	start := time.Now()
-	rep, err := store.IngestPlan(r, dbPath, plan, progress)
+	rep, err := store.IngestPlan(r, dbPath, plan, entryProgress)
 	logx.ClearLine()
 	if err != nil {
 		return fmt.Errorf("preparing %q: %w", name, err)
@@ -1010,26 +1105,35 @@ func maybePackMedia(srcPath, dbPath, name string, full bool) error {
 	if !full {
 		return nil
 	}
-	mediaPath := store.MediaSibling(dbPath)
-	if _, err := os.Stat(mediaPath); err == nil {
+	if store.MediaPaired(dbPath) {
 		fmt.Printf("%smedia already packed - skipped\n", logx.Dict(name))
 		return nil
 	}
+	return packMedia(srcPath, dbPath, name)
+}
+
+// packMedia packs srcPath's media into the media.db beside textDB, over one
+// that no longer pairs with it (packed for an earlier build of the text, or
+// by an older IngestMedia). A pack that finds nothing leaves no media.db: an
+// unpaired one serves nothing and would only be reported outdated forever.
+func packMedia(srcPath, textDB, name string) error {
+	mediaPath := store.MediaSibling(textDB)
 	d, err := dict.Open(srcPath)
 	if err != nil {
 		return err
 	}
 	defer d.Close()
-	lister, ok := d.(dict.ResourceLister)
-	if !ok {
-		return fmt.Errorf("format cannot enumerate resources")
-	}
-	names := resource.Filter(lister.Resources())
+	names, _ := store.MediaNames(d, textDB)
 	if len(names) == 0 {
+		if fileExists(mediaPath) {
+			if err := os.Remove(mediaPath); err != nil {
+				return fmt.Errorf("removing unpaired media: %w", err)
+			}
+		}
 		fmt.Printf("%sno media to pack\n", logx.Dict(name))
 		return nil
 	}
-	uuid, err := store.ReadMetaValue(dbPath, "dict_uuid")
+	uuid, err := store.ReadMetaValue(textDB, "dict_uuid")
 	if err != nil {
 		return err
 	}
