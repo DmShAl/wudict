@@ -2,12 +2,40 @@
    BACKGROUND IMAGE
    ========================================================= */
 
+/* The app supplies --paper-bg and --paper-bk-image from Settings,
+   including inside iframe articles. No colour or file needs to be set here. */
+
+/* =========================================================
+   REMOVE DICTIONARY-SUPPLIED BACKGROUNDS
+   ========================================================= */
+
+/*
+   Let the app background show through dictionary articles.
+
+   This rule is not image-specific and may remain active in both themes.
+*/
 :host,
 :root > body,
 :host > *,
 :root > body > * {
   background:none !important;
 }
+
+/* =========================================================
+   LOCAL PAPER BACKDROP BEHIND IMAGES
+   ========================================================= */
+
+/*
+   Applies in BOTH themes, which is what the day/night background pair made
+   necessary: the shell holds a paper per theme now, so a rule restricted to
+   the light one left a reader whose night background IS a paper looking at
+   articles with no paper behind them.
+
+   Nothing here names a theme, deliberately. Every value below comes from
+   --paper-bg and --paper-bk-image, which the host sets from the CURRENT theme,
+   so the article wears whichever paper is in force - and a reader with no
+   night paper gets the app's own dark surface, which is the right answer too.
+*/
 
 :host :is(p, div, figure, td, span):has(> img),
 :root > body :is(p, div, figure, td, span):has(> img),
@@ -29,16 +57,62 @@
   isolation:isolate;
 }
 
-:host() img,
+/* =========================================================
+   MAKE WHITE IMAGE BACKGROUNDS LOOK TRANSPARENT
+   ========================================================= */
+
+/*
+   JPEG has no real transparency, and multiply is what makes a white
+   background read as the paper instead of as a white box:
+
+       white × paper = paper
+
+   LIGHT PAPER ONLY, and that is not a leftover: multiply against a near-black
+   paper gives near-black, so at night this would crush the picture into the
+   background rather than lift it onto it. A dark paper wants the image as it
+   is, which is what leaving the rule off does.
+*/
+
+:host img,
 :root > body img {
   background:transparent !important;
   mix-blend-mode:multiply !important;
 }
 
+/* =========================================================
+   OXFORD ENLARGEABLE PICTURES
+   ========================================================= */
+
+/*
+   Oxford structure:
+
+       #ox-enlarge
+         > a.topic
+           > img.thumb
+           > img.fullsize
+           > span.ox-enlarge-label
+
+   The PNG background itself is white.
+
+   Important:
+   - Oxford controls thumb/fullsize visibility with inline display styles.
+   - Never override display on the images.
+   - The original images have border="1", so remove that border and
+     draw our own outline instead.
+*/
+
+/* ---------------------------------------------------------
+   SHADOW-ROOT ARTICLES
+   --------------------------------------------------------- */
+
 :host #ox-enlarge {
   background:none !important;
 }
 
+/*
+   Make the paper box follow the visible image closely.
+   inline-block prevents the backdrop from occupying a larger line box.
+*/
 :host #ox-enlarge > a.topic,
 :host #ox-enlarge > a.topic:hover {
   display:inline-block !important;
@@ -68,7 +142,13 @@
   isolation:isolate;
 }
 
-:host() #ox-enlarge img:is(.thumb, .fullsize),
+/*
+   Keep Oxford's own display:none / display:block switching intact.
+*/
+
+/* Warm frame and multiply, both tuned for a light paper - see the note above. */
+
+:host #ox-enlarge img:is(.thumb, .fullsize),
 :root > body #ox-enlarge img:is(.thumb, .fullsize) {
   vertical-align:top !important;
 
@@ -88,6 +168,9 @@
   outline-offset:0 !important;
 }
 
+/* ---------------------------------------------------------
+   IFRAME ARTICLES
+   --------------------------------------------------------- */
 :root > body #ox-enlarge {
   background:none !important;
 }

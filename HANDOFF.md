@@ -2344,3 +2344,31 @@ the saved look. The look is the one the reader wanted moved.
 - Verified on the device, both: the save window floats over a visible panel,
   and the row reads `Presets [Save as…] [Update] [Rty ▾]` with both buttons
   dimmed while the screen matches the look in force.
+
+## The image rule was destroyed by the split's guard-stripping (2026-09-25)
+
+The reader: "images no longer lose their white background in Old paper - this
+block from article.css used to work". It did, until the split.
+
+- The guard on those two selectors was `:host(:not([data-dark]))`, and the
+  regex that strips guards matches the INNER part - `:not([data-dark])` -
+  leaving `:host()` with empty parentheses. That is an INVALID selector, so the
+  parser dropped the WHOLE rule: `background:transparent` and
+  `mix-blend-mode:multiply`, in both rules that carry them.
+- The other selector in each rule (`:root:not([data-dark]) > body img`) came out
+  valid, but it cannot help: the article is a SHADOW ROOT, and `:root` inside
+  one is the document root, which a shadow tree never matches. The rule was
+  dead for the surface it was written for.
+- Fixed by dropping the parentheses as well: `:host img`,
+  `:host #ox-enlarge img:is(.thumb, .fullsize)`. The day file is only linked by
+  day, so the guard it carried is exactly what the file slot says instead.
+- **The lesson, and it is the second one from the same script-pass**: what
+  comes out of a stripped guard may be syntactically INVALID (`:host()`), not
+  merely weaker (`html` where `:root` was needed - the Sepia bug). After any
+  such pass, fetch the served file and count what should be there:
+  `mix-blend-mode` twice, `:host()` never. The whitespace-only lines the split
+  left behind are tidied too.
+- Verified on the device: the expanded Webster's article - one image, computed
+  `mix-blend-mode: multiply`, `background-color: rgba(0,0,0,0)` - and the
+  screenshot shows the illustration sitting ON the paper with its texture
+  coming through, instead of in a white box.
