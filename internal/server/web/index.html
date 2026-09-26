@@ -312,17 +312,23 @@ window.wudictShellBackground = function (color, image, imageName) {
        makes a new group. -->
   <div class="facts">
     <span class="rowlabel" id="looksLabel">Presets</span>
-    <!-- The row's two actions, to the LEFT of the answer they act on: they
-         save what is on screen, and the answer beside them says what that
-         would become. Disabled and never hidden - the row keeps its shape, and
-         a control that comes and goes has to be found again.
-         "Update" only exists for a look the reader owns: a built-in cannot be
-         overwritten, because a "Clean" that means something else is worse than
-         no Clean at all. -->
-    <button type="button" class="btn" id="looksSaveAsBtn" disabled>Save as…</button>
-    <button type="button" class="btn" id="looksUpdateBtn" hidden disabled>Update</button>
     <button type="button" class="choice-btn" id="looksChoice" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="looksLabel"></button>
     <div class="choice-menu menu-card" id="looksMenu" role="listbox" aria-labelledby="looksLabel" data-w="anchor" hidden></div>
+    <!-- The three actions, as icons: the words they would need are longer than
+         the row has, and the drop-down beside them already names what they act
+         on. Each carries a title AND an aria-label, so the tooltip and the
+         screen reader still say it in full - and the last two say why they are
+         inert when a built-in is in force.
+         Drawn, not emoji: emoji do not take currentColor, so they cannot follow
+         the theme or the paper the way every other mark in this app does. The
+         arrow onto a line is "put what is on screen into this one" - a circular
+         arrow reads as "reload", which is what it must not mean. -->
+    <button type="button" class="btn icon-btn" id="looksSaveAsBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 3h11l3 3v15H5z"/><path d="M9 3v5h6V3"/><path d="M8 20v-6h8v6"/></svg></button>
+    <button type="button" class="btn icon-btn" id="looksUpdateBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M4 20h16"/></svg></button>
+    <button type="button" class="btn icon-btn" id="looksDeleteBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M9 6V3h6v3"/><path d="M6 6l1 15h10l1-15"/><path d="M10 10v7M14 10v7"/></svg></button>
   </div>
   <!-- The size stepper is adjusted WHILE reading, so it stays on the panel
        rather than behind the Appearance door — the promise the old layout made

@@ -1057,6 +1057,14 @@ dialog.panel-card:not([open]){display:none}
    answer on one line, so it takes the width of the ANSWER - the current look's
    name - and never less than the longest of the built-in ones. */
 .facts:has(>#looksChoice)>#looksChoice{width:auto;flex:0 1 auto;min-width:6.5em}
+/* The row's three actions: square, drawn marks. The app's other icon-sized
+   controls are 22px and these are 32, because they are the only way to save,
+   update or delete a preset and a miss costs a window - the row is 32px tall
+   either way, so the extra comes free. currentColor and the app's stroke
+   weight, so they follow the theme. */
+.facts:has(>#looksChoice)>.icon-btn{width:32px;height:32px;padding:0;
+  display:flex;align-items:center;justify-content:center}
+.facts:has(>#looksChoice)>.icon-btn svg{width:16px;height:16px}
 #fsCtl,#fwCtl{flex:none;display:flex;align-items:center;gap:2px}
 #fsCtl button,#fwCtl button{font:inherit;line-height:1;margin:0;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;

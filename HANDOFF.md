@@ -2372,3 +2372,28 @@ block from article.css used to work". It did, until the split.
   `mix-blend-mode: multiply`, `background-color: rgba(0,0,0,0)` - and the
   screenshot shows the illustration sitting ON the paper with its texture
   coming through, instead of in a white box.
+
+## The preset row: the answer left, three icons right (2026-09-25, from the reader)
+
+- The drop-down moved LEFT and the actions RIGHT, as icons: a floppy (save what
+  is on screen as a new preset), an arrow onto a line (put what is on screen
+  into this one) and a bin (delete). The words they would need are longer than
+  the row has, and the drop-down beside them already names what they act on.
+  Each carries a `title` AND an `aria-label` that say it in full, and the two
+  that only work on a preset the reader owns say why they are inert:
+  "Only a preset of your own can be updated".
+- **Drawn, not emoji**, though the reader wrote them as emoji: emoji do not take
+  `currentColor`, so they cannot follow the theme or the paper - the same reason
+  the speak icons are drawn. 16px marks in a 32px button, because these are the
+  only way to save, update or delete a preset and the row is 32px tall either
+  way.
+- **The arrow is not a circular one.** A refresh glyph was the reader's own
+  first suggestion and they rejected it themselves: it reads as "reload", and
+  this button writes what is on screen into the preset. A down arrow onto a
+  baseline says "put it in" and nothing else.
+- The menu's `Delete “Name”…` row is gone - the button replaces it - and the
+  confirmation window (which names the preset and says what it costs) is the
+  same one. Its flow was verified through the button: the window named "aaa"
+  and Cancel left it alone.
+- Verified on the device: one row, 32px tall, `Presets [aaa ▾] [disk] [↓] [bin]`,
+  all three live for the reader's own preset, tooltips naming it.

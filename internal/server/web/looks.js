@@ -26,7 +26,6 @@ let looksChoice = null;
 // the delete row exists only for a look the reader owns, so the labels are
 // built and their places remembered rather than guessed.
 let looksSaveAt = -1;
-let looksDeleteAt = -1;
 let looksDeleteTarget = null;
 // The look the reader asked for, held while a question is on screen: the
 // buttons in that window all end in "and then go there".
@@ -124,11 +123,25 @@ function looksRowRender() {
   looksChoice.set(custom ? -1 : LOOKS.looks.indexOf(cur));
   if (custom) looksEl("looksChoice").textContent = "Custom";
 
-  const save = looksEl("looksSaveAsBtn"), upd = looksEl("looksUpdateBtn");
-  // Update exists only where it can work: a look the reader owns.
-  upd.hidden = !cur || cur.builtin;
-  save.disabled = !LOOKS.currentDrifted;
-  upd.disabled = !LOOKS.currentDrifted;
+  // All three are always there - one row, one shape - and the two that only a
+  // look the reader owns can do are inert for a built-in, with the tooltip
+  // saying why. A control that vanishes has to be found again; a dimmed one
+  // teaches where it lives.
+  const save = looksEl("looksSaveAsBtn"), upd = looksEl("looksUpdateBtn"),
+        del = looksEl("looksDeleteBtn");
+  const mine = !!cur && !cur.builtin;
+  const drifted = !!LOOKS.currentDrifted;
+  save.disabled = !drifted;
+  save.title = "Save what is on screen as a new preset";
+  save.setAttribute("aria-label", save.title);
+  upd.disabled = !drifted || !mine;
+  upd.title = mine
+    ? "Update \u201C" + cur.name + "\u201D with what is on screen"
+    : "Only a preset of your own can be updated";
+  upd.setAttribute("aria-label", upd.title);
+  del.disabled = !mine;
+  del.title = mine ? "Delete \u201C" + cur.name + "\u201D" : "Only a preset of your own can be deleted";
+  del.setAttribute("aria-label", del.title);
 }
 
 function looksRender() {
@@ -141,12 +154,6 @@ function looksRender() {
   }
   for (const l of LOOKS.looks) LOOK_LABELS.push(l.name);
   looksSaveAt = LOOK_LABELS.push(LOOK_SAVE_LABEL) - 1;
-  const cur = LOOKS.looks.find((l) => l.id === LOOKS.current);
-  // Delete only for a look the reader owns: the built-ins are the app's.
-  looksDeleteAt = -1;
-  if (cur && !cur.builtin) {
-    looksDeleteAt = LOOK_LABELS.push("Delete \u201C" + cur.name + "\u201D\u2026") - 1;
-  }
   looksRowRender();
 }
 
@@ -372,11 +379,6 @@ looksChoice = screenChoice(looksEl("looksChoice"), looksEl("looksMenu"), LOOK_LA
     looksOpenSave("");
     return;
   }
-  if (i === looksDeleteAt && i >= 0) {
-    const cur = LOOKS.looks.find((l) => l.id === LOOKS.current);
-    if (cur) looksOpenDelete(cur);
-    return;
-  }
   const look = LOOKS.looks[i];
   if (look) looksApply(look.id);
 });
@@ -396,6 +398,11 @@ looksEl("looksSaveAsBtn").onclick = () => {
 looksEl("looksUpdateBtn").onclick = async () => {
   if (looksEl("looksUpdateBtn").disabled) return;
   await looksUpdateCurrent();
+};
+looksEl("looksDeleteBtn").onclick = () => {
+  if (looksEl("looksDeleteBtn").disabled) return;
+  const cur = LOOKS.looks.find((l) => l.id === LOOKS.current);
+  if (cur) looksOpenDelete(cur);
 };
 looksEl("lookAskUpdate").onclick = looksAskUpdate;
 looksEl("lookDeleteCancel").onclick = () => looksEl("lookDeleteDialog").close();
