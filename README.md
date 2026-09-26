@@ -74,7 +74,7 @@ lookups (*corazon* → *corazón*) work seamlessly (disable with `AUTO_INDEX=off
  (substring search) are not enabled by default as they consume more disk space. 
 Click the ☰ button and enable them as needed.
 For each dictionary the index size is displayed; *⚡ index all* adds full-text for all dictionaries
-at once, and `wudict ingest [-contains] <file-or-folder>` does the
+at once, and `wudict ingest [-contains] [<file-or-folder>]` does the
 same from the command line.
 
 Results stream live as each dictionary responds — the top one opens
@@ -211,6 +211,9 @@ wudict lookup ~/Dicts/Oxford.mdx water
 
 # search ALL dictionaries in folder; plain text to stdout
 wudict searchall -dict-dir /path/to/dicts flight
+
+# index every dictionary in your configured folders (DICT_DIR)
+wudict ingest
 
 # index every dictionary in a given folder
 wudict ingest ~/Dicts                    

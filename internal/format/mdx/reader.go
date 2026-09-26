@@ -12,8 +12,16 @@ import (
 	"github.com/wuweidict/wudict/internal/logx"
 )
 
+// ReaderVersion is the behaviour version of this format's Reader (see
+// dict.RegisterReaderVersion). Bump it in the same commit as any change to
+// what the Reader yields. Unlike the other formats there is no golden test to
+// catch a forgotten bump: MDX has no in-code writer to build a fixture with,
+// so the tests that exercise this Reader need a real file (WUDICT_TEST_MDX).
+const ReaderVersion = 1
+
 func init() {
 	dict.RegisterReader(".mdx", func(path string) (dict.Reader, error) { return NewReader(path) })
+	dict.RegisterReaderVersion("mdx", ReaderVersion)
 }
 
 // Reader is the sequential ingest scan over an .mdx file. It reuses the

@@ -173,7 +173,12 @@ func dirOwner(dir string) (owner string, hasDB, exists bool) {
 	return "", hasDB, true
 }
 
-// sameSource compares two source paths as filesystem locations.
+// sameSource compares two source paths as filesystem locations: the same
+// spelling, or - where both exist - the same file reached by another one.
+// Discovery resolves a symlinked dictionary folder (dict.Discover) while a
+// path typed on the command line does not, so one file arrives under two
+// spellings; compared as strings, the second claimed a new "<name> (fmt)"
+// folder beside the one already prepared for it.
 func sameSource(a, b string) bool {
 	if a == "" || b == "" {
 		return false
@@ -183,7 +188,12 @@ func sameSource(a, b string) bool {
 	}
 	ca, err1 := filepath.Abs(a)
 	cb, err2 := filepath.Abs(b)
-	return err1 == nil && err2 == nil && filepath.Clean(ca) == filepath.Clean(cb)
+	if err1 == nil && err2 == nil && filepath.Clean(ca) == filepath.Clean(cb) {
+		return true
+	}
+	sa, err1 := os.Stat(a)
+	sb, err2 := os.Stat(b)
+	return err1 == nil && err2 == nil && os.SameFile(sa, sb)
 }
 
 // LookupDir returns the library folder already prepared for a source file.
@@ -291,13 +301,21 @@ func writeClaim(dir, srcPath string) error {
 // re-hash the first 1 MiB, so a mere touch or copy does not force a re-index.
 // A missing source is NOT "changed": the prepared dictionary stands on its own.
 func SourceChanged(textDB, srcPath string) bool {
-	st, err := os.Stat(srcPath)
-	if err != nil {
+	if _, err := os.Stat(srcPath); err != nil {
 		return false
 	}
 	meta, err := ReadMeta(textDB)
 	if err != nil {
 		return false // unreadable meta is FindOrphans' business, not ours
+	}
+	return sourceChangedMeta(meta, srcPath)
+}
+
+// sourceChangedMeta is SourceChanged for a meta table already in hand.
+func sourceChangedMeta(meta map[string]string, srcPath string) bool {
+	st, err := os.Stat(srcPath)
+	if err != nil {
+		return false
 	}
 	if size := meta["source_size"]; size != "" {
 		if n, err := strconv.ParseInt(size, 10, 64); err == nil && n == st.Size() {
@@ -332,6 +350,11 @@ func AbbrevChanged(textDB, companionPath string) bool {
 	if err != nil {
 		return false // unreadable meta is FindOrphans' business, not ours
 	}
+	return abbrevChangedMeta(meta, companionPath)
+}
+
+// abbrevChangedMeta is AbbrevChanged for a meta table already in hand.
+func abbrevChangedMeta(meta map[string]string, companionPath string) bool {
 	recorded := meta["abbrev_size"] != ""
 	if companionPath == "" {
 		return recorded
@@ -351,15 +374,30 @@ func AbbrevChanged(textDB, companionPath string) bool {
 }
 
 // PreparedFor returns the text.db already prepared for a source file, if one
-// exists and still matches the source. Purely read-only - the caller decides
-// whether to fall back to the direct backend or to (re)build.
+// exists, can be opened by this build, and still matches the source. Purely
+// read-only - the caller decides whether to fall back to the direct backend or
+// to (re)build.
+//
+// A text.db this build cannot open - another schema, or a file damaged beyond
+// reading its meta - is NOT prepared. Answering yes would hand every caller a
+// database that fails in store.Open, and each of them would quietly fall back
+// to the source's own format for good: the dictionary keeps working, slower,
+// and nothing ever rebuilds it. Answering no sends it down the same path as a
+// dictionary never prepared, which rebuilds it into the same folder (ClaimDir
+// finds the folder by its receipt, not by the database). The plan it is
+// rebuilt with is KeptPlan's, which falls back to the default when the meta
+// itself is what is unreadable.
 func PreparedFor(srcPath string) (string, bool) {
 	dir, ok := LookupDir(srcPath)
 	if !ok {
 		return "", false
 	}
 	textDB := TextDBPath(dir)
-	if SourceChanged(textDB, srcPath) {
+	meta, schema, err := ReadMetaSchema(textDB)
+	if err != nil || schema != schemaVersion {
+		return "", false // unusable by this build: rebuilt like a missing one
+	}
+	if sourceChangedMeta(meta, srcPath) {
 		return "", false // source edited/replaced: re-index overwrites in place
 	}
 	return textDB, true
@@ -452,6 +490,38 @@ func Library() ([]LibEntry, error) {
 	sort.Slice(out, func(i, j int) bool {
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
+	return out, nil
+}
+
+// Folder is one library folder holding a text.db, and the source it was
+// prepared from ("" when neither its info.txt nor its database says).
+type Folder struct {
+	Dir    string
+	Source string
+}
+
+// Folders lists every library folder that holds a text.db, readable or not,
+// in name order. Library skips the unreadable ones because it has nothing to
+// show for them; a rebuild is exactly what they need, so this does not.
+func Folders() ([]Folder, error) {
+	root := DefaultDBDir()
+	des, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []Folder
+	for _, de := range des { // ReadDir sorts by name
+		if !de.IsDir() {
+			continue
+		}
+		dir := filepath.Join(root, de.Name())
+		if owner, hasDB, _ := dirOwner(dir); hasDB {
+			out = append(out, Folder{Dir: dir, Source: owner})
+		}
+	}
 	return out, nil
 }
 

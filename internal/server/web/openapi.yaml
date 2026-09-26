@@ -919,6 +919,85 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/IntakeJob' }
 
+  /api/reindex:
+    post:
+      tags: [internal]
+      operationId: startReindex
+      x-internal: true
+      summary: Rebuild every outdated dictionary
+      description: >
+        Rebuilds each dictionary `/api/dicts` reports as `outdated` - prepared
+        by an older build, from a source edited since, or unreadable by this
+        one - with the indexes it already has. A packed media.db the rebuild
+        leaves unpaired is packed again. Dictionaries that are current are not
+        touched, and one whose original files are gone is never outdated,
+        since nothing can rebuild it.
+
+
+        Never started by the server itself: on a large library this is hours
+        of work, so an upgrade only marks the library outdated and waits for
+        this request. It runs in the background indexing lane, one dictionary
+        at a time, and outlives the request; follow it with `GET /api/reindex`.
+        One job at a time: while one runs, this answers its status instead of
+        starting another.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s -X POST 'http://127.0.0.1:6888/api/reindex'
+      responses:
+        '202':
+          description: The job started. Poll `GET /api/reindex`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReindexStatus' }
+        '200':
+          description: >
+            Nothing is outdated, or a job is already running - the status of
+            that job (or of the last one) is returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReindexStatus' }
+    get:
+      tags: [internal]
+      operationId: reindexStatus
+      x-internal: true
+      summary: What the rebuild is doing
+      description: >
+        The poll. Always 200; `running: false` with `total: 0` means no rebuild
+        has run in this process.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s 'http://127.0.0.1:6888/api/reindex' | jq '{done, total, current}'
+      responses:
+        '200':
+          description: The current or last job.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReindexStatus' }
+    delete:
+      tags: [internal]
+      operationId: cancelReindex
+      x-internal: true
+      summary: Stop the rebuild
+      description: >
+        Stops the job after the dictionary it is rebuilding now. What is
+        finished stays finished; each rebuild replaces the old data only when
+        it completes, so nothing is left half-built. Always 200.
+      x-codeSamples:
+        - lang: Shell
+          label: curl
+          source: |
+            curl -s -X DELETE 'http://127.0.0.1:6888/api/reindex'
+      responses:
+        '200':
+          description: The job's status; `running` stays true until the current dictionary is done.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReindexStatus' }
+
   /api/setup:
     get:
       tags: [internal]
@@ -1619,6 +1698,23 @@ components:
         error: { type: string }
       required: [error]
 
+    ReindexStatus:
+      type: object
+      description: The rebuild of outdated dictionaries, running or last run.
+      properties:
+        running: { type: boolean }
+        done: { type: integer, description: 'Dictionaries finished, failed ones included.' }
+        total: { type: integer, description: 'Dictionaries in this job.' }
+        current: { type: string, description: 'The dictionary being rebuilt.' }
+        currentDone: { type: integer, description: 'Entries of `current` processed so far.' }
+        currentTotal: { type: integer, description: 'Entries of `current` in all, when known.' }
+        failed:
+          type: array
+          items: { type: string }
+          description: One line per dictionary that could not be rebuilt, with why.
+        canceled: { type: boolean, description: The job was stopped before the end. }
+      required: [running, done, total]
+
     IntakeJob:
       type: object
       description: >
@@ -1909,6 +2005,13 @@ components:
           description: >
             The substring index predates the current text folding, so it may
             miss words. It keeps working; the panel offers a rebuild.
+        outdated:
+          type: boolean
+          description: >
+            The prepared data no longer matches what this build would prepare
+            from the source: an older build wrote it, the source changed, or it
+            cannot be read. Never set when the source is gone. Reported only;
+            `POST /api/reindex` rebuilds every such dictionary.
         source: { type: string, description: 'The original file, if still on disk.' }
         mediaSrc:
           type: array

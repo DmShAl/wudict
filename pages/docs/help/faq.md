@@ -76,7 +76,7 @@ Questions, not symptoms. For a symptom, see
     ``` sh title="the terminal, no server needed"
     wudict lookup ~/Dicts/Oxford.mdx flight   # print the entry as HTML
     wudict keys   ~/Dicts/Oxford.mdx          # list every headword
-    wudict ingest ~/Dicts                     # prepare a whole folder
+    wudict ingest                             # prepare your dictionary folders
     wudict clean                              # list removable library items
     ```
 

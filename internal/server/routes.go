@@ -123,6 +123,11 @@ func (s *Server) routes() []route {
 		{"POST", "/api/intake", s.handleIntake, "/api/intake", false},
 		{"GET", "/api/intake", s.handleIntakeStatus, "/api/intake", false},
 		{"DELETE", "/api/intake", s.handleIntakeCancel, "/api/intake", false},
+		// rebuilding the dictionaries an older build prepared (reindex.go):
+		// start, poll, stop. Never CORS - it rewrites the library.
+		{"POST", "/api/reindex", s.handleReindex, "/api/reindex", false},
+		{"GET", "/api/reindex", s.handleReindexStatus, "/api/reindex", false},
+		{"DELETE", "/api/reindex", s.handleReindexCancel, "/api/reindex", false},
 		// the user's own file store (userfiles.go): what their custom CSS,
 		// or a dictionary they wrote themselves, can reference by URL. Never
 		// CORS - the list names a folder on the user's disk, and the other

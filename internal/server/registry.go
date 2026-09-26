@@ -341,6 +341,14 @@ type entry struct {
 	// disagrees (revalidate). dMu-guarded, like d and err.
 	backing string
 
+	// srcSig is the source file's size and mtime as they were when the backend
+	// was opened (sourceSig), dMu-guarded like backing. Rescan compares it
+	// with the file now: a source replaced in place - a newer edition copied
+	// over the old one - leaves backing unchanged, so without this the entry
+	// kept serving the previous edition's headwords (preview) or kept routing
+	// to an index built from it (prepared) until the process restarted.
+	srcSig string
+
 	// retired holds the backends this entry superseded or evicted while they
 	// sit out closeGrace; closeNow and releasePrepared close them at once.
 	retired retiring
@@ -603,10 +611,10 @@ func (e *entry) open() (dict.Dictionary, error) {
 	start := time.Now()
 	// Read before the open, so the recorded resolution is the one this open
 	// actually acted on rather than whatever disk looked like once it finished.
-	backing := backingDB(e.Path)
+	backing, sig := backingDB(e.Path), sourceSig(e.Path)
 	d, err = openUpgradedOrDirect(e.Path)
 	e.dMu.Lock()
-	e.d, e.err, e.backing = d, err, backing
+	e.d, e.err, e.backing, e.srcSig = d, err, backing, sig
 	e.dMu.Unlock()
 	if err != nil {
 		logx.V("open %s: FAILED: %v", e.Path, err)
@@ -1526,16 +1534,23 @@ func backingDB(path string) string {
 // the in-app removal path honest: Remove closes the backend and says the
 // dictionary "will be indexed again the next time it is searched", which was
 // true only after a restart, since autoTried outlived the data it described.
+//
+// The same holds for the SOURCE: a file replaced in place keeps its path and
+// its library folder, so backing alone cannot see it. Its size and mtime are
+// compared with the ones the backend was opened against (srcSig); a
+// difference drops the handle, and the next open resolves afresh -
+// store.PreparedFor no longer vouches for an index built from the old
+// edition, so it is served from the new source until it is prepared again.
 func (e *entry) revalidate() {
-	now := backingDB(e.Path)
+	now, sig := backingDB(e.Path), sourceSig(e.Path)
 	e.dMu.Lock()
 	e.err = nil
-	changed := now != e.backing
+	changed := now != e.backing || (e.d != nil && e.srcSig != sig)
 	open := e.d != nil
 	if !changed || !open {
 		// Nothing to let go of: record the resolution and be done. Doing it
 		// under the same lock keeps "backing describes e.d" true for readers.
-		e.backing = now
+		e.backing, e.srcSig = now, sig
 	}
 	e.dMu.Unlock()
 	if !changed {
@@ -1550,7 +1565,7 @@ func (e *entry) revalidate() {
 			return
 		}
 		e.dMu.Lock()
-		e.backing = now
+		e.backing, e.srcSig = now, sig
 		e.dMu.Unlock()
 	}
 	// The dictionary this entry describes is not the one its flags describe.
@@ -1560,6 +1575,18 @@ func (e *entry) revalidate() {
 	e.abbrevTried.Store(false)
 	logx.V("rescan: %s changed underneath us (prepared=%v); reopening on next use",
 		filepath.Base(e.Path), now != "")
+}
+
+// sourceSig is a cheap identity for a dictionary's source file: size and
+// modification time, or "" when it cannot be stat'ed. For a prepared
+// dictionary whose source is gone (a loose text.db) it describes the text.db
+// itself, which is what that entry's backend reads.
+func sourceSig(path string) string {
+	st, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
 }
 
 func (r *Registry) all() []*entry {
@@ -1634,57 +1661,38 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 	textDB := store.TextDBPath(dir)
 	mediaDB := store.MediaDBPath(dir)
 
-	have := features{}
-	staleFold, staleMarkup := false, false
-	if fileExists(textDB) {
-		if m, err := store.ReadMeta(textDB); err == nil {
-			have.FullText = m["ingest_level"] != string(store.LevelHeadwords)
-			have.Contains = m["has_trigram"] == "1"
-			staleFold = store.FoldStale(m)
-			staleMarkup = store.MarkupStale(m)
-		}
-	}
-	have.Media = fileExists(mediaDB)
-
+	have := store.KeptPlan(textDB) // the default for a missing or unreadable one
 	plan := store.Plan{FullText: want.FullText, Contains: want.Contains}
-	switch {
+	switch stale := store.TextStale(textDB, e.Path); {
 	case !fileExists(textDB):
 		err = e.rebuild(name, textDB, plan, progress)
-	case store.SourceChanged(textDB, e.Path):
-		logx.V("%ssource changed since it was prepared - re-indexing", logx.Dict(name))
+	case len(stale) > 0:
+		// Whatever is baked in at ingest - the source's content, the
+		// abbreviation expansions, the article roles, the folding, the
+		// Reader's and IngestPlan's own rules - no longer matches what this
+		// build would write. A dictionary the user is already changing is
+		// brought current on the way; one they are not is left alone until
+		// they ask (the panel's Rebuild, wudict reindex).
+		logx.V("%sprepared data is outdated (%v) - re-indexing", logx.Dict(name), stale)
 		err = e.rebuild(name, textDB, plan, progress)
-	case staleMarkup:
-		// the article roles are baked in at ingest, the same way the
-		// abbreviation expansions are: a dictionary the user is already
-		// changing is rebuilt with the current vocabulary, and one they are
-		// not is left alone (store.MarkupStale).
-		logx.V("%sarticle markup predates the current role vocabulary - re-indexing", logx.Dict(name))
-		err = e.rebuild(name, textDB, plan, progress)
-	case abbrevStale(textDB, e.Path):
-		// the abbreviation glossary is baked into the articles, so a changed,
-		// added or deleted companion means the articles are wrong
-		logx.V("%sabbreviation glossary changed since it was indexed - re-indexing", logx.Dict(name))
-		err = e.rebuild(name, textDB, plan, progress)
-	case have.FullText != want.FullText || have.Contains != want.Contains:
-		err = e.rebuild(name, textDB, plan, progress)
-	case want.Contains && staleFold:
-		// asking for contains that is already "on" is how the panel requests a
-		// repair: the index is intact but was folded by older rules
-		logx.V("%stext folding changed since it was indexed - re-indexing", logx.Dict(name))
+	case have != plan:
 		err = e.rebuild(name, textDB, plan, progress)
 	}
 	if err != nil {
 		return err
 	}
 
+	// Judged AFTER the text: a rebuild from a changed source takes a new
+	// dict_uuid, which orphans the media.db packed from the old one. An
+	// orphan is invisible to the store, so it counts as not packed - and is
+	// replaced, not kept - when media is wanted.
+	haveMedia := fileExists(mediaDB)
 	switch {
-	case want.Media && !have.Media:
-		// no media.db exists, so nothing holds one and the pack's rename is
-		// legal everywhere: the backend keeps serving (and feeding the pack)
-		if err := e.packMedia(cur, textDB, mediaDB, progress); err != nil {
+	case want.Media && !store.MediaPaired(textDB):
+		if err := e.repackMedia(cur, textDB, mediaDB, progress); err != nil {
 			return err
 		}
-	case !want.Media && have.Media:
+	case !want.Media && haveMedia:
 		// the serving backend's store holds media.db open, and Windows
 		// refuses to remove an open file (registry_windows.go)
 		releasePrepared(e, textDB)
@@ -1699,6 +1707,31 @@ func (e *entry) setFeatures(want features, progress store.Progress) error {
 	}
 	_ = store.WriteInfo(dir)
 	return e.reopen()
+}
+
+// repackMedia packs media.db afresh over whatever is there. With no media.db
+// on disk nothing holds one and the pack's rename is legal everywhere, so the
+// backend keeps serving (and feeding the pack). Over an existing file - one
+// the text rebuild orphaned, or one an older IngestMedia wrote - the store
+// may hold it open, and Windows refuses a rename over an open file
+// (registry_windows.go); packMedia then reads from a handle of its own.
+//
+// A pack that finds nothing writes nothing, which would leave the old,
+// unpaired file behind to be reported outdated forever; it serves nothing
+// (Store.mediaDB refuses another dictionary's media), so it is removed.
+func (e *entry) repackMedia(cur dict.Dictionary, textDB, mediaDB string, progress store.Progress) error {
+	if fileExists(mediaDB) {
+		releasePrepared(e, textDB)
+	}
+	if err := e.packMedia(cur, textDB, mediaDB, progress); err != nil {
+		return err
+	}
+	if fileExists(mediaDB) && !store.MediaPaired(textDB) {
+		if err := os.Remove(mediaDB); err != nil {
+			return fmt.Errorf("removing unpaired media: %w", err)
+		}
+	}
+	return nil
 }
 
 // rebuild writes a fresh index for the requested plan.
@@ -1729,13 +1762,14 @@ func (e *entry) rebuild(name, textDB string, plan store.Plan, progress store.Pro
 // that memory resident for the life of the process (docs.local/PERF.md M2). It is
 // closed after a grace period so requests already reading from it finish first.
 func (e *entry) reopen() error {
+	sig := sourceSig(e.Path)
 	fresh, err := openUpgradedOrDirect(e.Path)
 	if err != nil {
 		return err
 	}
 	e.dMu.Lock()
 	old := e.d
-	e.d, e.err, e.backing = fresh, nil, backingDB(e.Path)
+	e.d, e.err, e.backing, e.srcSig = fresh, nil, backingDB(e.Path), sig
 	// the weight must follow the view, not the one it replaced: a prepared
 	// dictionary holds no headword map, so it weighs nothing and must never
 	// become an eviction candidate
@@ -1815,13 +1849,14 @@ func (rs *retiring) closeAll() {
 // enumerate its resources.
 func (e *entry) packMedia(cur dict.Dictionary, textDB, mediaDB string, progress store.Progress) error {
 	e.dMu.RLock()
-	served := e.d == cur
+	served := cur != nil && e.d == cur
 	e.dMu.RUnlock()
 	src := cur
 	if !served {
 		// A rebuild released cur (Windows, registry_windows.go): it is closed,
 		// and asking it for a source would reopen one that nothing closes.
-		// Pack from a handle of our own; reopen() serves the result afterwards.
+		// Or the caller has no backend at all (refresh). Either way: pack
+		// from a handle of our own; reopen() serves the result afterwards.
 		s, err := dict.Open(e.Path)
 		if err != nil {
 			return err
@@ -1835,33 +1870,10 @@ func (e *entry) packMedia(cur dict.Dictionary, textDB, mediaDB string, progress 
 		}
 		src = s
 	}
-	lister, _ := src.(dict.ResourceLister)
-	var names []string
-	if lister != nil {
-		names = resource.Filter(lister.Resources())
-	}
-	// Also pack the loose files beside the source that articles actually
-	// reference (a repack's stylesheet and scripts live there, not in the
-	// .mdd). Referenced-only, never the whole folder: dictionary folders
-	// commonly hold several dictionaries, and sweeping would pack a
-	// neighbour's assets. Resource() resolves each from wherever it lives, and
-	// IngestMedia skips whatever cannot be read.
-	if refs, rerr := store.ReferencedAssets(textDB); rerr == nil && len(refs) > 0 {
-		have := make(map[string]bool, len(names))
-		for _, n := range names {
-			have[strings.ToLower(n)] = true
-		}
-		var extra int
-		for _, n := range refs {
-			if !have[strings.ToLower(n)] {
-				names = append(names, n)
-				extra++
-			}
-		}
-		if extra > 0 {
-			logx.V("%s%d referenced files are not packed in the .mdd - packing them from beside it",
-				logx.Dict(src.Meta().Name), extra)
-		}
+	names, extra := store.MediaNames(src, textDB)
+	if extra > 0 {
+		logx.V("%s%d referenced files are not packed in the .mdd - packing them from beside it",
+			logx.Dict(src.Meta().Name), extra)
 	}
 	if len(names) == 0 {
 		// nothing to pack (text-only dictionary, or a format with no
@@ -1878,9 +1890,6 @@ func (e *entry) packMedia(cur dict.Dictionary, textDB, mediaDB string, progress 
 	return store.IngestMedia(src, names, mediaDB, uuid, progress)
 }
 
-// ensureBaseIndex builds the cheap find-only index when a dictionary has none
-// (D13's silent auto-index). It never strips or rebuilds: a dictionary the
-// user has already enriched must not be quietly demoted.
 // abbrevStale reports that the abbreviation expansions baked into a prepared
 // dictionary no longer match the companion beside its source - added, edited,
 // or removed. A dictionary that never had one and recorded none is not stale.
@@ -1976,20 +1985,23 @@ func (e *entry) reabsorbAbbrev() error {
 	if !fileExists(textDB) || !abbrevStale(textDB, e.Path) {
 		return nil
 	}
-	plan := store.Plan{}
-	if m, err := store.ReadMeta(textDB); err == nil {
-		plan.FullText = m["ingest_level"] != string(store.LevelHeadwords)
-		plan.Contains = m["has_trigram"] == "1"
-	}
 	name := e.probeName()
 	logx.V("%sabbreviation glossary not yet absorbed - re-indexing", logx.Dict(name))
-	if err := e.rebuild(name, textDB, plan, nil); err != nil {
+	if err := e.rebuild(name, textDB, store.KeptPlan(textDB), nil); err != nil {
 		return err
 	}
 	_ = store.WriteInfo(dir)
 	return e.reopen()
 }
 
+// ensureBaseIndex builds the cheap find-only index when a dictionary has none
+// (D13's silent auto-index). It never strips: a dictionary that is "not
+// prepared" only because its source changed, or because its text.db is one
+// this build cannot open (store.PreparedFor), is rebuilt with the plan it
+// already had (store.KeptPlan) - the user's full text and contains are not
+// quietly demoted to headwords by a rebuild they did not ask for. Media is
+// left to the user: an orphaned media.db degrades to serving from the source,
+// and the dictionary is reported outdated until they rebuild it.
 func (e *entry) ensureBaseIndex(progress store.Progress) error {
 	e.ingestMu.Lock()
 	defer e.ingestMu.Unlock()
@@ -2005,7 +2017,8 @@ func (e *entry) ensureBaseIndex(progress store.Progress) error {
 	// holding the direct backend at the same time doubles the working set of
 	// the largest thing in the process (docs.local/PERF.md M3). The name comes from
 	// a header-only probe, or from the reader once it is open.
-	if err := e.rebuild(e.probeName(), store.TextDBPath(dir), store.Plan{}, progress); err != nil {
+	textDB := store.TextDBPath(dir)
+	if err := e.rebuild(e.probeName(), textDB, store.KeptPlan(textDB), progress); err != nil {
 		return err
 	}
 	_ = store.WriteInfo(dir)

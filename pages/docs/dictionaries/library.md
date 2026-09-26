@@ -59,12 +59,14 @@ for the definitions stored in the SQLite3 database. That makes the database roug
 
 ## Prepare from the terminal
 
-``` sh title="prepare everything in a folder, no browser"
-wudict ingest ~/Dicts
+``` sh title="prepare everything, no browser"
+wudict ingest            # your dictionary folders
+wudict ingest ~/Dicts    # or one folder
 ```
 
 `ingest` skips what is already prepared. Add `-headwords` for the small index
 only, `-contains` for the substring index, and `-full` to pack media as well.
+A flag you leave out keeps what each prepared dictionary already has.
 
 ## Removing a dictionary
 
