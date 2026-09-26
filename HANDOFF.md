@@ -136,6 +136,12 @@ local.bat — copy it there first). After each upstream `master` sync,
 repeat this small overlay (two files) or merge `master` into
 `master_build` when the naming/emuX86 code still applies.
 
+**Rechecked 2026-09-26 (release session):** `dev` is at `771d258`, clean and
+pushed, and carries the annotated tag `wudict2-v0.2.0` — the release cut this
+session, described in "Release wudict2-v0.2.0" below. On this branch
+`test_data/` and `android/app/src/emuX86/jniLibs/` are ignored rather than
+untracked, so `git status` is genuinely empty.
+
 ## The preset-switch "crash" was a TDZ cascade (2026-09-25, diagnosis only)
 
 The user reported the app dying after switching presets and asked for the log.
@@ -1618,6 +1624,48 @@ release, newest first, relative to the upstream fork point (v0.1.0's
 baseline: upstream `223b990`, between v3.7.4 and v3.7.5-alpha.1). Update
 it with every future release; the release body mirrors the same text
 under `## Changes`.
+
+## Release wudict2-v0.2.0 (2026-09-26, this session)
+
+The second tagged build and the first cut through the changelog workflow.
+The ORDER matters and was followed: the CHANGELOG.md section was committed on
+`dev` (`771d258`), `dev` pushed, the annotated tag `wudict2-v0.2.0` put on
+that commit and pushed, and only THEN `build-android.cmd release`. The build
+has to come after the tag, because versionName is `git describe` at build
+time; aapt2 confirms `versionName='wudict2-v0.2.0'`, versionCode 371 (dev's
+commit count), `lib/arm64-v8a/libwudict.so` the only native lib.
+
+**Upgrade compatibility with v0.1.0 was verified, not assumed.** The v0.1.0
+APK was downloaded from its release and compared: apksigner reports the same
+V2 signer certificate SHA-256
+(`b7ddc95dea6c1663edc79370301bc10ec2255085da07aeb3c3e4e491abeb2520`,
+CN=Dmitry Shepeta) for both, and 371 > 291, so an installed v0.1.0 updates in
+place instead of needing an uninstall. The asset now on the release was
+downloaded back and hashed against the local build — identical, 7,482,501
+bytes,
+sha256 `a5788eea6c102e8cd923177bb35c4c03fcdc5d1842fdc2cf3b6bd3f94126c45e`.
+The published body is byte-identical to CHANGELOG.md's v0.2.0 section.
+https://github.com/DmShAl/wudict2/releases/tag/wudict2-v0.2.0
+
+Tooling facts that cost time here and will again:
+
+- **`/tmp` in this shell is `D:\Temp\User`, but Windows `python3` resolves a
+  leading `/` against the CURRENT DRIVE** — `/tmp/x` in a python argv means
+  `D:\tmp\x`, which does not exist. Pass `$(cygpath -w /tmp/x)`.
+- **Do not build the release JSON with PowerShell 5.1.** `[ordered]@{}` +
+  `ConvertTo-Json` mangled the body into a nested object and produced a 3.8 MB
+  payload from a 6 KB one. `python3` (3.14 is on PATH) with
+  `json.dumps(..., ensure_ascii=False)` written as UTF-8 without a BOM works.
+- `gh` is still not installed; `git credential fill` still supplies the token
+  (username `DmShAl`), so releases go through the REST API. `apksigner.bat`
+  and `aapt2.exe` live in `$LOCALAPPDATA/Android/Sdk/build-tools/37.0.0`.
+- The `Build Android APK` workflow has never run (`actions/runs` is empty) and
+  no repo Actions secrets are configured, so CI cannot publish a release: the
+  local `build-android.cmd release` with the untracked
+  `build-android.local.bat` keystore is the path that produces the asset.
+
+The notes deliberately do not name the application ID — the standing user
+preference recorded in the identity section above.
 
 ## What remains from the review (with the reasons for leaving each)
 
