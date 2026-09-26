@@ -83,6 +83,43 @@ known-failing TestSetupFlow (fails on clean `dev` too). The upstream build was
 also stood up for the user to evaluate on `http://127.0.0.1:6890` (temp db dir,
 pure-Go build) — stop it when no longer needed.
 
+**Rechecked 2026-09-26:** `dev2` is at `f5b95d8`, the merge of upstream `master`
+(`5f0ad02`) into it — five upstream commits: the index-version subsystem
+(`0688c89`: `dict.ReaderVersion`, `store/fingerprint.go`, `store/stale.go`, the
+`reindex` CLI and `/api/reindex`, the panel's Rebuild line, `ingest` defaulting
+to the configured DICT_DIR), Browse triggering indexing (`95f0238`), and three
+UI fixes (`78deb59` Group by, `17e730b` read-aloud icon, `fa83443` double
+scrollbars). Two conflicts; both resolutions are in the merge message. The page
+port is the shape to remember:
+
+- index.html's 963-line "conflict" was upstream's inline stylesheet against our
+  two `<link>`s (upstream has no `app.css` at all), and the remaining six hunks
+  are the D149 picker-sections UI this fork never took — the same call as the
+  09-25 sync. So: take OURS everywhere, then port upstream's deltas, CSS into
+  `app.css` and JS/markup into the page. Ported: `.seg` scoped to `.bar` (top
+  and phone query), the one-scrollbar lock (`html:has(#panel.show)` plus
+  `--wd-sbw` measured in `showPanel`), `overscroll-behavior:contain`,
+  `#speakBtn[aria-pressed="false"] .wave`, and the Rebuild line's markup with
+  upstream's reindex JS verbatim — `renderReindex()` is called at the end of
+  `renderPanel`, since the fork has no `syncPanelHeader`. Skipped: the
+  `.chips`/`aria-pressed` rules and the `renderGroupSeg`/`CHECK_SVG` rework.
+- Verified in a browser, not just by build: a throwaway server (isolated
+  `USERPROFILE`, port 6899, pure-Go build) served the merged page, `loadDicts`
+  filled the scope picker, and the new feature ran end to end — editing the
+  source and pressing Rescan made the panel show "1 dictionary was prepared by
+  an older version [Rebuild]", and Rebuild took `/api/reindex` to
+  `{"done":1,"total":1}` and cleared the line.
+- **`TestRescanSeesEditedSource` is a new known Windows failure** (upstream's own
+  new test; it fails identically on clean `master`, so it is inherited rather
+  than introduced). The live repro is "edit a dictionary source → Rescan
+  folders → the page re-opens it": the implicit prepare cannot rename over
+  text.db and the card shows `Access is denied`. The Rebuild button then fixes
+  it, so the blast radius is that one path. Only the tag-less/pure-Go build
+  could be tested here (no gcc) — the shipped cgo build is unverified.
+- `merge-work/inline.go` needed a fix to run at all: its `pick.js` reference no
+  longer matched the page (`?v={{PICKJS}}` arrived in the 09-23 merge). Fixed in
+  the main checkout, and `index.full.html` regenerated from the merged page.
+
 Branch `master_build` (`0cc878c`, pushed): upstream `master` + the fork's
 build system only — `build-android.cmd` adapted to master's
 version-suffixed APK names (script computes `APK_VERSION` from git
@@ -1636,12 +1673,17 @@ under `## Changes`.
 - Known Windows test failures that fail identically on clean HEAD (do NOT
   chase them as regressions — compare against a clean checkout via
   `git worktree add /tmp/x HEAD`):
-  - `internal/server`: TestAndroidAliases(×2), TestDamagedTextResource…,
+  - `internal/server`: TestSetupFlow, and TestRescanSeesEditedSource — the
+    latter is new in the 09-26 upstream merge and fails identically on clean
+    upstream `master` (same `rename … Access is denied`, see the 09-26 note in
+    Branch state for the live reproduction and its workaround).
+  - The 09-23 and 09-26 upstream merges fixed the rest of what used to be
+    listed here — TestAndroidAliases(×2), TestDamagedTextResource…,
     TestIntakeUploadAndInstall, TestOpenAPICoversEveryRoute,
     TestRescanRecoversFromDeletedPreparedFolder, TestResourceAndIndex,
-    TestResourceOverrideFromLibraryFolder, TestSetupFlow,
-    TestSetupMultipleFolders.
-  - `internal/format/dsl`: TestMediaSourcesEveryZipSpelling.
+    TestResourceOverrideFromLibraryFolder, TestSetupMultipleFolders and
+    `internal/format/dsl`'s TestMediaSourcesEveryZipSpelling all pass on the
+    tag-less/pure-Go build now.
   - Flaky everywhere: TestFailedDemandIsRetried (TempDir cleanup races the
     ingest goroutine; failed 4/5 on clean HEAD once).
   - `internal/intake`: TestJobDisposesSource and
