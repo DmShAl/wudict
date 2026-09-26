@@ -2397,3 +2397,21 @@ block from article.css used to work". It did, until the split.
   and Cancel left it alone.
 - Verified on the device: one row, 32px tall, `Presets [aaa ▾] [disk] [↓] [bin]`,
   all three live for the reader's own preset, tooltips naming it.
+
+## The Appearance rows hug their labels (2026-09-25, from the reader)
+
+"Shift the controls as far left as they go - the block with Old paper next to
+Presets, and the same for the steppers."
+
+- The label column was 96px, copied from the reading strip so that the whole
+  panel would share one column. It is 60px now: the width of the longest of the
+  three names, "Font weight". The column is still ONE column - all three
+  controls start at x=214 and the two steppers still line up with each other -
+  it simply carries no slack. The slack was what the reader was objecting to; a
+  shared column never was.
+- The reading strip's pairs keep their 96px. Their labels are longer
+  ("Highlight matches"), they are a different section, and that width is what
+  makes the two columns the reader asked for THERE.
+- Verified on the device: labels 60, all three controls at 214, and the row
+  reads `Presets [Old paper ▾] [disk] [↓] [bin]` with the answer close enough to
+  its word to read as one line.

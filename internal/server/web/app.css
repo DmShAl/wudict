@@ -1042,15 +1042,18 @@ dialog.panel-card:not([open]){display:none}
    The buttons are never `disabled` at the bounds, only dimmed. Clamping in
    applyFS is what holds the range and .lim is what says so; a control that
    stops taking presses reads as broken, and the bound is two presses away. */
-/* The pair is read as one column with the reading strip's pairs below it, so
-   the label column is the same 96px theirs is — the whole panel then has ONE
-   control column, which is what "like the font controls" means when the rows
-   are read down the sheet. Scoped to the rows that hold a stepper, and to the
-   Presets row, which is the third of them: no other `.facts` row in the panel
-   has a `.rowlabel` at all. */
+/* The three rows are read as one column, and the column is as WIDE AS ITS
+   LONGEST NAME and no wider - "Font weight", 60px. Every control then sits as
+   close to its label as a column allows, which is what the reader asked for
+   ("shift the controls as far left as they go"): a shared column was never the
+   point, a shared column with slack in it was the problem.
+   Scoped to the rows that hold a stepper, and to the Presets row, which is the
+   third of them: no other `.facts` row in the panel has a `.rowlabel` at all.
+   The reading strip's pairs keep their own 96px - their labels are longer
+   ("Highlight matches"), and they are a different section. */
 .facts:has(>#fsCtl)>.rowlabel,.facts:has(>#fwCtl)>.rowlabel,
 .facts:has(>#looksChoice)>.rowlabel{
-  flex:0 1 96px;min-width:0;white-space:nowrap;overflow:hidden;
+  flex:0 1 60px;min-width:0;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
 /* The Presets row's control is the app's drawn menu, which is a .choice-btn
    and so carries the sheet's `width:100%`: here the row is a label and an
